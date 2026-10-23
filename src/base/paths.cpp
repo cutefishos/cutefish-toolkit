@@ -3,6 +3,8 @@
 
 #include "base/paths.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
 #include <pwd.h>
 #include <regex>
@@ -32,6 +34,9 @@ std::string configHome()
 
 std::string dataHome()
 {
+    if (const char* overriden = std::getenv("XDG_DATA_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.local/share";
 }
 
@@ -52,7 +57,25 @@ std::string runtimeDirectory()
 
 std::vector<std::string> dataDirectories()
 {
-    return {"/usr/local/share", "/usr/share"};
+    const char* overriden = std::getenv("XDG_DATA_DIRS");
+    const std::string directories =
+        (overriden && *overriden) ? overriden : "/usr/local/share:/usr/share";
+
+    // Empty entries name no directory; the rest keep their order.
+    std::vector<std::string> result;
+    size_t position = 0;
+    while (position <= directories.size()) {
+        const size_t end = directories.find(':', position);
+        const std::string directory = directories.substr(
+            position, end == std::string::npos ? end : end - position);
+        if (!directory.empty()
+            && std::find(result.begin(), result.end(), directory) == result.end())
+            result.push_back(directory);
+        if (end == std::string::npos)
+            break;
+        position = end + 1;
+    }
+    return result;
 }
 
 std::vector<std::string> configDirectories()
