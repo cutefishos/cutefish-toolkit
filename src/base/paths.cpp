@@ -29,6 +29,9 @@ std::string home()
 
 std::string configHome()
 {
+    if (const char* overriden = std::getenv("XDG_CONFIG_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.config";
 }
 
@@ -42,26 +45,32 @@ std::string dataHome()
 
 std::string cacheHome()
 {
+    if (const char* overriden = std::getenv("XDG_CACHE_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.cache";
 }
 
 std::string stateHome()
 {
+    if (const char* overriden = std::getenv("XDG_STATE_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.local/state";
 }
 
 std::string runtimeDirectory()
 {
+    if (const char* overriden = std::getenv("XDG_RUNTIME_DIR"))
+        if (*overriden)
+            return overriden;
     return "/run/user/" + std::to_string(getuid());
 }
 
-std::vector<std::string> dataDirectories()
+// Splits a colon-separated directory list the way the XDG base directory spec
+// describes: empty entries name no directory, the rest keep their order.
+static std::vector<std::string> splitDirectoryList(const std::string& directories)
 {
-    const char* overriden = std::getenv("XDG_DATA_DIRS");
-    const std::string directories =
-        (overriden && *overriden) ? overriden : "/usr/local/share:/usr/share";
-
-    // Empty entries name no directory; the rest keep their order.
     std::vector<std::string> result;
     size_t position = 0;
     while (position <= directories.size()) {
@@ -78,9 +87,17 @@ std::vector<std::string> dataDirectories()
     return result;
 }
 
+std::vector<std::string> dataDirectories()
+{
+    const char* overriden = std::getenv("XDG_DATA_DIRS");
+    return splitDirectoryList(
+        (overriden && *overriden) ? overriden : "/usr/local/share:/usr/share");
+}
+
 std::vector<std::string> configDirectories()
 {
-    return {"/etc/xdg"};
+    const char* overriden = std::getenv("XDG_CONFIG_DIRS");
+    return splitDirectoryList((overriden && *overriden) ? overriden : "/etc/xdg");
 }
 
 std::string cutefishConfig(const std::string& name)
