@@ -3,6 +3,8 @@
 
 #include "base/paths.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <optional>
 #include <pwd.h>
 #include <regex>
@@ -27,37 +29,75 @@ std::string home()
 
 std::string configHome()
 {
+    if (const char* overriden = std::getenv("XDG_CONFIG_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.config";
 }
 
 std::string dataHome()
 {
+    if (const char* overriden = std::getenv("XDG_DATA_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.local/share";
 }
 
 std::string cacheHome()
 {
+    if (const char* overriden = std::getenv("XDG_CACHE_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.cache";
 }
 
 std::string stateHome()
 {
+    if (const char* overriden = std::getenv("XDG_STATE_HOME"))
+        if (*overriden)
+            return overriden;
     return home() + "/.local/state";
 }
 
 std::string runtimeDirectory()
 {
+    if (const char* overriden = std::getenv("XDG_RUNTIME_DIR"))
+        if (*overriden)
+            return overriden;
     return "/run/user/" + std::to_string(getuid());
+}
+
+// Splits a colon-separated directory list the way the XDG base directory spec
+// describes: empty entries name no directory, the rest keep their order.
+static std::vector<std::string> splitDirectoryList(const std::string& directories)
+{
+    std::vector<std::string> result;
+    size_t position = 0;
+    while (position <= directories.size()) {
+        const size_t end = directories.find(':', position);
+        const std::string directory = directories.substr(
+            position, end == std::string::npos ? end : end - position);
+        if (!directory.empty()
+            && std::find(result.begin(), result.end(), directory) == result.end())
+            result.push_back(directory);
+        if (end == std::string::npos)
+            break;
+        position = end + 1;
+    }
+    return result;
 }
 
 std::vector<std::string> dataDirectories()
 {
-    return {"/usr/local/share", "/usr/share"};
+    const char* overriden = std::getenv("XDG_DATA_DIRS");
+    return splitDirectoryList(
+        (overriden && *overriden) ? overriden : "/usr/local/share:/usr/share");
 }
 
 std::vector<std::string> configDirectories()
 {
-    return {"/etc/xdg"};
+    const char* overriden = std::getenv("XDG_CONFIG_DIRS");
+    return splitDirectoryList((overriden && *overriden) ? overriden : "/etc/xdg");
 }
 
 std::string cutefishConfig(const std::string& name)
