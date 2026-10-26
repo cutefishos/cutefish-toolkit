@@ -69,11 +69,16 @@ public:
 
     // Drawing thread. makeCurrent() also binds OpenGL ES on the thread.
     bool makeCurrent();
+    // The same with a context of the caller's, made on eglDisplay() without
+    // a config (EGL_KHR_no_config_context), for a renderer that keeps its
+    // own, such as one on desktop OpenGL; the caller binds its API.
+    bool makeCurrent(void* eglContext);
     void doneCurrent();
     // Makes the context current and takes the size set last: the device
     // pixels to draw the default framebuffer at, empty when there is nothing
     // to draw (no size, no surface).
     base::Size beginFrame();
+    base::Size beginFrame(void* eglContext);
     // Presents what was drawn since beginFrame(), without waiting for the
     // compositor, and asks for a frame callback.
     bool endFrame();

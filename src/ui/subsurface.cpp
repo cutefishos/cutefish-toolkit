@@ -275,11 +275,18 @@ bool Subsurface::makeCurrent()
     if (!isValid())
         return false;
     eglBindAPI(EGL_OPENGL_ES_API);
+    return makeCurrent(d->context);
+}
+
+bool Subsurface::makeCurrent(void* eglContext)
+{
+    if (!d->subsurface || eglContext == EGL_NO_CONTEXT)
+        return false;
     if (d->eglSurface == EGL_NO_SURFACE) {
         // A context with no surface yet, for a renderer to set itself up.
-        return eglMakeCurrent(d->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, d->context);
+        return eglMakeCurrent(d->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, eglContext);
     }
-    if (!eglMakeCurrent(d->eglDisplay, d->eglSurface, d->eglSurface, d->context))
+    if (!eglMakeCurrent(d->eglDisplay, d->eglSurface, d->eglSurface, eglContext))
         return false;
     if (!d->swapIntervalSet) {
         // Frames are paced by waitForFrame(), never inside a swap.
@@ -307,6 +314,14 @@ base::Size Subsurface::beginFrame()
 {
     if (!isValid())
         return {};
+    eglBindAPI(EGL_OPENGL_ES_API);
+    return beginFrame(d->context);
+}
+
+base::Size Subsurface::beginFrame(void* eglContext)
+{
+    if (!d->subsurface || eglContext == EGL_NO_CONTEXT)
+        return {};
     {
         std::lock_guard lock(d->mutex);
         d->frameSize = d->wanted;
@@ -328,7 +343,7 @@ base::Size Subsurface::beginFrame()
         wl_egl_window_resize(d->eglWindow, size.width(), size.height(), 0, 0);
     }
     d->eglSize = size;
-    if (!makeCurrent())
+    if (!makeCurrent(eglContext))
         return {};
     return size;
 }
