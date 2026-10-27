@@ -640,6 +640,12 @@ void ShellSurface::setAlwaysOnTop(bool onTop)
         cutefish_window_hints_v1_set_always_on_top(m_connection.windowHints(), m_surface, onTop ? 1 : 0);
 }
 
+void ShellSurface::hideApplication()
+{
+    if (m_connection.windowHints())
+        cutefish_window_hints_v1_hide_application(m_connection.windowHints(), m_surface);
+}
+
 void ShellSurface::setRestoreId(const std::string& id)
 {
     if (m_xdgToplevel && m_connection.windowHints())

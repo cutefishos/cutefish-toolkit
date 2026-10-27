@@ -160,6 +160,7 @@ public:
     void setResizeAroundCenter(bool aroundCenter);
     void setSkipTaskbar(bool skip);
     void setAlwaysOnTop(bool onTop);
+    void hideApplication();
     void setRestoreId(const std::string& id);
     void setPlacementAnchor(const std::optional<PlacementAnchor>& anchor);
     // A toplevel's resize edges, which the compositor owns; on by default.

@@ -118,6 +118,12 @@ void WaylandWindow::minimize()
         m_shell->minimize();
 }
 
+void WaylandWindow::hideApplication()
+{
+    if (m_shell)
+        m_shell->hideApplication();
+}
+
 void WaylandWindow::activate()
 {
     if (m_shell)

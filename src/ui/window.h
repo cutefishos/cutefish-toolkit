@@ -264,6 +264,8 @@ public:
     void setMaximized(bool maximized);
     void setFullScreen(bool fullScreen);
     void minimize();
+    // Hides every window of the application, as the status bar's Hide does.
+    void hideApplication();
     // Kept above the parent window and opened over it; a modal one blocks it.
     void setTransientParent(Window* parent, bool modal);
     // The same for another process's window, by the handle it exported

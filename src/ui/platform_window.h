@@ -112,6 +112,7 @@ public:
     virtual void setResizeAroundCenter(bool) {}
     virtual void setSkipTaskbar(bool) {}
     virtual void setAlwaysOnTop(bool) {}
+    virtual void hideApplication() {}
     virtual void setRestoreId(const std::string&) {}
     virtual void setPlacementAnchor(const std::optional<PlacementAnchor>&) {}
     virtual void setBodyShape(const Path&) {}

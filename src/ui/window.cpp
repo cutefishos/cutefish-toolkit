@@ -269,6 +269,11 @@ void Window::setFullScreen(bool fullScreen)
     m_platform->setFullScreen(fullScreen);
 }
 
+void Window::hideApplication()
+{
+    m_platform->hideApplication();
+}
+
 void Window::minimize()
 {
     m_platform->minimize();

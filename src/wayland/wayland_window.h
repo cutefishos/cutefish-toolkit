@@ -76,6 +76,7 @@ public:
     void setResizeAroundCenter(bool aroundCenter) override;
     void setSkipTaskbar(bool skip) override;
     void setAlwaysOnTop(bool onTop) override;
+    void hideApplication() override;
     void setRestoreId(const std::string& id) override;
     void setPlacementAnchor(const std::optional<PlacementAnchor>& anchor) override;
     void setBodyShape(const Path& path) override;
