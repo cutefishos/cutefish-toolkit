@@ -213,6 +213,9 @@ void settle(FakeCompositor& compositor, wl_display* display)
     compositor.post([done](FakeCompositor&) { *done = true; });
     for (int i = 0; i < 100 && !*done; ++i)
         wl_display_roundtrip(display);
+    // The handlers of the events read here may send requests; the second
+    // roundtrip has the compositor read them.
+    wl_display_roundtrip(display);
     wl_display_roundtrip(display);
 }
 

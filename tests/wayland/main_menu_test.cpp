@@ -202,6 +202,9 @@ void settle(FakeCompositor& compositor, wayland::Connection& connection)
     compositor.post([done] { *done = true; });
     for (int i = 0; i < 100 && !*done; ++i)
         wl_display_roundtrip(connection.display());
+    // The handlers of the events read here may send requests; the second
+    // roundtrip has the compositor read them.
+    wl_display_roundtrip(connection.display());
     wl_display_roundtrip(connection.display());
 }
 
