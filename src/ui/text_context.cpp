@@ -198,6 +198,7 @@ public:
         std::lock_guard lock(m_mutex);
         m_fallbacks.clear();
         m_families.clear();
+        m_styles.clear();
     }
 
 protected:
@@ -265,9 +266,21 @@ protected:
         return sk_make_sp<FamilyStyleSet>(own.empty() ? std::move(firstFamily) : std::move(own));
     }
 
+    // Each answer is a fontconfig match over every installed font (about
+    // 1.5 ms with 3000 fonts), asked again for every layout of the same
+    // font; misses are kept too.
     sk_sp<SkTypeface> onMatchFamilyStyle(const char family[], const SkFontStyle& style) const override
     {
-        return m_fonts->matchFamilyStyle(family, style);
+        StyleKey key{family != nullptr, family ? family : "", style.weight(), style.width(), int(style.slant())};
+        std::lock_guard lock(m_mutex);
+        const auto found = m_styles.find(key);
+        if (found != m_styles.end())
+            return found->second;
+        sk_sp<SkTypeface> typeface = m_fonts->matchFamilyStyle(family, style);
+        if (m_styles.size() >= kMaximumFallbacks)
+            m_styles.clear();
+        m_styles.emplace(std::move(key), typeface);
+        return typeface;
     }
 
     // Everything the answer depends on is in the key; misses are kept too.
@@ -319,6 +332,7 @@ protected:
 
 private:
     using Key = std::tuple<std::string, int, int, int, std::string, SkUnichar>;
+    using StyleKey = std::tuple<bool, std::string, int, int, int>;
 
     struct ListedFont
     {
@@ -407,6 +421,7 @@ private:
     sk_sp<SkFontMgr> m_fonts;
     mutable std::mutex m_mutex;
     mutable std::map<Key, sk_sp<SkTypeface>> m_fallbacks;
+    mutable std::map<StyleKey, sk_sp<SkTypeface>> m_styles;
     mutable std::map<std::string, sk_sp<SkFontStyleSet>> m_families;
     mutable std::map<std::pair<std::string, int>, sk_sp<SkTypeface>> m_typefaces;
 };
