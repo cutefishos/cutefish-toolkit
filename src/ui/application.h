@@ -75,6 +75,9 @@ public:
     // single-instance application to hand to its running instance, whose
     // Window::activate() takes it. Empty when there was none.
     std::string takeActivationToken() { return std::exchange(m_activationToken, {}); }
+    // For a process that took the token out of its environment before the
+    // application existed, as one whose environment other code holds must.
+    void setActivationToken(std::string token) { m_activationToken = std::move(token); }
 
     base::EventLoop& loop() const { return *m_loop; }
     bool hasConnection() const { return m_connection != nullptr; }
