@@ -14,13 +14,12 @@
 #include "ui/painter.h"
 #include "ui/theme.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 
 namespace cutefish::ui {
 
 // The artwork is drawn on a 24-pixel grid; any other size would be soft.
 static constexpr double kArtwork = 24;
-static constexpr double kWindowControlPlate = 14;
-static constexpr double kWindowControlArtwork = 14;
 
 HeaderButton::HeaderButton(std::string artwork, double size)
     : m_artwork(std::move(artwork))
@@ -92,36 +91,14 @@ void HeaderButton::setGroupHovered(bool hovered)
 void HeaderButton::paintWindowControl(Painter& painter)
 {
     const Window* window = this->window();
-    const bool dark = window ? window->headerDarkMode() : Theme::current().darkMode;
-    const Color tint = ColorProvider::forMode(dark).get(ColorId::HeaderButtonTint);
-    const RectF bounds = localRect();
-    const auto centred = [&](double side) {
-        return painter.snappedRect({std::round((bounds.width - side) / 2), std::round((bounds.height - side) / 2),
-                                    side, side});
-    };
-    const Rect plate = centred(kWindowControlPlate);
-    const bool pressed = m_pressed || m_checked;
-    const bool active = window && window->isActive();
-    const std::string artworkName = currentArtwork();
-    // Coloured while the window is active, grey otherwise.
-    Color fill = tint.withAlpha((dark ? 0.30 : 0.20) + (pressed ? 0.12 : 0));
-    Color ink = tint;
-    if (active && isEnabled()) {
-        const Color base = artworkName == "close" ? Color::rgb(0xEE5A6A)
-                : artworkName == "minimize" ? Color::rgb(0xF4B63F)
-                                            : Color::rgb(0x3CC68A);
-        fill = pressed ? Color{uint8_t(base.r * 0.8), uint8_t(base.g * 0.8), uint8_t(base.b * 0.8), 255} : base;
-        ink = Color::rgb(0x000000).withAlpha(0.6);
-    }
-    painter.save();
-    painter.multiplyOpacity(isEnabled() ? 1.0 : 0.35);
-    painter.fillDeviceRoundedRect(plate, plate.width / 2.0, fill);
-    if (isEnabled() && !artworkName.empty() && (m_hovered || m_groupHovered || pressed)) {
-        const Rect icon = centred(kWindowControlArtwork);
-        sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + artworkName, icon.width, ink);
-        painter.drawImage(image.get(), icon.x, icon.y);
-    }
-    painter.restore();
+    window_controls::State state;
+    state.artwork = currentArtwork();
+    state.dark = window ? window->headerDarkMode() : Theme::current().darkMode;
+    state.active = window && window->isActive();
+    state.enabled = isEnabled();
+    state.hovered = m_hovered || m_groupHovered;
+    state.pressed = m_pressed || m_checked;
+    window_controls::paint(painter, localRect(), state);
 }
 
 void HeaderButton::paint(Painter& painter)

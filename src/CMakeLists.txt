@@ -127,6 +127,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/toggle_control.h
     ui/view.h
     ui/window.h
+    ui/window_controls.h
     ui/window_header.h
     ui/window_tab_bar.h
 )
@@ -225,6 +226,7 @@ add_library(cutefish-toolkit SHARED
     ui/view.cpp
     ui/window.cpp
     ui/window_compositing.cpp
+    ui/window_controls.cpp
     ui/window_restore.cpp
     ui/window_header.cpp
     ui/window_tab_bar.cpp

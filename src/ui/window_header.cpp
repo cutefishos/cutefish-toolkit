@@ -10,14 +10,15 @@
 #include "ui/application.h"
 #include "ui/header_button.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 
 namespace cutefish::ui {
 
-static constexpr double kButton = 22;
+static constexpr double kButton = window_controls::kButton;
 // The controls sit in the 32-pixel slot the apps centre their margins on.
 static constexpr double kSlot = 32;
 static constexpr double kSlotInset = (kSlot - kButton) / 2;
-static constexpr double kButtonSpacing = 1;
+static constexpr double kButtonSpacing = window_controls::kSpacing;
 
 namespace {
 
