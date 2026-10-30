@@ -24,7 +24,7 @@ namespace cutefish::ui {
 static constexpr double kHeaderHeight = 44;
 static constexpr double kButtonMargin = 8;
 // The window controls, centred on the 32-pixel buttons' line.
-static constexpr double kControl = 26;
+static constexpr double kControl = 22;
 static constexpr double kButton = 32;
 static constexpr double kContentPadding = 16;
 static constexpr double kTitleSize = 14;

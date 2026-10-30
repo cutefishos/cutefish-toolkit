@@ -19,8 +19,8 @@ namespace cutefish::ui {
 
 // The artwork is drawn on a 24-pixel grid; any other size would be soft.
 static constexpr double kArtwork = 24;
-static constexpr double kWindowControlPlate = 16;
-static constexpr double kWindowControlArtwork = 16;
+static constexpr double kWindowControlPlate = 14;
+static constexpr double kWindowControlArtwork = 14;
 
 HeaderButton::HeaderButton(std::string artwork, double size)
     : m_artwork(std::move(artwork))
@@ -118,7 +118,7 @@ void HeaderButton::paintWindowControl(Painter& painter)
     painter.fillDeviceRoundedRect(plate, plate.width / 2.0, fill);
     if (isEnabled() && !artworkName.empty() && (m_hovered || m_groupHovered || pressed)) {
         const Rect icon = centred(kWindowControlArtwork);
-        sk_sp<SkImage> image = IconLoader::instance().glyph("window-" + artworkName, icon.width, ink);
+        sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + artworkName, icon.width, ink);
         painter.drawImage(image.get(), icon.x, icon.y);
     }
     painter.restore();

@@ -38,7 +38,7 @@ TEST(WindowTest, HeaderDoubleClickTogglesMaximized)
     EXPECT_TRUE(window.states().maximized);
     EXPECT_EQ(changes, 1);
     // The maximize button, third from the start, restores.
-    TestInput::click(window, {7 + 2 * (26 + 1) + 13, 20});
+    TestInput::click(window, {9 + 2 * (22 + 1) + 11, 20});
     EXPECT_FALSE(window.states().maximized);
 }
 
@@ -92,8 +92,8 @@ TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)
 // buttons keep the fractional top margin.
 TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
 {
-    for (const auto& [margin, rowX] : {std::pair{4.0, 7.0}, std::pair{9.375, 12.0}, std::pair{8.6, 12.0},
-                                       std::pair{8.5, 12.0}, std::pair{8.4, 11.0}}) {
+    for (const auto& [margin, rowX] : {std::pair{4.0, 9.0}, std::pair{9.375, 14.0}, std::pair{8.6, 14.0},
+                                       std::pair{8.5, 14.0}, std::pair{8.4, 13.0}}) {
         Window window;
         auto column = std::make_unique<Column>();
         WindowHeader* header = column->addChild<WindowHeader>(48);
@@ -116,12 +116,12 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
             buttons.push_back(child->geometry());
         ASSERT_EQ(buttons.size(), 3u);
         SCOPED_TRACE(margin);
-        EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 3, 80, 26}));
-        EXPECT_EQ(buttons[0], (RectF{0, 0, 26, 26}));
-        EXPECT_EQ(buttons[1].x, 27);
-        EXPECT_EQ(buttons[2].x, 54);
-        EXPECT_EQ(content->geometry().x, rowX + 80 + 1);
-        EXPECT_EQ(content->geometry().width, 1100 - (rowX + 80 + 1));
+        EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 5, 68, 22}));
+        EXPECT_EQ(buttons[0], (RectF{0, 0, 22, 22}));
+        EXPECT_EQ(buttons[1].x, 23);
+        EXPECT_EQ(buttons[2].x, 46);
+        EXPECT_EQ(content->geometry().x, rowX + 68 + 1);
+        EXPECT_EQ(content->geometry().width, 1100 - (rowX + 68 + 1));
     }
 }
 
@@ -226,7 +226,7 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
     window.setContentView(std::move(column));
     window.show();
     window.grab();
-    const PointF maximizeButton = {7 + 2 * (26 + 1) + 13, 20};
+    const PointF maximizeButton = {9 + 2 * (22 + 1) + 11, 20};
 
     // The header itself moves at once.
     TestInput::movePointer(window, {350, 20});
@@ -251,7 +251,7 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
     EXPECT_EQ(row->moving->releasesOutside, 1);
 
     // A view that keeps its drags, and one outside the header, move nothing.
-    dragBy(window, {253, 20}, {30, 0});
+    dragBy(window, {243, 20}, {30, 0});
     EXPECT_EQ(row->still->releasesInside, 1);
     dragBy(window, {200, 150}, {30, 0});
     EXPECT_EQ(outside->releasesInside, 1);
@@ -259,7 +259,7 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
 
     // Nor does anything while full screen.
     window.setFullScreen(true);
-    dragBy(window, {153, 20}, {30, 0});
+    dragBy(window, {133, 20}, {30, 0});
     EXPECT_EQ(TestInput::moveRequests(window), 3);
     EXPECT_EQ(row->moving->releasesInside, 1);
 }

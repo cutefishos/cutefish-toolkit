@@ -13,7 +13,7 @@
 
 namespace cutefish::ui {
 
-static constexpr double kButton = 26;
+static constexpr double kButton = 22;
 // The controls sit in the 32-pixel slot the apps centre their margins on.
 static constexpr double kSlot = 32;
 static constexpr double kSlotInset = (kSlot - kButton) / 2;

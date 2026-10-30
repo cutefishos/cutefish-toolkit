@@ -114,13 +114,13 @@ TEST(WindowHintsTest, CenteredHeaderButtons)
     window.setContentView(std::move(column));
     window.show();
     window.grab();
-    // Close, minimize and maximize from the start, 7 px from it, 9 px down,
+    // Close, minimize and maximize from the start, 9 px from it, 11 px down,
     // in one row hovered as a whole.
     const std::string dump = window.layoutDump();
-    EXPECT_NE(dump.find("logical 7 9 80 26"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 7 9 26 26"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 34 9 26 26"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 61 9 26 26"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("logical 9 11 68 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 9 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 32 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 55 11 22 22"), std::string::npos) << dump;
 }
 
 TEST(WindowHintsTest, WindowControlGlyphsShowAcrossTheWholeRow)
@@ -136,11 +136,11 @@ TEST(WindowHintsTest, WindowControlGlyphsShowAcrossTheWholeRow)
     // The middles of the close and minimize plates, where their glyphs ink.
     const auto centres = [&] {
         const Image image = window.grab();
-        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(47, 22).r)};
+        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 22).r)};
     };
     const auto [closeRest, minimizeRest] = centres();
     // The gap between close and minimize, over minimize, and over maximize.
-    for (const double x : {33.5, 47.0, 74.0}) {
+    for (const double x : {31.5, 43.0, 66.0}) {
         SCOPED_TRACE(x);
         TestInput::movePointer(window, {x, 22});
         const auto [close, minimize] = centres();
