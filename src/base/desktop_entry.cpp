@@ -315,6 +315,7 @@ std::optional<DesktopEntry> DesktopEntry::parse(const std::string& id, const std
             data.noDisplay = parseBool(valueOf(values, "NoDisplay"));
             data.hidden = parseBool(valueOf(values, "Hidden"));
             data.dbusActivatable = parseBool(valueOf(values, "DBusActivatable"));
+            data.startupNotify = !equalsIgnoringCase(valueOf(values, "StartupNotify"), "false");
         } else if (startsWith(group, kActionPrefix)) {
             const std::string actionId = group.substr(kActionPrefix.size());
             const auto it = actionValues.find(actionId);

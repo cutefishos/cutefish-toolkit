@@ -42,6 +42,9 @@ struct DesktopEntry
     bool noDisplay = false;
     bool hidden = false;
     bool dbusActivatable = false;
+    // Launches get feedback, such as the dock's bounce; only StartupNotify=false
+    // turns it off, as an entry without the key may still want it.
+    bool startupNotify = true;
     // An application bundle rather than a .desktop file: path and id are the
     // bundle's folder.
     bool bundle = false;

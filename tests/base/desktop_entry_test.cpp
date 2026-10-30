@@ -47,6 +47,9 @@ TEST(DesktopEntryTest, ParsesLocalizedEntries)
     EXPECT_EQ(DesktopEntry::parse("a", "a", kEntry, "en_US")->name, "Text Editor");
     EXPECT_TRUE(entry->shouldShow());
     EXPECT_FALSE(entry->shouldShow({"Other"}));
+    EXPECT_TRUE(entry->startupNotify);
+    const char* quiet = "[Desktop Entry]\nType=Application\nName=x\nStartupNotify=false\n";
+    EXPECT_FALSE(DesktopEntry::parse("a", "a", quiet, "en_US")->startupNotify);
 
     EXPECT_FALSE(DesktopEntry::parse("a", "a", "[Desktop Entry]\nType=Link\nName=x\n", "en_US"));
     EXPECT_TRUE(DesktopEntry::parse("a", "a", "[Desktop Entry]\nType=Application\nHidden=true\n", "en_US"));
