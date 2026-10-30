@@ -27,10 +27,11 @@ void paint(Painter& painter, const RectF& bounds, const State& state)
                                     bounds.y + std::round((bounds.height - side) / 2), side, side});
     };
     const Rect plate = centred(kPlate);
-    // Coloured while the window is active, grey otherwise.
+    // Coloured while the window is active or the pointer is on the row, grey
+    // otherwise.
     Color fill = tint.withAlpha((state.dark ? 0.30 : 0.20) + (state.pressed ? 0.12 : 0));
     Color ink = tint;
-    if (state.active && state.enabled) {
+    if ((state.active || state.hovered || state.pressed) && state.enabled) {
         const Color base = state.artwork == "close" ? Color::rgb(0xEE5A6A)
                 : state.artwork == "minimize" ? Color::rgb(0xF4B63F)
                                               : Color::rgb(0x3CC68A);
