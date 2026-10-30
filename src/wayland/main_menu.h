@@ -61,7 +61,7 @@ private:
 
     static void willOpen(void* data, cutefish_menu_v1* menu, uint32_t serial);
     static void closed(void* data, cutefish_menu_v1* menu);
-    static void activated(void* data, cutefish_menu_item_v1* item);
+    static void activated(void* data, cutefish_menu_item_v1* item, uint32_t serial);
 
     void scheduleSync();
     void rebuild();

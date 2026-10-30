@@ -122,6 +122,9 @@ public:
     uint32_t buttonSerial() const { return m_buttonSerial; }
     // The serial of the last key or button press, for the clipboard.
     uint32_t inputSerial() const { return m_inputSerial; }
+    // Input the compositor reports outside the seat's devices, such as a
+    // choice in a menu it draws.
+    void setInputSerial(uint32_t serial) { m_inputSerial = serial; }
 
     DataDevice* dataDevice() const { return m_dataDevice.get(); }
     // Null when the compositor has no primary selection.

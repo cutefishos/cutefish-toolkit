@@ -217,12 +217,14 @@ void MainMenuMirror::closed(void* data, cutefish_menu_v1*)
     }
 }
 
-void MainMenuMirror::activated(void* data, cutefish_menu_item_v1*)
+void MainMenuMirror::activated(void* data, cutefish_menu_item_v1*, uint32_t serial)
 {
     auto* row = static_cast<Row*>(data);
     MainMenuMirror* mirror = row->owner;
     if (!mirror->isAlive())
         return;
+    if (serial)
+        mirror->m_connection.setInputSerial(serial);
     // The rows follow the menu's items one to one.
     for (size_t i = 0; i < mirror->m_rows.size(); ++i) {
         if (mirror->m_rows[i].get() != row)

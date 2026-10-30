@@ -179,7 +179,12 @@
       <arg name="menu" type="object" interface="cutefish_menu_v1" allow-null="true"/>
     </request>
     <event name="activated">
-      <description summary="the entry was chosen"/>
+      <description summary="the entry was chosen">
+        Choosing an entry is user input: the serial stands for it wherever
+        a request asks for the serial of a recent input event, such as
+        setting the selection.
+      </description>
+      <arg name="serial" type="uint" summary="serial of the choice"/>
     </event>
   </interface>
 </protocol>
