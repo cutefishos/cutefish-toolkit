@@ -81,11 +81,11 @@ TEST(WindowTabBarTest, ClicksSelectCloseAndOpenMenus)
     EXPECT_EQ(closed, 2);
     TestInput::click(hosted.window, {100, 15}, MouseButton::Right);
     EXPECT_EQ(menu, 0);
-    // The current tab's close button: 8 px from its end, 16 wide.
+    // The current tab's close button: 8 px from its start, 16 wide.
     closed = -1;
     hosted.frames(1);
-    TestInput::movePointer(hosted.window, {440 - 16, 15});
-    TestInput::click(hosted.window, {440 - 16, 15});
+    TestInput::movePointer(hosted.window, {220 + 16, 15});
+    TestInput::click(hosted.window, {220 + 16, 15});
     EXPECT_EQ(closed, 1);
 }
 
@@ -190,8 +190,8 @@ TEST(WindowTabBarTest, RenameAndDragFollowTheirTabWhenOthersGo)
     TestInput::click(hosted.window, {330, 15});
     EXPECT_EQ(hosted.bar->currentIndex(), 1);
     hosted.frames(1);
-    TestInput::movePointer(hosted.window, {440 - 16, 15});
-    TestInput::click(hosted.window, {440 - 16, 15});
+    TestInput::movePointer(hosted.window, {220 + 16, 15});
+    TestInput::click(hosted.window, {220 + 16, 15});
     EXPECT_EQ(closed, 1);
 
     Hosted dragged(660, 3);

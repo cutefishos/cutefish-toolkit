@@ -256,7 +256,7 @@ protected:
         // whether or not the button shows, so hovering never re-elides it.
         const double margin = m_label->sizeHint().width > bounds.width - 56 ? 28 : 12;
         m_label->setGeometry({margin, 0, std::max(0.0, bounds.width - 2 * margin), bounds.height});
-        m_close->setGeometry({bounds.width - 8 - 16, std::round((bounds.height - 16) / 2), 16, 16});
+        m_close->setGeometry({8, std::round((bounds.height - 16) / 2), 16, 16});
         if (m_editor)
             m_editor->setGeometry({16, 0, std::max(0.0, bounds.width - 32), bounds.height});
     }
