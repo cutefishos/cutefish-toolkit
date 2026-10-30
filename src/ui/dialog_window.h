@@ -78,6 +78,8 @@ public:
     }
     // A back button, before the title, for pages that replace each other.
     void setBackVisible(bool visible);
+    // Hidden for dialogs whose own Cancel or Close button closes them.
+    void setCloseVisible(bool visible);
 
     void show();
     // Goes once the event being handled is over.

@@ -198,6 +198,7 @@ public:
 
     Label* title() const { return m_title; }
     HeaderButton* back() const { return m_back; }
+    HeaderButton* closeButton() const { return m_close; }
     View* content() const { return m_content; }
 
     void setContent(std::unique_ptr<View> view)
@@ -227,8 +228,12 @@ protected:
             m_back->setGeometry({kButtonMargin, line, kButton, kButton});
             left = kButtonMargin + kButton + Theme::current().smallSpacing;
         }
-        m_close->setGeometry({width - kButtonMargin - kButton, line, kButton, kButton});
-        m_title->setGeometry({left, line, std::max(0.0, width - left - 2 * kButtonMargin - kButton), kButton});
+        double right = width - kButtonMargin;
+        if (m_close->isVisible()) {
+            m_close->setGeometry({width - kButtonMargin - kButton, line, kButton, kButton});
+            right -= kButtonMargin + kButton;
+        }
+        m_title->setGeometry({left, line, std::max(0.0, right - left), kButton});
         if (m_content) {
             m_content->setGeometry({kContentPadding, kHeaderHeight, width - 2 * kContentPadding,
                                     std::max(0.0, geometry().height - kHeaderHeight - kContentPadding)});
@@ -279,6 +284,11 @@ void DialogWindow::setContentView(std::unique_ptr<View> view)
 void DialogWindow::setBackVisible(bool visible)
 {
     m_root->back()->setVisible(visible);
+}
+
+void DialogWindow::setCloseVisible(bool visible)
+{
+    m_root->closeButton()->setVisible(visible);
 }
 
 void DialogWindow::show()
