@@ -533,7 +533,15 @@ void Canvas2D::drawText(TextLayout& layout, PointF origin)
         m_canvas->setMatrix(placed);
         layout.draw(painter, {0, 0});
     } else {
-        layout.draw(painter, {device.x() / scale, device.y() / scale});
+        PointF at {device.x() / scale, device.y() / scale};
+        // The layout rounds its origin and its baseline offset each on
+        // their own; a fractional origin then lands the baseline a pixel off.
+        if (layout.lineCount() > 0) {
+            const TextLayout::Line& first = layout.lineAt(0);
+            const double baseline = (first.position.y + first.ascent) * scale;
+            at.y = (std::round(device.y() + baseline) - std::round(baseline)) / scale;
+        }
+        layout.draw(painter, at);
     }
     m_canvas->restore();
     applyMatrix();
