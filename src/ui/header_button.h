@@ -40,6 +40,11 @@ public:
     // The glyph or artwork in this colour instead of the header mode's tint;
     // the plates keep the tint.
     void setGlyphColor(std::optional<Color> color);
+    // A window control: a grey round plate at rest, and the artwork only while
+    // the pointer is over the button or its group.
+    void setWindowControl(bool windowControl);
+    // The group's hover, set by the owner of the neighbouring controls.
+    void setGroupHovered(bool hovered);
 
     SizeF sizeHint() const override { return {m_size, m_size}; }
     bool acceptsPointer() const override { return true; }
@@ -50,6 +55,7 @@ protected:
     // The artwork drawn now; a button may pick it from the window's state.
     virtual std::string currentArtwork() const { return m_artwork; }
     void paint(Painter& painter) override;
+    void paintWindowControl(Painter& painter);
     void pointerEnter() override;
     void pointerLeave() override;
     void pointerPress(const PointerEvent& event) override;
@@ -64,6 +70,8 @@ private:
     bool m_pressed = false;
     bool m_checked = false;
     bool m_highlighted = false;
+    bool m_windowControl = false;
+    bool m_groupHovered = false;
     std::optional<Color> m_glyphColor;
     PlateAlphas m_light = {0.11, 0.21};
     PlateAlphas m_dark = {0.12, 0.06};

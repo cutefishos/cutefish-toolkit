@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 #include "ui/application.h"
 #include "ui/header_button.h"
@@ -12,10 +13,33 @@
 
 namespace cutefish::ui {
 
-static constexpr double kButton = 32;
+static constexpr double kButton = 26;
+// The controls sit in the 32-pixel slot the apps centre their margins on.
+static constexpr double kSlot = 32;
+static constexpr double kSlotInset = (kSlot - kButton) / 2;
 static constexpr double kButtonSpacing = 1;
 
 namespace {
+
+// Holds the controls, so the pointer over any of them or the gaps between
+// them hovers the row as one.
+class ControlsZone final : public View
+{
+public:
+    ControlsZone()
+    {
+        setTracksHover(true);
+    }
+
+    std::function<void(bool)> onHoverChanged;
+
+protected:
+    void hoverChanged() override
+    {
+        if (onHoverChanged)
+            onHoverChanged(isHovered());
+    }
+};
 
 // Restore while the window is maximized, maximize otherwise.
 class MaximizeButton final : public HeaderButton
@@ -38,10 +62,17 @@ protected:
 
 WindowHeader::WindowHeader(double height)
     : m_height(height)
-    , m_minimize(addChild<HeaderButton>("minimize", kButton))
-    , m_maximize(addChild<MaximizeButton>())
-    , m_close(addChild<HeaderButton>("close", kButton))
+    , m_zone(addChild<ControlsZone>())
+    , m_close(m_zone->addChild<HeaderButton>("close", kButton))
+    , m_minimize(m_zone->addChild<HeaderButton>("minimize", kButton))
+    , m_maximize(m_zone->addChild<MaximizeButton>())
 {
+    for (HeaderButton* button : {m_close, m_minimize, m_maximize})
+        button->setWindowControl(true);
+    static_cast<ControlsZone*>(m_zone)->onHoverChanged = [this](bool hovered) {
+        for (HeaderButton* control : {m_close, m_minimize, m_maximize})
+            control->setGroupHovered(hovered);
+    };
     m_minimize->onClicked = [this] {
         if (Window* window = this->window())
             window->minimize();
@@ -66,9 +97,7 @@ void WindowHeader::setContentView(std::unique_ptr<View> view)
     m_content = view.get();
     addChild(std::move(view));
     // Under the buttons.
-    raiseChild(m_minimize);
-    raiseChild(m_maximize);
-    raiseChild(m_close);
+    raiseChild(m_zone);
 }
 
 void WindowHeader::setMinimizeVisible(bool visible)
@@ -84,6 +113,14 @@ void WindowHeader::setMaximizeVisible(bool visible)
 void WindowHeader::setCloseVisible(bool visible)
 {
     m_close->setVisible(visible);
+}
+
+void WindowHeader::setContentUnderButtons(bool under)
+{
+    if (under == m_contentUnderButtons)
+        return;
+    m_contentUnderButtons = under;
+    requestLayout();
 }
 
 void WindowHeader::setButtonMargin(double margin)
@@ -105,26 +142,32 @@ void WindowHeader::setButtonsCentered(bool centered)
 void WindowHeader::layout()
 {
     // A RowLayout centres on whole pixels.
-    const double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin;
+    const double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin + kSlotInset;
     double row = 0;
-    for (HeaderButton* button : {m_minimize, m_maximize, m_close}) {
+    for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())
             row += (row > 0 ? kButtonSpacing : 0) + kButton;
     }
-    // FishUI's RowLayout of the content, the buttons' row and an end margin
-    // item: each cell starts on a whole logical pixel, halves rounding up,
-    // so a fractional margin moves the row by up to half a pixel.
-    const double rowX = std::floor(geometry().width - m_buttonMargin - row + 0.5);
-    double x = rowX;
-    for (HeaderButton* button : {m_minimize, m_maximize, m_close}) {
+    // FishUI's RowLayout of a start margin item and the buttons' row: each
+    // cell starts on a whole logical pixel, halves rounding up, so a
+    // fractional margin moves the row by up to half a pixel.
+    const double rowX = std::floor(m_buttonMargin + 0.5) + kSlotInset;
+    m_zone->setGeometry({rowX, top, row, kButton});
+    double x = 0;
+    for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (!button->isVisible())
             continue;
-        button->setGeometry({x, top, kButton, kButton});
+        button->setGeometry({x, 0, kButton, kButton});
         x += kButton + kButtonSpacing;
     }
-    // The content keeps the spacing before the row, as the ports expect.
-    if (m_content)
-        m_content->setGeometry({0, 0, std::max(0.0, rowX - kButtonSpacing), geometry().height});
+    m_leadingInset = rowX + row + kButtonSpacing;
+    if (!m_content)
+        return;
+    // The content keeps the spacing after the row, as the ports expect.
+    if (m_contentUnderButtons)
+        m_content->setGeometry({0, 0, geometry().width, geometry().height});
+    else
+        m_content->setGeometry({m_leadingInset, 0, std::max(0.0, geometry().width - m_leadingInset), geometry().height});
 }
 
 void WindowHeader::pointerPress(const PointerEvent& event)

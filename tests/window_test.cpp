@@ -33,12 +33,12 @@ TEST(WindowTest, HeaderDoubleClickTogglesMaximized)
     int changes = 0;
     window.onStatesChanged = [&changes] { ++changes; };
 
-    TestInput::click(window, {100, 20});
-    TestInput::click(window, {100, 20});
+    TestInput::click(window, {250, 20});
+    TestInput::click(window, {250, 20});
     EXPECT_TRUE(window.states().maximized);
     EXPECT_EQ(changes, 1);
-    // The maximize button, second from the end, restores.
-    TestInput::click(window, {400 - 4 - 32 - 1 - 16, 20});
+    // The maximize button, third from the start, restores.
+    TestInput::click(window, {7 + 2 * (26 + 1) + 13, 20});
     EXPECT_FALSE(window.states().maximized);
 }
 
@@ -87,13 +87,13 @@ TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)
     EXPECT_EQ(window.size().height, 300);
 }
 
-// FishUI puts the buttons' row in a RowLayout cell after the content and
-// before an end margin item: the row starts on a whole logical pixel, a half
-// rounding up, while the buttons keep the fractional top margin.
+// FishUI puts the buttons' row in a RowLayout cell after a start margin item:
+// the row starts on a whole logical pixel, a half rounding up, while the
+// buttons keep the fractional top margin.
 TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
 {
-    for (const auto& [margin, rowX] : {std::pair{4.0, 1100.0 - 4 - 98}, std::pair{9.375, 993.0},
-                                       std::pair{8.6, 993.0}, std::pair{8.5, 994.0}, std::pair{8.4, 994.0}}) {
+    for (const auto& [margin, rowX] : {std::pair{4.0, 7.0}, std::pair{9.375, 12.0}, std::pair{8.6, 12.0},
+                                       std::pair{8.5, 12.0}, std::pair{8.4, 11.0}}) {
         Window window;
         auto column = std::make_unique<Column>();
         WindowHeader* header = column->addChild<WindowHeader>(48);
@@ -104,17 +104,24 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
         window.setContentView(std::move(column));
         window.show();
         window.grab();
-        std::vector<RectF> buttons;
+        // The buttons sit in one row that is hovered as a whole.
+        std::vector<const View*> rows;
         for (const auto& child : header->children()) {
             if (child.get() != content)
-                buttons.push_back(child->geometry());
+                rows.push_back(child.get());
         }
+        ASSERT_EQ(rows.size(), 1u);
+        std::vector<RectF> buttons;
+        for (const auto& child : rows[0]->children())
+            buttons.push_back(child->geometry());
         ASSERT_EQ(buttons.size(), 3u);
         SCOPED_TRACE(margin);
-        EXPECT_EQ(buttons[0], (RectF{rowX, margin, 32, 32}));
-        EXPECT_EQ(buttons[1].x, rowX + 33);
-        EXPECT_EQ(buttons[2].x, rowX + 66);
-        EXPECT_EQ(content->geometry().width, rowX - 1);
+        EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 3, 80, 26}));
+        EXPECT_EQ(buttons[0], (RectF{0, 0, 26, 26}));
+        EXPECT_EQ(buttons[1].x, 27);
+        EXPECT_EQ(buttons[2].x, 54);
+        EXPECT_EQ(content->geometry().x, rowX + 80 + 1);
+        EXPECT_EQ(content->geometry().width, 1100 - (rowX + 80 + 1));
     }
 }
 
@@ -219,12 +226,12 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
     window.setContentView(std::move(column));
     window.show();
     window.grab();
-    const PointF maximizeButton = {400 - 4 - 32 - 1 - 16, 20};
+    const PointF maximizeButton = {7 + 2 * (26 + 1) + 13, 20};
 
     // The header itself moves at once.
-    TestInput::movePointer(window, {250, 20});
-    TestInput::press(window, {250, 20});
-    TestInput::release(window, {250, 20});
+    TestInput::movePointer(window, {350, 20});
+    TestInput::press(window, {350, 20});
+    TestInput::release(window, {350, 20});
     EXPECT_EQ(TestInput::moveRequests(window), 1);
 
     // A wobble within the drag distance is still a click.
@@ -237,14 +244,14 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
     EXPECT_EQ(TestInput::moveRequests(window), 2);
     EXPECT_TRUE(window.states().maximized);
 
-    dragBy(window, {50, 20}, {30, 0});
+    dragBy(window, {153, 20}, {30, 0});
     EXPECT_EQ(TestInput::moveRequests(window), 3);
     EXPECT_EQ(row->moving->presses, 1);
     EXPECT_EQ(row->moving->releasesInside, 0);
     EXPECT_EQ(row->moving->releasesOutside, 1);
 
     // A view that keeps its drags, and one outside the header, move nothing.
-    dragBy(window, {150, 20}, {30, 0});
+    dragBy(window, {253, 20}, {30, 0});
     EXPECT_EQ(row->still->releasesInside, 1);
     dragBy(window, {200, 150}, {30, 0});
     EXPECT_EQ(outside->releasesInside, 1);
@@ -252,7 +259,7 @@ TEST(WindowTest, HeaderDragFromViewsInItMovesTheWindow)
 
     // Nor does anything while full screen.
     window.setFullScreen(true);
-    dragBy(window, {50, 20}, {30, 0});
+    dragBy(window, {153, 20}, {30, 0});
     EXPECT_EQ(TestInput::moveRequests(window), 3);
     EXPECT_EQ(row->moving->releasesInside, 1);
 }
@@ -552,8 +559,8 @@ TEST(WindowTest, ConfirmDialogClosesFromItsCornerOnlyWithoutCancel)
         dialog.show();
         Window* window = dialog.window();
         window->grab();
-        // Where the window's close button is: 8 from the top and the end.
-        TestInput::click(*window, {window->size().width - 8 - 16, 8 + 16});
+        // Where the window's close button is: 8 from the top and the start, in the 32-pixel slot.
+        TestInput::click(*window, {8 + 16, 8 + 16});
         EXPECT_EQ(rejected, !cancel);
     }
 }

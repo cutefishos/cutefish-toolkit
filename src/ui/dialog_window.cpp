@@ -23,6 +23,8 @@ namespace cutefish::ui {
 // The dialog's metrics.
 static constexpr double kHeaderHeight = 44;
 static constexpr double kButtonMargin = 8;
+// The window controls, centred on the 32-pixel buttons' line.
+static constexpr double kControl = 26;
 static constexpr double kButton = 32;
 static constexpr double kContentPadding = 16;
 static constexpr double kTitleSize = 14;
@@ -181,9 +183,9 @@ class DialogWindow::Root : public View
 public:
     explicit Root(DialogWindow* dialog, std::string title)
         : m_dialog(dialog)
+        , m_close(addChild<HeaderButton>("close", kControl))
         , m_back(addChild<HeaderButton>(std::string(), kButton))
         , m_title(addChild<Label>(std::move(title)))
-        , m_close(addChild<HeaderButton>("close", kButton))
     {
         m_title->setFontSize(kTitleSize);
         m_title->setVerticallyCentered(true);
@@ -193,6 +195,7 @@ public:
             if (m_dialog->onBack)
                 m_dialog->onBack();
         };
+        m_close->setWindowControl(true);
         m_close->onClicked = [this] { m_dialog->close(); };
     }
 
@@ -223,17 +226,19 @@ protected:
         const double width = geometry().width;
         // The title is centred on the buttons' line.
         const double line = kButtonMargin;
+        double x = kButtonMargin;
         double left = kContentPadding;
-        if (m_back->isVisible()) {
-            m_back->setGeometry({kButtonMargin, line, kButton, kButton});
-            left = kButtonMargin + kButton + Theme::current().smallSpacing;
-        }
-        double right = width - kButtonMargin;
         if (m_close->isVisible()) {
-            m_close->setGeometry({width - kButtonMargin - kButton, line, kButton, kButton});
-            right -= kButtonMargin + kButton;
+            m_close->setGeometry({x + (kButton - kControl) / 2, line + (kButton - kControl) / 2, kControl, kControl});
+            x += kButton + Theme::current().smallSpacing;
+            left = x;
         }
-        m_title->setGeometry({left, line, std::max(0.0, right - left), kButton});
+        if (m_back->isVisible()) {
+            m_back->setGeometry({x, line, kButton, kButton});
+            x += kButton + Theme::current().smallSpacing;
+            left = x;
+        }
+        m_title->setGeometry({left, line, std::max(0.0, width - left - kButtonMargin), kButton});
         if (m_content) {
             m_content->setGeometry({kContentPadding, kHeaderHeight, width - 2 * kContentPadding,
                                     std::max(0.0, geometry().height - kHeaderHeight - kContentPadding)});
@@ -249,9 +254,9 @@ protected:
 
 private:
     DialogWindow* m_dialog;
+    HeaderButton* m_close;
     HeaderButton* m_back;
     Label* m_title;
-    HeaderButton* m_close;
     View* m_content = nullptr;
 };
 
@@ -384,7 +389,8 @@ public:
     {
         addChild(std::move(content));
         if (close) {
-            m_close = addChild<HeaderButton>("close", kButton);
+            m_close = addChild<HeaderButton>("close", kControl);
+            m_close->setWindowControl(true);
             m_close->onClicked = std::move(close);
         }
     }
@@ -399,7 +405,8 @@ protected:
         const RectF bounds = localRect();
         m_content->setGeometry(bounds);
         if (m_close)
-            m_close->setGeometry({bounds.width - kButtonMargin - kButton, kButtonMargin, kButton, kButton});
+            m_close->setGeometry({kButtonMargin + (kButton - kControl) / 2, kButtonMargin + (kButton - kControl) / 2,
+                                  kControl, kControl});
     }
 
     // The empty parts of the window move it.
@@ -431,7 +438,7 @@ void ConfirmDialog::show()
     texts->setLayoutHints({.fillWidth = true});
     // Clear of the close corner of the window.
     if (!m_cancelVisible)
-        texts->setMargins({0, 0, 32, 0});
+        texts->setMargins({32, 0, 0, 0});
     Label* title = texts->addChild<Label>(m_title);
     m_titleLabel = title;
     title->setFontSize(kTitleSize);
