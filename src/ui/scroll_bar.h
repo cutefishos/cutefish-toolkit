@@ -25,6 +25,8 @@ public:
 
     // Across the bar, padding included.
     static constexpr double thickness = 8;
+    // The handle's gap to the bar's sides and, unless padded, its track ends.
+    static constexpr double inset = 1;
 
     explicit ScrollBar(Orientation orientation);
     ~ScrollBar() override;
