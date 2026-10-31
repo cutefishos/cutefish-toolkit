@@ -79,6 +79,9 @@ public:
     // with ui::KeyModifier flags; shown as the row's shortcut. The program
     // handles the key itself. An empty key for none.
     void setItemKeyEquivalent(size_t index, std::string key, uint32_t modifiers);
+    // The text shown to the right, in place of what setItemKeyEquivalent
+    // writes there; the key equivalent itself stays.
+    void setItemShortcut(size_t index, std::string text);
     // An icon from the icon theme before the text.
     void setItemIcon(size_t index, std::string icon);
     // One of the toolkit's glyphs before the text, tinted like it.

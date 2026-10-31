@@ -901,6 +901,14 @@ static std::string keyEquivalentText(const std::string& key, uint32_t modifiers)
     return text;
 }
 
+void Menu::setItemShortcut(size_t index, std::string text)
+{
+    if (index >= m_items.size() || m_items[index].shortcut == text)
+        return;
+    m_items[index].shortcut = std::move(text);
+    changed();
+}
+
 void Menu::setItemKeyEquivalent(size_t index, std::string key, uint32_t modifiers)
 {
     if (index >= m_items.size())
