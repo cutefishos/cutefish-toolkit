@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -41,6 +42,39 @@ private:
     friend class Canvas2D;
     struct Data;
     std::shared_ptr<const Data> d;
+};
+
+// A picture another process draws into a DMA-BUF, such as a web page's
+// frame, which a GPU canvas draws without reading it into memory. The owner
+// may draw into the buffer again between draws. A canvas that paints in
+// software, or a driver that cannot take the buffer, does not draw it, and
+// the caller then reads the pixels itself.
+class DmaBufImage
+{
+public:
+    struct Plane
+    {
+        int fd = -1;
+        uint32_t offset = 0;
+        uint32_t stride = 0;
+    };
+
+    DmaBufImage();
+    // The descriptors are duplicated. fourcc is a DRM format code, and
+    // modifier the DRM format modifier, invalid when the layout is implicit.
+    DmaBufImage(int width, int height, uint32_t fourcc, uint64_t modifier, const std::vector<Plane>& planes);
+    ~DmaBufImage();
+    DmaBufImage(const DmaBufImage&);
+    DmaBufImage& operator=(const DmaBufImage&);
+
+    bool isNull() const { return !d; }
+    int width() const;
+    int height() const;
+
+private:
+    friend class Canvas2D;
+    struct Data;
+    std::shared_ptr<Data> d;
 };
 
 // A colour with floating-point components, 0 to 1, not premultiplied.
@@ -185,6 +219,8 @@ public:
     // bottom when mirrored.
     void drawBitmap(const Bitmap& bitmap, const RectF& rect, bool mirrored = false);
     void drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool mirrored = false);
+    // False when this canvas cannot draw it; nothing is drawn then.
+    bool drawDmaBufImage(const DmaBufImage& image, const RectF& rect, bool mirrored = false);
 
     // Drawing from here on is a group, composited as one at the matching
     // end with the global alpha, composite mode and shadow of the begin.

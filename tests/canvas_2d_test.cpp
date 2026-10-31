@@ -4,6 +4,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #include "base/transform.h"
 #include "ui/bitmap.h"
@@ -73,6 +75,29 @@ TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)
             EXPECT_EQ(drawn.pixel(x, y), direct.pixel(x, y)) << x << "," << y;
     }
     EXPECT_TRUE(ui::RetainedBitmap().isNull());
+}
+
+TEST(Canvas2DTest, DmaBufImagesNeedAGpuCanvas)
+{
+    const int fd = memfd_create("canvas-2d-test", MFD_CLOEXEC);
+    ASSERT_GE(fd, 0);
+    // XRGB8888.
+    const ui::DmaBufImage image(4, 2, 0x34325258, 0, {{fd, 0, 16}});
+    close(fd);
+    ASSERT_FALSE(image.isNull());
+    EXPECT_EQ(image.width(), 4);
+    EXPECT_EQ(image.height(), 2);
+
+    Bitmap bitmap(4, 2, Format::Argb32Premultiplied);
+    bitmap.fill(0xFF00FF00u);
+    Canvas2D canvas(bitmap);
+    EXPECT_FALSE(canvas.drawDmaBufImage(image, {0, 0, 4, 2}));
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 4; ++x)
+            EXPECT_EQ(bitmap.pixel(x, y), 0xFF00FF00u) << x << "," << y;
+    }
+    EXPECT_TRUE(ui::DmaBufImage().isNull());
+    EXPECT_TRUE(ui::DmaBufImage(4, 2, 0x34325258, 0, {}).isNull());
 }
 
 TEST(Canvas2DTest, ClipsSavesAndAlpha)

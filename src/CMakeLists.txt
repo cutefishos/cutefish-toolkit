@@ -190,6 +190,7 @@ add_library(cutefish-toolkit SHARED
     ui/bitmap.cpp
     ui/bitmap_painter.cpp
     ui/canvas_2d.cpp
+    ui/dmabuf_image.cpp
     ui/blurred_copy.cpp
     ui/fast_blur.cpp
     ui/platform_window.cpp
