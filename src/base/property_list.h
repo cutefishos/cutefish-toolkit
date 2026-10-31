@@ -14,14 +14,15 @@
 // describe themselves in.
 namespace cutefish::base::plist {
 
-// A value as far as bundles need one: strings, arrays and dictionaries, with
-// every other type standing in as Other.
+// A value as far as bundles need one: strings, booleans, arrays and
+// dictionaries, with every other type standing in as Other.
 struct Value
 {
-    enum class Type { Other, String, Array, Dictionary };
+    enum class Type { Other, String, Boolean, Array, Dictionary };
 
     Type type = Type::Other;
     std::string text;
+    bool boolean = false;
     std::vector<Value> array;
     std::vector<std::pair<std::string, Value>> members;
 
@@ -30,6 +31,9 @@ struct Value
     const Value* find(std::string_view key) const;
     // The member's string; empty when it has none.
     std::string string(std::string_view key) const;
+    // Whether the member is true; Info.plist keys may also be the string YES
+    // or 1.
+    bool flag(std::string_view key) const;
     // The string, or the strings of an array: Info.plist keys take either.
     std::vector<std::string> strings() const;
 };

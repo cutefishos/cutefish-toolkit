@@ -95,6 +95,19 @@ TEST(ApplicationBundleTest, ReadsABundleAsAnEntry)
               (std::vector<std::string>{"runner", "--open", path, "/a/b.txt", "/a/c d.txt"}));
     EXPECT_TRUE(entry->mimeTypes.empty());
     EXPECT_TRUE(entry->shouldShow());
+    EXPECT_TRUE(entry->startupNotify);
+
+    // An agent application starts without launch feedback.
+    ASSERT_TRUE(file::writeAtomically(path + "/Contents/Info.plist", R"(<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Agent</string>
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>
+)"));
+    EXPECT_FALSE(bundle::read(path, *handler)->startupNotify);
 
     // A missing icon is none, and a bundle without a list is no application.
     ASSERT_TRUE(makeBundle(path, "Editor", "Missing.icns"));

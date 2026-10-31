@@ -386,6 +386,9 @@ std::optional<DesktopEntry> read(const std::string& path, const DesktopEntry& ha
             entry.icon = icon;
     }
 
+    // An agent or background application has no dock icon of its own to
+    // show the launch on.
+    entry.startupNotify = !info->flag("LSUIElement") && !info->flag("LSBackgroundOnly");
     entry.mimeTypes = documentTypes(*info);
     entry.exec = execFor(bundle, handler);
     entry.tryExec = handler.tryExec;

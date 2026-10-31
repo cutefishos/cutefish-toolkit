@@ -263,6 +263,11 @@ static std::optional<Value> readXmlValue(XmlReader& reader, const XmlReader::Tag
         }
     }
 
+    if (opened.name == "true" || opened.name == "false") {
+        value.type = Value::Type::Boolean;
+        value.boolean = opened.name == "true";
+    }
+
     if (!reader.skipElement(opened))
         return std::nullopt;
     return value;
@@ -321,8 +326,14 @@ private:
         const std::optional<size_t> offset = objectOffset(object);
         if (!offset)
             return std::nullopt;
-        const uint8_t type = uint8_t(m_data[*offset]) >> 4;
+        const uint8_t marker = uint8_t(m_data[*offset]);
+        const uint8_t type = marker >> 4;
         Value result;
+        if (marker == 0x08 || marker == 0x09) {
+            result.type = Value::Type::Boolean;
+            result.boolean = marker == 0x09;
+            return result;
+        }
         if (type == 0x5 || type == 0x6) {
             std::optional<std::string> text = string(object);
             if (!text)
@@ -464,6 +475,16 @@ std::string Value::string(std::string_view key) const
 {
     const Value* member = find(key);
     return member && member->type == Type::String ? member->text : std::string();
+}
+
+bool Value::flag(std::string_view key) const
+{
+    const Value* member = find(key);
+    if (!member)
+        return false;
+    if (member->type == Type::Boolean)
+        return member->boolean;
+    return member->type == Type::String && (member->text == "YES" || member->text == "1");
 }
 
 std::vector<std::string> Value::strings() const

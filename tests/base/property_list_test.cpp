@@ -191,6 +191,10 @@ TEST(PropertyListTest, ReadsNestedValuesOfXml)
 	</array>
 	<key>LSRequiresNativeExecution</key>
 	<true/>
+	<key>LSBackgroundOnly</key>
+	<false/>
+	<key>LSUIElement</key>
+	<string>1</string>
 </dict>
 </plist>
 )");
@@ -205,8 +209,13 @@ TEST(PropertyListTest, ReadsNestedValuesOfXml)
               (std::vector<std::string>{"public.plain-text", "public.html"}));
     EXPECT_EQ(document.find("CFBundleTypeExtensions")->strings(), std::vector<std::string>{"txt"});
     EXPECT_EQ(documents->array[1].type, plist::Value::Type::Array);
-    EXPECT_EQ(info->find("LSRequiresNativeExecution")->type, plist::Value::Type::Other);
+    EXPECT_EQ(info->find("LSRequiresNativeExecution")->type, plist::Value::Type::Boolean);
     EXPECT_EQ(info->string("LSRequiresNativeExecution"), "");
+    EXPECT_TRUE(info->flag("LSRequiresNativeExecution"));
+    EXPECT_FALSE(info->flag("LSBackgroundOnly"));
+    EXPECT_TRUE(info->flag("LSUIElement"));
+    EXPECT_FALSE(info->flag("Missing"));
+    EXPECT_FALSE(document.flag("CFBundleTypeRole"));
     EXPECT_FALSE(info->find("Missing"));
     EXPECT_FALSE(documents->find("CFBundleTypeRole"));
 
@@ -216,7 +225,7 @@ TEST(PropertyListTest, ReadsNestedValuesOfXml)
 TEST(PropertyListTest, ReadsNestedValuesOfABinaryList)
 {
     const auto info = plist::read(binaryObjects({
-            std::string("\xd1\x01\x02", 3),
+            std::string("\xd2\x01\x08\x02\x09", 5),
             "\x55Types",
             std::string("\xa3\x03\x04\x07", 4),
             "\x5bpublic.text",
@@ -224,6 +233,8 @@ TEST(PropertyListTest, ReadsNestedValuesOfABinaryList)
             "\x51x",
             "\x51y",
             std::string("\xd1\x05\x06", 3),
+            "\x5bLSUIElement",
+            "\x09",
     }));
     ASSERT_TRUE(info);
     const plist::Value* types = info->find("Types");
@@ -232,6 +243,8 @@ TEST(PropertyListTest, ReadsNestedValuesOfABinaryList)
     EXPECT_EQ(types->strings(), std::vector<std::string>{"public.text"});
     EXPECT_EQ(types->array[1].type, plist::Value::Type::Other);
     EXPECT_EQ(types->array[2].string("x"), "y");
+    EXPECT_EQ(info->find("LSUIElement")->type, plist::Value::Type::Boolean);
+    EXPECT_TRUE(info->flag("LSUIElement"));
 
     // A reference past the objects is Other; the list still reads.
     const auto dangling = plist::read(binaryObjects({std::string("\xd1\x01\x09", 3), "\x51x"}));
