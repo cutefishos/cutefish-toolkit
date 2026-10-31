@@ -18,6 +18,7 @@ namespace cutefish::ui::window_controls {
 
 static constexpr double kPlate = 14;
 static constexpr double kArtwork = 14;
+static constexpr double kRim = 0.5;
 
 void paint(Painter& painter, const RectF& bounds, const State& state)
 {
@@ -42,6 +43,8 @@ void paint(Painter& painter, const RectF& bounds, const State& state)
     painter.save();
     painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
     painter.fillDeviceRoundedRect(plate, plate.width / 2.0, fill);
+    painter.strokeDeviceRoundedRect(plate, plate.width / 2.0, Color::rgb(0x000000).withAlpha(0.12),
+                                    kRim * painter.scale());
     if (state.enabled && !state.artwork.empty() && (state.hovered || state.pressed)) {
         const Rect icon = centred(kArtwork);
         sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);

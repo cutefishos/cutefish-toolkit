@@ -105,6 +105,8 @@ public:
                             Color border = {});
     // Exactly the device pixels given, for shapes centred by their own rules.
     void fillDeviceRoundedRect(const Rect& rect, double radiusPx, Color color);
+    // An antialiased border of any width inside exactly the device pixels given.
+    void strokeDeviceRoundedRect(const Rect& rect, double radiusPx, Color color, double widthPx);
     // A border inside the rect, as RoundedRectangle's.
     void strokeRoundedRect(const RectF& rect, double radius, Color color, int widthPx = 1,
                            Corners corners = Corners::Circular);

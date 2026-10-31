@@ -216,6 +216,16 @@ void Painter::fillDeviceRoundedRect(const Rect& rect, double radiusPx, Color col
     m_canvas->drawRRect(SkRRect::MakeRectXY(toSkRect(rect), r, r), makePaint(color, m_opacity, true));
 }
 
+void Painter::strokeDeviceRoundedRect(const Rect& rect, double radiusPx, Color color, double widthPx)
+{
+    SkPaint paint = makePaint(color, m_opacity, true);
+    paint.setStyle(SkPaint::kStroke_Style);
+    paint.setStrokeWidth(SkScalar(widthPx));
+    const SkScalar half = SkScalar(widthPx / 2);
+    const SkScalar r = std::max(SkScalar(radiusPx) - half, SkScalar(0));
+    m_canvas->drawRRect(SkRRect::MakeRectXY(toSkRect(rect).makeInset(half, half), r, r), paint);
+}
+
 void Painter::strokeRoundedRect(const RectF& rect, double radius, Color color, int widthPx, Corners corners)
 {
     drawRoundedRect(rect, {radius, 0, corners}, Color{0, 0, 0, 0}, widthPx / m_scale, color);
