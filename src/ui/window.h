@@ -454,11 +454,14 @@ private:
     bool pressMovesWindow() const;
 
     void scheduleFrame();
+    void answerConfigureLater();
     // A layout pass for the views marked as needing one, which may be none.
     void scheduleLayout();
     // `prepared`: prepareFrame() already ran at this frame time.
     bool renderFrame(uint64_t frameTimeNs, bool prepared = false);
     std::vector<Rect> paintFrame(SkCanvas* canvas, int bufferAge);
+    // Whether the frame being prepared changes any pixel.
+    bool hasPendingDamage() const;
     // Device pixels the view and its children cover, untransformed below the
     // view itself; `painted` asks how they were last painted, not will be.
     SkIRect subtreeRect(const View* view, PointF origin, bool painted) const;
@@ -547,6 +550,11 @@ private:
     bool m_framePending = false;
     bool m_renderPosted = false;
     bool m_rendering = false;
+    // A configure not yet answered by a frame, and whether a frame since the
+    // last frame callback answered one.
+    bool m_configureUnanswered = false;
+    bool m_configureAnswered = false;
+    int m_configureTimer = 0;
     FrameStatistics m_statistics;
     uint64_t m_frameTimeNs = 0;
     uint64_t m_refreshNs = 16666667;

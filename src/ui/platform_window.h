@@ -138,6 +138,10 @@ public:
 
     // Draws a frame of the logical size at the scale and presents it.
     virtual bool present(SizeF size, double scale, bool opaque, const PaintFunction& paint) = 0;
+    // Asks for the next frame with a commit that keeps the buffer shown, for
+    // a frame that changes nothing; false where that would leave something
+    // unanswered, such as a configure or a new size, so a frame is presented.
+    virtual bool presentUnchanged(SizeF, double, bool) { return false; }
     // Headless only: the buffer last presented.
     virtual const Image* presentedImage() const { return nullptr; }
     // Headless only: the moves the window asked for.

@@ -99,6 +99,19 @@ public:
         return m_hints;
     }
 
+    // The wl_surface requests, by name.
+    std::vector<std::string> surfaceRequests()
+    {
+        std::lock_guard lock(m_mutex);
+        return m_surfaceRequests;
+    }
+
+    // An xdg_surface.configure for the surface made last.
+    void sendConfigure()
+    {
+        post([this] { xdg_surface_send_configure(m_xdgSurfaces.back(), wl_display_next_serial(m_display)); });
+    }
+
     // cutefish_window_placement_v1.position for the surface made last.
     void sendPosition(int x, int y)
     {
@@ -137,6 +150,8 @@ private:
             m_placements.push_back(resource);
         else if (&interface == &wl_surface_interface)
             m_surfaces.push_back(resource);
+        else if (&interface == &xdg_surface_interface)
+            m_xdgSurfaces.push_back(resource);
     }
 
     static int dispatch(const void*, void* object, uint32_t, const wl_message* message, wl_argument* arguments)
@@ -163,6 +178,9 @@ private:
         if (hints) {
             std::lock_guard lock(self->m_mutex);
             self->m_hints.push_back(std::move(request));
+        } else if (wl_resource_instance_of(resource, &wl_surface_interface, nullptr)) {
+            std::lock_guard lock(self->m_mutex);
+            self->m_surfaceRequests.push_back(request.name);
         }
         return 0;
     }
@@ -194,6 +212,8 @@ private:
     std::vector<Request> m_hints;
     std::vector<wl_resource*> m_placements;
     std::vector<wl_resource*> m_surfaces;
+    std::vector<wl_resource*> m_xdgSurfaces;
+    std::vector<std::string> m_surfaceRequests;
 };
 
 class Target final : public wayland::ShellSurface::Delegate
@@ -354,4 +374,40 @@ TEST(WindowHintsProtocolTest, OpacityAndScreenPositionAreSent)
         wl_display_roundtrip(connection->display());
     ASSERT_EQ(target.positions.size(), 1u);
     EXPECT_EQ(target.positions[0], (PointF{30, 40}));
+}
+
+// A frame that changes nothing commits without a buffer or damage, only while
+// that answers everything: a configure, a new size or a new opaque region
+// waits for a frame with a buffer.
+TEST(WindowHintsProtocolTest, UnchangedFrameCommitsWithoutBuffer)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+
+    Target target;
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    shell->prepareCommit(200, 100, true);
+    wl_surface_commit(shell->surface());
+    EXPECT_TRUE(shell->canCommitUnchanged(200, 100, true));
+    EXPECT_FALSE(shell->canCommitUnchanged(201, 100, true));
+    EXPECT_FALSE(shell->canCommitUnchanged(200, 100, false));
+    connection->flush();
+    settle(compositor, connection->display());
+    const size_t before = compositor.surfaceRequests().size();
+
+    shell->commitUnchanged();
+    connection->flush();
+    settle(compositor, connection->display());
+    std::vector<std::string> requests = compositor.surfaceRequests();
+    requests.erase(requests.begin(), requests.begin() + std::ptrdiff_t(before));
+    // The frame callback asked for by the first commit is still out.
+    EXPECT_EQ(requests, (std::vector<std::string>{"commit"}));
+
+    compositor.sendConfigure();
+    settle(compositor, connection->display());
+    EXPECT_FALSE(shell->canCommitUnchanged(200, 100, true));
+    shell->prepareCommit(200, 100, true);
+    EXPECT_TRUE(shell->canCommitUnchanged(200, 100, true));
 }

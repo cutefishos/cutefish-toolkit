@@ -724,16 +724,33 @@ void ShellSurface::prepareCommit(int width, int height, bool opaque)
     m_committedHeight = height;
     m_committedOpaque = opaque;
 
-    if (!m_frameCallback) {
-        m_frameCallback = wl_surface_frame(m_surface);
-        wl_callback_add_listener(m_frameCallback, &ShellSurfaceListeners::frame, this);
-    }
+    requestFrame();
 
     if (m_connection.presentation()) {
         struct wp_presentation_feedback* feedback =
             wp_presentation_feedback(m_connection.presentation(), m_surface);
         wp_presentation_feedback_add_listener(feedback, &ShellSurfaceListeners::feedback, this);
         m_feedbacks.insert(feedback);
+    }
+}
+
+bool ShellSurface::canCommitUnchanged(int width, int height, bool opaque) const
+{
+    return !m_configurePending && width == m_committedWidth && height == m_committedHeight
+            && opaque == m_committedOpaque;
+}
+
+void ShellSurface::commitUnchanged()
+{
+    requestFrame();
+    wl_surface_commit(m_surface);
+}
+
+void ShellSurface::requestFrame()
+{
+    if (!m_frameCallback) {
+        m_frameCallback = wl_surface_frame(m_surface);
+        wl_callback_add_listener(m_frameCallback, &ShellSurfaceListeners::frame, this);
     }
 }
 

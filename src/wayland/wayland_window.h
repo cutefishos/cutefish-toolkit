@@ -95,6 +95,7 @@ public:
     bool startDrag(DragSource source) override;
 
     bool present(SizeF size, double scale, bool opaque, const PaintFunction& paint) override;
+    bool presentUnchanged(SizeF size, double scale, bool opaque) override;
 
     // Null for a popup not shown yet.
     ShellSurface* shell() const { return m_shell.get(); }

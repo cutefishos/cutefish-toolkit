@@ -188,11 +188,18 @@ public:
     // the configure ack, the viewport, the opaque region, the next frame
     // callback and presentation feedback.
     void prepareCommit(int width, int height, bool opaque);
+    // Whether a commit without a buffer leaves nothing unanswered: no
+    // configure to ack, the size and opaque region as last committed.
+    bool canCommitUnchanged(int width, int height, bool opaque) const;
+    // Commits the pending surface state without a buffer, with the next
+    // frame callback.
+    void commitUnchanged();
 
 private:
     friend struct ShellSurfaceListeners;
 
     void createSurface();
+    void requestFrame();
     void createXdgSurface();
 
     Connection& m_connection;

@@ -569,6 +569,11 @@ void Window::applyTextTarget() const
                                              && application->platform() != Application::Platform::Embedded);
 }
 
+bool Window::hasPendingDamage() const
+{
+    return m_frameDamage->full || !m_frameDamage->pending.isEmpty();
+}
+
 std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
 {
     applyTextTarget();

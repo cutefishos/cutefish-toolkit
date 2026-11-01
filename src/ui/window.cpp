@@ -13,6 +13,7 @@
 #include <cxxabi.h>
 #include <typeinfo>
 #include <unordered_map>
+#include <utility>
 
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImageInfo.h"
@@ -204,6 +205,8 @@ Window::~Window()
         m_saveTimer = 0;
         saveSize();
     }
+    if (m_configureTimer)
+        Application::instance()->loop().stopTimer(m_configureTimer);
     std::erase(Application::instance()->m_windows, this);
     for (Window* window : Application::instance()->m_windows) {
         if (window->m_transientParent == this)
@@ -798,12 +801,35 @@ void Window::handleConfigure(int width, int height, const WindowStates& states)
     if (changed && onStatesChanged)
         onStatesChanged();
     m_needsFrame = true;
-    // Answered without waiting for a frame callback: the compositor waits
-    // for the commit that acks it.
-    if (m_platform->isEmbedded())
+    m_configureUnanswered = true;
+    if (m_platform->isEmbedded()) {
         scheduleRender();
-    else if (!m_platform->isHeadless())
-        postRender();
+    } else if (!m_platform->isHeadless()) {
+        // Answered without waiting for a frame callback, as the compositor
+        // waits for the commit that acks it; once per frame, as a pointer
+        // resizing the window moves more often than the screen refreshes.
+        if (!m_framePending || !m_configureAnswered)
+            postRender();
+        else
+            answerConfigureLater();
+    }
+}
+
+// A window the compositor shows nowhere hears of no frame callbacks; its
+// configures are answered a little later instead.
+void Window::answerConfigureLater()
+{
+    if (m_configureTimer)
+        return;
+    base::EventLoop& loop = Application::instance()->loop();
+    const auto wait = std::chrono::nanoseconds(2 * m_refreshNs);
+    m_configureTimer = loop.startTimer(wait, false, [self = std::weak_ptr<Window*>(m_self)] {
+        if (const auto window = self.lock()) {
+            (*window)->m_configureTimer = 0;
+            if ((*window)->m_configureUnanswered)
+                (*window)->postRender();
+        }
+    });
 }
 
 void Window::handleScaleChanged(double scale)
@@ -829,6 +855,7 @@ void Window::handleCloseRequested()
 void Window::handleFrameDone()
 {
     m_framePending = false;
+    m_configureAnswered = false;
     if (m_needsFrame || hasTickingClients())
         postRender();
 }
@@ -1583,6 +1610,13 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
     // Whatever asked for a paint until here is drawn by this frame.
     m_needsFrame = false;
     const Color background = backgroundColor();
+    // A frame that changes nothing, such as one an animation without visible
+    // progress ticks, keeps the frame callbacks coming without drawing.
+    if (!hasPendingDamage() && m_platform->presentUnchanged(m_size, m_scale, background.a == 255)) {
+        m_rendering = false;
+        m_framePending = true;
+        return true;
+    }
     const bool presented = m_platform->present(
         m_size, m_scale, background.a == 255,
         [this](SkCanvas* canvas, int bufferAge) { return paintFrame(canvas, bufferAge); });
@@ -1592,6 +1626,8 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
 
     // Headless and embedded windows hear of no frame callbacks.
     m_framePending = !m_platform->isHeadless() && !m_platform->isEmbedded();
+    if (std::exchange(m_configureUnanswered, false))
+        m_configureAnswered = true;
     ++m_statistics.rendered;
     if (!m_statistics.firstSwapNs)
         m_statistics.firstSwapNs = monotonicNs();
