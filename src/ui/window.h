@@ -214,6 +214,16 @@ public:
     // to 1 (the default 1). At 0 it is unseen but still takes the pointer.
     // At once.
     void setOpacity(double opacity);
+    // While full screen: the bars the window draws along its top, `height`
+    // logical pixels tall. While the panel along the top of the screen is
+    // over the window the pointer on them keeps it there, and with `push`
+    // the compositor moves the whole window down under the panel. At once.
+    void setFullScreenBars(int height, bool push);
+    // While full screen: called as the panel along the top of the screen
+    // starts to slide over the window, reaching `offset` logical pixels into
+    // it, or away when `offset` is 0; the slide takes `durationMs` and eases
+    // out.
+    void setFullScreenRevealHandler(std::function<void(int offset, int durationMs)> handler);
     // Puts the window's top left at a point in the compositor's global
     // logical coordinates (Application::screens()): before show() it opens
     // there, afterwards it moves there; the compositor keeps it reachable.

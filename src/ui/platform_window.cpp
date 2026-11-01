@@ -176,6 +176,12 @@ void PlatformWindow::notifyInteractiveResize(bool active)
     m_window->handleInteractiveResize(active);
 }
 
+void PlatformWindow::notifyFullScreenReveal(int offset, int durationMs)
+{
+    if (onFullScreenReveal)
+        onFullScreenReveal(offset, durationMs);
+}
+
 void PlatformWindow::notifyScaleChanged(double scale)
 {
     m_window->handleScaleChanged(scale);

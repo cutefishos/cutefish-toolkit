@@ -229,6 +229,13 @@ struct ConnectionListeners
             shell->delegate()->interactiveResize(active != 0);
     }
 
+    static void fullscreenReveal(void*, cutefish_window_hints_v1*, wl_surface* surface, int32_t offset,
+                                 uint32_t duration)
+    {
+        if (ShellSurface* shell = shellSurfaceFor(surface))
+            shell->delegate()->fullScreenReveal(offset, int(duration));
+    }
+
     static void workArea(void* data, cutefish_window_hints_v1*, const char* output, int32_t x, int32_t y,
                          int32_t width, int32_t height, uint32_t primary)
     {
@@ -511,7 +518,7 @@ struct ConnectionListeners
                                                           xdgOutputName, xdgOutputDescription};
     static constexpr zwp_pointer_gesture_hold_v1_listener hold = {holdBegin, holdEnd};
     static constexpr xdg_wm_base_listener wmBase = {ping};
-    static constexpr cutefish_window_hints_v1_listener windowHints = {interactiveResize, workArea};
+    static constexpr cutefish_window_hints_v1_listener windowHints = {interactiveResize, workArea, fullscreenReveal};
     static constexpr cutefish_window_placement_v1_listener windowPlacement = {windowPosition};
     static constexpr wl_seat_listener seat = {capabilities, seatName};
     static constexpr wl_pointer_listener pointer = {

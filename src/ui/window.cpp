@@ -507,6 +507,16 @@ void Window::setOpacity(double opacity)
     m_platform->setOpacity(opacity);
 }
 
+void Window::setFullScreenBars(int height, bool push)
+{
+    m_platform->setFullScreenBars(height, push);
+}
+
+void Window::setFullScreenRevealHandler(std::function<void(int offset, int durationMs)> handler)
+{
+    m_platform->onFullScreenReveal = std::move(handler);
+}
+
 bool Window::setScreenPosition(PointF position)
 {
     return m_platform->setScreenPosition(position);

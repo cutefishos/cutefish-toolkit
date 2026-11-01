@@ -412,6 +412,12 @@ void WaylandWindow::setOpacity(double opacity)
         m_shell->setOpacity(opacity);
 }
 
+void WaylandWindow::setFullScreenBars(int height, bool push)
+{
+    if (m_shell)
+        m_shell->setFullScreenBars(height, push);
+}
+
 bool WaylandWindow::setScreenPosition(PointF position)
 {
     return m_shell && m_shell->setScreenPosition(position);
@@ -479,6 +485,11 @@ void WaylandWindow::configureBounds(int width, int height)
 void WaylandWindow::interactiveResize(bool active)
 {
     notifyInteractiveResize(active);
+}
+
+void WaylandWindow::fullScreenReveal(int offset, int durationMs)
+{
+    notifyFullScreenReveal(offset, durationMs);
 }
 
 uint32_t WaylandWindow::dragEnter(double x, double y, DropOffer* offer, uint32_t modifiers)

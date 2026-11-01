@@ -583,6 +583,13 @@ void ShellSurface::setOpacity(double opacity)
                                              wl_fixed_from_double(std::clamp(opacity, 0.0, 1.0)));
 }
 
+void ShellSurface::setFullScreenBars(int height, bool push)
+{
+    if (m_connection.windowHints())
+        cutefish_window_hints_v1_set_fullscreen_bars(m_connection.windowHints(), m_surface, std::max(height, 0),
+                                                     push ? 1 : 0);
+}
+
 bool ShellSurface::setScreenPosition(PointF position)
 {
     cutefish_window_placement_v1* placement = m_connection.windowPlacement();

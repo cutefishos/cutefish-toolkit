@@ -82,6 +82,7 @@ public:
     void setBodyShape(const Path& path) override;
     void setCastsShadow(bool castsShadow) override;
     void setOpacity(double opacity) override;
+    void setFullScreenBars(int height, bool push) override;
     bool setScreenPosition(PointF position) override;
     void setUserResizable(bool resizable) override;
     void setMainMenu(Menu* menu) override;
@@ -127,6 +128,7 @@ private:
     void textInput(const TextInputEvent& event) override;
     void configureBounds(int width, int height) override;
     void interactiveResize(bool active) override;
+    void fullScreenReveal(int offset, int durationMs) override;
     uint32_t dragEnter(double x, double y, DropOffer* offer, uint32_t modifiers) override;
     uint32_t dragMotion(double x, double y, uint32_t modifiers) override;
     void dragLeave() override;

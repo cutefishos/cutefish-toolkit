@@ -118,6 +118,8 @@ public:
     virtual void setBodyShape(const Path&) {}
     virtual void setCastsShadow(bool) {}
     virtual void setOpacity(double) {}
+    // See Window::setFullScreenBars().
+    virtual void setFullScreenBars(int, bool) {}
     // A toplevel's top left in the compositor's global logical coordinates;
     // false where the compositor places windows itself.
     virtual bool setScreenPosition(PointF) { return false; }
@@ -149,6 +151,9 @@ public:
     // Headless only: the glass last asked for.
     virtual std::optional<GlassMaterial> requestedGlass() const { return std::nullopt; }
 
+    // See Window::setFullScreenRevealHandler().
+    std::function<void(int offset, int durationMs)> onFullScreenReveal;
+
 protected:
     // Another window's platform side, such as a window a drag carries.
     static PlatformWindow* platformOf(Window* window);
@@ -156,6 +161,7 @@ protected:
     void notifyConfigure(int width, int height, const WindowStates& states);
     void notifyConfigureBounds(int width, int height);
     void notifyInteractiveResize(bool active);
+    void notifyFullScreenReveal(int offset, int durationMs);
     void notifyScaleChanged(double scale);
     void notifyCloseRequested();
     void notifyFrameDone();
