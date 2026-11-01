@@ -33,6 +33,17 @@ namespace cutefish::ui {
 // Character fallbacks remembered before the cache starts over.
 static constexpr size_t kMaximumFallbacks = 65536;
 
+// Inter ships its large-size cut as a separate family, "Inter Display",
+// taken from this pixel size up.
+static constexpr double kInterDisplayPixelSize = 20;
+
+// Inter's published tracking curve (rsms.me/inter/dynmetrics): letter
+// spacing in em for a size in pixels, looser below 12 px, tighter above.
+static double interTracking(double pixelSize)
+{
+    return -0.0223 + 0.185 * std::exp(-0.1745 * pixelSize);
+}
+
 // "zh_CN.UTF-8" becomes "zh-CN"; "C" and "POSIX" name no language.
 namespace {
 
@@ -497,12 +508,22 @@ skia::textlayout::TextStyle TextContext::style(double fontSize, int weight, Colo
 {
     const Theme& theme = Theme::current();
     const std::string& themeFamily = theme.fontFamily.empty() ? m_family : theme.fontFamily;
+    const std::string& primary = family.empty() ? themeFamily : family;
+    const double size = pixelSize(fontSize > 0 ? fontSize : theme.fontSize());
+    const bool inter = primary == "Inter";
+
+    std::vector<SkString> families;
+    if (inter && size >= kInterDisplayPixelSize)
+        families.emplace_back("Inter Display");
+    families.emplace_back(primary.c_str());
+    if (!family.empty())
+        families.emplace_back(themeFamily.c_str());
+
     skia::textlayout::TextStyle style;
-    if (family.empty())
-        style.setFontFamilies({SkString(themeFamily.c_str())});
-    else
-        style.setFontFamilies({SkString(family.c_str()), SkString(themeFamily.c_str())});
-    style.setFontSize(SkScalar(pixelSize(fontSize > 0 ? fontSize : theme.fontSize())));
+    style.setFontFamilies(families);
+    style.setFontSize(SkScalar(size));
+    if (inter)
+        style.setLetterSpacing(SkScalar(size * interTracking(size)));
     style.setFontStyle(SkFontStyle(weight, SkFontStyle::kNormal_Width, SkFontStyle::kUpright_Slant));
     style.setColor(color.argb());
     style.setFontEdging(m_edging);
