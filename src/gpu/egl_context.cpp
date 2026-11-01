@@ -59,6 +59,20 @@ static EGLConfig chooseConfig(EGLDisplay display)
     return configs.front();
 }
 
+// The driver binds every context made current without a surface to one
+// framebuffer shared by the process and copies its draw buffer into the
+// context, so a desktop OpenGL context of another thread (which draws to the
+// front by default) can leave ours drawing to a front buffer that is never
+// shown. A window surface is bound back to its back buffer explicitly.
+static bool bindDrawingToBack(EGLDisplay display, EGLSurface surface, EGLContext context)
+{
+    if (!eglMakeCurrent(display, surface, surface, context))
+        return false;
+    static const GLenum back = GL_BACK;
+    glDrawBuffers(1, &back);
+    return true;
+}
+
 std::unique_ptr<EglContext> EglContext::create(wl_display* display)
 {
     std::unique_ptr<EglContext> context(new EglContext);
@@ -172,7 +186,7 @@ EGLSurface EglContext::createSurface(wl_egl_window* window)
         fprintf(stderr, "cutefish-toolkit: cannot create an EGL window surface\n");
         return surface;
     }
-    eglMakeCurrent(m_display, surface, surface, m_context);
+    bindDrawingToBack(m_display, surface, m_context);
     eglSwapInterval(m_display, 0);
     return surface;
 }
@@ -191,7 +205,7 @@ bool EglContext::makeCurrent(EGLSurface surface)
     waitUntilReady();
     if (eglGetCurrentSurface(EGL_DRAW) == surface && eglGetCurrentContext() == m_context)
         return true;
-    return eglMakeCurrent(m_display, surface, surface, m_context);
+    return bindDrawingToBack(m_display, surface, m_context);
 }
 
 int EglContext::bufferAge(EGLSurface surface) const
