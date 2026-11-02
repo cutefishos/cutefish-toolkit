@@ -961,9 +961,10 @@ TEST(EmbeddedHostTest, StyledSpansUnderlineAndLink)
     }
     EXPECT_EQ(found, "https://example.org");
     EXPECT_EQ(label->linkAt({linkX, line->top + line->height + 5}), "");
-    // An underline in the link's colour below the baseline.
+    // An underline in the link's colour below the baseline, where the face
+    // puts it.
     int blue = 0;
-    for (int y = int(line->baseline) + 1; y < int(line->baseline) + 4 && y < frame.height; ++y) {
+    for (int y = int(line->baseline) + 1; y < frame.height; ++y) {
         for (int x = int(linkX); x < int(linkX) + 20; ++x) {
             const uint8_t* pixel = frame.pixels + size_t(y) * frame.stride + size_t(x) * 4;
             blue += pixel[2] > 200 && pixel[0] < 120;

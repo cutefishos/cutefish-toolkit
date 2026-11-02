@@ -69,6 +69,7 @@ TEST(EmbeddedControlsTest, TextLaysOutAsTheOffscreenPlatform)
         std::vector<Label*> labels;
         for (const Case& item : cases) {
             Label* label = content->addChild<Label>(item.text);
+            label->setFontFamily("Noto Sans");
             label->setFontSize(item.size);
             label->setWeight(item.weight);
             labels.push_back(label);
