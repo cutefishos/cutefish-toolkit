@@ -43,8 +43,9 @@ public:
     sk_sp<SkImage> themeIcon(const std::string& name, int size, int iconScale, int pixels);
     // The theme's icon for a name, or the file at an absolute path,
     // as a pixmap `pixels` square at a device pixel ratio of 1: drawings at
-    // that size, larger pictures scaled down, smaller ones as they are; null
-    // when nothing is found.
+    // that size, larger pictures scaled down, smaller ones as they are, ICNS
+    // icons with their plate as large as the theme's; null when nothing is
+    // found.
     sk_sp<SkImage> pixmap(const std::string& name, int pixels);
     // The file the theme lookup settles on, for tests.
     std::string themeIconPath(const std::string& name, int size, double scale);

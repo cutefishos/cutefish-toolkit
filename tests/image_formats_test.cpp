@@ -13,7 +13,9 @@
 #include "base/event_loop.h"
 #include "ui/animated_image.h"
 #include "ui/application.h"
+#include "ui/bitmap.h"
 #include "ui/gif_decoder.h"
+#include "ui/icon.h"
 #include "ui/image_formats.h"
 #include "ui/view.h"
 #include "ui/window.h"
@@ -263,6 +265,59 @@ TEST(ImageFormatsTest, PicksTheIcnsPngForTheSize)
     // A member running past the end stops the walk.
     EXPECT_EQ(image_formats::icnsPng(data.substr(0, data.size() - 1), 16), medium);
     EXPECT_EQ(image_formats::icnsPng("icns\0\0\0\x08"), "");
+}
+
+TEST(ImageFormatsTest, DrawsIcnsPlatesAsLargeAsThemePlates)
+{
+    // An application icon's plate: 824 of a 1024 canvas.
+    Bitmap picture(1024, 1024, Bitmap::Format::Argb32Premultiplied);
+    picture.fill(0);
+    for (int y = 100; y < 924; ++y)
+        for (int x = 100; x < 924; ++x)
+            picture.setPixel(x, y, kRed);
+    const std::optional<std::string> png = picture.encodePng();
+    ASSERT_TRUE(png);
+    const std::string body = icnsMember("ic10", *png);
+    std::string data = "icns";
+    const uint32_t length = uint32_t(body.size() + 8);
+    for (int shift = 24; shift >= 0; shift -= 8)
+        data += char((length >> shift) & 0xFF);
+    data += body;
+    const std::string path = "/tmp/cutefish-toolkit-icns-test-" + std::to_string(getpid()) + ".icns";
+    {
+        FILE* file = fopen(path.c_str(), "wb");
+        ASSERT_NE(file, nullptr);
+        fwrite(data.data(), 1, data.size(), file);
+        fclose(file);
+    }
+
+    Window window;
+    window.resize({64, 64});
+    window.setBackgroundColor(Color::rgb(0xFFFFFF));
+    window.setContentView(std::make_unique<ThemeIcon>(path, 64));
+    window.show();
+    const Image image = window.grab();
+    std::remove(path.c_str());
+    ASSERT_EQ(image.width(), 64);
+    // The theme's plates are 56 of 64, 4 in from every edge.
+    double row = 0;
+    double left = 0;
+    double column = 0;
+    double top = 0;
+    for (int i = 0; i < 64; ++i) {
+        const double across = 1 - image.pixel(i, 32).g / 255.0;
+        const double down = 1 - image.pixel(32, i).g / 255.0;
+        row += across;
+        column += down;
+        if (i < 32) {
+            left += across;
+            top += down;
+        }
+    }
+    EXPECT_NEAR(row, 56, 0.5);
+    EXPECT_NEAR(column, 56, 0.5);
+    EXPECT_NEAR(left, 28, 0.5);
+    EXPECT_NEAR(top, 28, 0.5);
 }
 
 TEST(AnimatedImageTest, PlaysGifFramesOnTheFrameClock)

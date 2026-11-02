@@ -44,6 +44,10 @@ namespace cutefish::ui {
 // Enough for every icon a few windows show at two scales.
 static constexpr size_t kCacheLimit = 512;
 static const char* const kExtensions[] = {".png", ".svg"};
+// ICNS application icons put their plate 824 px wide on a 1024 px canvas; the
+// icon theme's plates are 56 of 64. The picture grows by the ratio, around its
+// centre, so both plates come out alike.
+static constexpr double kIcnsScale = (56.0 / 64) / (824.0 / 1024);
 
 // Where icon themes live, first match first.
 static std::vector<std::string> iconBases()
@@ -840,7 +844,7 @@ std::string IconLoader::themeIconPath(const std::string& name, int size, double 
 
 // An ICNS file's picture for the size, as a desktop entry's Icon may name
 // one; any other file as it is.
-static sk_sp<SkData> iconFileData(const std::string& path, int pixels)
+static sk_sp<SkData> iconFileData(const std::string& path, int pixels, bool* icns = nullptr)
 {
     sk_sp<SkData> data = SkData::MakeFromFileName(path.c_str());
     if (!data)
@@ -848,7 +852,9 @@ static sk_sp<SkData> iconFileData(const std::string& path, int pixels)
     const std::string_view bytes(static_cast<const char*>(data->data()), data->size());
     if (!image_formats::isIcns(bytes))
         return data;
-    const std::string_view png = image_formats::icnsPng(bytes, pixels);
+    if (icns)
+        *icns = true;
+    const std::string_view png = image_formats::icnsPng(bytes, int(std::ceil(pixels * kIcnsScale)));
     if (png.empty())
         return nullptr;
     return SkData::MakeSubset(data.get(), size_t(png.data() - bytes.data()), png.size());
@@ -856,7 +862,8 @@ static sk_sp<SkData> iconFileData(const std::string& path, int pixels)
 
 sk_sp<SkImage> IconLoader::rasterise(const std::string& path, int size, const Color* tint)
 {
-    sk_sp<SkData> data = iconFileData(path, size);
+    bool icns = false;
+    sk_sp<SkData> data = iconFileData(path, size, &icns);
     if (!data)
         return nullptr;
     if (path.ends_with(".svg"))
@@ -872,12 +879,14 @@ sk_sp<SkImage> IconLoader::rasterise(const std::string& path, int size, const Co
     if (!surface)
         return nullptr;
     surface->getCanvas()->clear(SK_ColorTRANSPARENT);
+    const SkScalar extent = SkScalar(icns ? size * kIcnsScale : size);
     // A larger picture is scaled down smoothly; a smaller
     // one stays as it is and the item stretches it, sampled linearly.
-    const bool larger = decoded->width() > size || decoded->height() > size;
+    const bool larger = decoded->width() > extent || decoded->height() > extent;
     const SkSamplingOptions sampling = larger ? SkSamplingOptions(SkCubicResampler::Mitchell())
                                               : SkSamplingOptions(SkFilterMode::kLinear);
-    surface->getCanvas()->drawImageRect(decoded, SkRect::MakeWH(SkScalar(size), SkScalar(size)), sampling);
+    const SkScalar inset = (SkScalar(size) - extent) / 2;
+    surface->getCanvas()->drawImageRect(decoded, SkRect::MakeXYWH(inset, inset, extent, extent), sampling);
     return surface->makeImageSnapshot();
 }
 
@@ -932,11 +941,11 @@ sk_sp<SkImage> IconLoader::pixmap(const std::string& name, int pixels)
     sk_sp<SkImage> image;
     if (path.ends_with(".svg")) {
         image = rasterise(path, pixels, nullptr);
-    } else if (sk_sp<SkData> data = iconFileData(path, pixels)) {
+    } else if (bool icns = false; sk_sp<SkData> data = iconFileData(path, pixels, &icns)) {
         // A larger picture is scaled down and a smaller one left as it is.
         if (std::unique_ptr<SkCodec> codec = SkCodec::MakeFromData(std::move(data))) {
             auto [decoded, result] = codec->getImage();
-            if (decoded && (decoded->width() > pixels || decoded->height() > pixels))
+            if (decoded && (icns || decoded->width() > pixels || decoded->height() > pixels))
                 image = rasterise(path, pixels, nullptr);
             else
                 image = decoded;
