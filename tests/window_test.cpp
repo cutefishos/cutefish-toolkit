@@ -11,6 +11,7 @@
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/layout.h"
+#include "ui/menu.h"
 #include "ui/test_input.h"
 #include "ui/text_field.h"
 #include "ui/theme.h"
@@ -482,6 +483,27 @@ TEST(WindowTest, LabelMeasuredOutsideTheWindowMatchesItsDrawnWidth)
             }
         }
     }
+}
+
+TEST(WindowTest, DialogShowsItsParentsMainMenu)
+{
+    Window parent;
+    Window dialog;
+    dialog.setTransientParent(&parent, true);
+    EXPECT_EQ(dialog.mainMenu(), nullptr);
+
+    Menu parentMenu;
+    parent.setMainMenu(&parentMenu);
+    EXPECT_EQ(dialog.mainMenu(), &parentMenu);
+
+    Menu dialogMenu;
+    dialog.setMainMenu(&dialogMenu);
+    EXPECT_EQ(dialog.mainMenu(), &dialogMenu);
+    dialog.setMainMenu(nullptr);
+    EXPECT_EQ(dialog.mainMenu(), &parentMenu);
+
+    dialog.setTransientParent(nullptr, false);
+    EXPECT_EQ(dialog.mainMenu(), nullptr);
 }
 
 // A window stays active while its dialog has the focus.

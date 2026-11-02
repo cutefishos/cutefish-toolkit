@@ -135,8 +135,8 @@ void Application::setMainMenu(Menu* menu)
 {
     m_mainMenu = menu;
     for (Window* window : m_windows) {
-        if (!window->m_mainMenu && !window->isPopup())
-            window->m_platform->setMainMenu(menu);
+        if (!window->m_mainMenu && !window->m_transientParent)
+            window->updateMainMenu();
     }
 }
 

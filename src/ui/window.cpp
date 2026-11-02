@@ -209,8 +209,10 @@ Window::~Window()
         Application::instance()->loop().stopTimer(m_configureTimer);
     std::erase(Application::instance()->m_windows, this);
     for (Window* window : Application::instance()->m_windows) {
-        if (window->m_transientParent == this)
+        if (window->m_transientParent == this) {
             window->m_transientParent = nullptr;
+            window->updateMainMenu();
+        }
     }
     hideToolTip();
     if (m_parent) {
@@ -240,14 +242,27 @@ void Window::setTitle(const std::string& title)
 void Window::setMainMenu(Menu* menu)
 {
     m_mainMenu = menu;
-    m_platform->setMainMenu(mainMenu());
+    updateMainMenu();
 }
 
 Menu* Window::mainMenu() const
 {
     if (isPopup())
         return nullptr;
-    return m_mainMenu ? m_mainMenu : Application::instance()->mainMenu();
+    if (m_mainMenu)
+        return m_mainMenu;
+    return m_transientParent ? m_transientParent->mainMenu() : Application::instance()->mainMenu();
+}
+
+void Window::updateMainMenu()
+{
+    if (isPopup())
+        return;
+    m_platform->setMainMenu(mainMenu());
+    for (Window* window : Application::instance()->m_windows) {
+        if (window->m_transientParent == this && !window->m_mainMenu)
+            window->updateMainMenu();
+    }
 }
 
 void Window::setMinimumSize(SizeF size)
@@ -326,6 +341,7 @@ void Window::setTransientParent(Window* parent, bool modal)
     m_transientParent = parent;
     m_modal = parent && modal;
     m_platform->setTransientParent(parent ? parent->m_platform.get() : nullptr, modal);
+    updateMainMenu();
     m_active = familyActivated(this);
     // Opened over the parent, it most likely shows at the parent's scale.
     if (parent && !m_configured)

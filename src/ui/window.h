@@ -241,10 +241,12 @@ public:
     // Kept out of the dock and the window switcher, as tool windows are.
     void setSkipTaskbar(bool skip);
     // The main menu the status bar shows while this window is active, in
-    // place of the application's (Application::setMainMenu); null goes back
-    // to the application's. Not owned; it stays while the window shows it.
+    // place of the transient parent's or the application's
+    // (Application::setMainMenu); null goes back to those. Not owned; it
+    // stays while the window shows it.
     void setMainMenu(Menu* menu);
-    // The window's own main menu, else the application's; null for a popup.
+    // The window's own main menu, else its transient parent's, else the
+    // application's; null for a popup.
     Menu* mainMenu() const;
     // Above ordinary windows.
     void setAlwaysOnTop(bool onTop);
@@ -374,6 +376,9 @@ private:
     friend class Application;
     // Repaints and notifies when isActive() differs from what was notified.
     void updateActive();
+    // Hands mainMenu() to the platform, here and in the transient children
+    // without a menu of their own.
+    void updateMainMenu();
     Color backgroundColor() const;
 
     friend class EmbeddedWindow;
