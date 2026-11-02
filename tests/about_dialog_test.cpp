@@ -12,6 +12,7 @@
 #include "ui/about_dialog.h"
 #include "ui/application.h"
 #include "ui/cell_layout.h"
+#include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/test_input.h"
 #include "ui/theme.h"
@@ -136,6 +137,15 @@ TEST(AboutDialogTest, OpensTheLinkAndCloses)
     EXPECT_EQ(f.dialog.window(), window);
 
     window->onCloseRequested();
+    EXPECT_FALSE(f.dialog.isShown());
+    EXPECT_EQ(f.closed, 1);
+    Application::instance()->loop().dispatch();
+}
+
+TEST(AboutDialogTest, EscapeCloses)
+{
+    Fixture f;
+    TestInput::typeKey(*f.dialog.window(), key::Escape);
     EXPECT_FALSE(f.dialog.isShown());
     EXPECT_EQ(f.closed, 1);
     Application::instance()->loop().dispatch();

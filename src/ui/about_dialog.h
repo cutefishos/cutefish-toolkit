@@ -13,7 +13,7 @@ class Window;
 
 // FishUI's AboutDialog: a fixed 300 wide window over its parent with the
 // application's icon, name, description and a link that opens in the
-// browser, under a header with only the close button.
+// browser, under a header with only the close button. Escape closes it.
 class AboutDialog
 {
 public:

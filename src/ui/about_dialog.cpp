@@ -16,6 +16,7 @@
 #include "ui/cell_layout.h"
 #include "ui/color_provider.h"
 #include "ui/icon_loader.h"
+#include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
@@ -214,6 +215,7 @@ void AboutDialog::show()
     m_window->resize({kWidth, 0});
     m_window->setFitsContentHeight(true);
     m_window->onCloseRequested = [this] { close(); };
+    m_window->addShortcut(NoModifier, key::Escape, [this] { close(); });
     m_window->show();
 }
 
