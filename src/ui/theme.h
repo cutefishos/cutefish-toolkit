@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 
+#include "base/signal.h"
 #include "ui/geometry.h"
 
 namespace cutefish::ui {
@@ -55,6 +56,9 @@ struct Theme
     static void setCurrent(const Theme& theme);
     // Counts the changes, for caches of what the theme decides.
     static uint64_t generation();
+    // After setCurrent has reached the windows: for what takes the theme
+    // outside them.
+    static base::Signal<>& changed();
 };
 
 namespace accent {

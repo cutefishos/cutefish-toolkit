@@ -382,6 +382,23 @@ TEST(WindowTest, ThemeChangesReachLabels)
     Theme::setCurrent(original);
 }
 
+TEST(WindowTest, ThemeChangeIsAnnounced)
+{
+    const Theme original = Theme::current();
+    int announced = 0;
+    bool darkWhenAnnounced = false;
+    cutefish::base::Subscription subscription = Theme::changed().connect([&] {
+        ++announced;
+        darkWhenAnnounced = Theme::current().darkMode;
+    });
+    Theme::setCurrent(Theme::dark());
+    EXPECT_EQ(announced, 1);
+    EXPECT_TRUE(darkWhenAnnounced);
+    subscription.reset();
+    Theme::setCurrent(original);
+    EXPECT_EQ(announced, 1);
+}
+
 TEST(WindowTest, DialogKeepsItsMarginAtEveryScale)
 {
     Window parent;

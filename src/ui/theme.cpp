@@ -53,11 +53,18 @@ void Theme::setCurrent(const Theme& theme)
     ++s_generation;
     if (Application* application = Application::instance())
         application->themeChanged();
+    changed().emit();
 }
 
 uint64_t Theme::generation()
 {
     return s_generation;
+}
+
+base::Signal<>& Theme::changed()
+{
+    static base::Signal<> signal;
+    return signal;
 }
 
 } // namespace cutefish::ui
