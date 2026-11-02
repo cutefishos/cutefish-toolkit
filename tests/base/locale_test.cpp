@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <string>
 #include <string_view>
 
@@ -389,4 +390,85 @@ TEST(LocaleTest, TerritoryName)
     EXPECT_EQ(Locale::territoryName("SG"), "Singapore");
     EXPECT_EQ(Locale::territoryName("US"), "United States");
     EXPECT_EQ(Locale::territoryName("CI"), "Côte d’Ivoire");
+}
+
+TEST(LocaleTest, RegionalFormatsPairLanguageAndRegion)
+{
+    const Locale japanese = Locale::regional("ja_JP", {.region = "SG"});
+    EXPECT_EQ(japanese.formatsId(), "ja_SG");
+    EXPECT_EQ(japanese.territory(), "SG");
+    EXPECT_EQ(japanese.name(), "ja_JP");
+    EXPECT_EQ(japanese.monthName(10), "10\u6708");
+    // Singapore's week starts on Sunday, Japan's too, Germany's on Monday.
+    EXPECT_EQ(japanese.firstDayOfWeek(), 7);
+    EXPECT_EQ(Locale::regional("en_US", {.region = "DE"}).firstDayOfWeek(), 1);
+
+    EXPECT_EQ(Locale::regional("zh_TW", {.region = "SG"}).formatsId(), "zh_Hant_SG");
+    EXPECT_EQ(Locale::regional("zh_CN", {.region = "SG"}).formatsId(), "zh_SG");
+    // The language's own territory without a region.
+    EXPECT_EQ(Locale::regional("de_DE", {}).formatsId(), "de_DE");
+    EXPECT_EQ(Locale::regional("en_US", {.region = "GB"}).toString(CalendarDate{2026, 10, 14},
+                                                                    Locale::FormatType::Short),
+              "14/10/2026");
+}
+
+TEST(LocaleTest, RegionalChoicesOverrideTheRegion)
+{
+    const Locale us = Locale::regional("en_US", {.region = "US"});
+    EXPECT_FALSE(us.usesTwentyFourHourTime());
+    EXPECT_EQ(us.measurementSystem(), MeasurementSystem::US);
+    EXPECT_EQ(us.temperatureUnit(), TemperatureUnit::Fahrenheit);
+    EXPECT_EQ(us.firstDayOfWeek(), 7);
+
+    const Locale chosen = Locale::regional("en_US", {.region = "US",
+                                                     .firstDayOfWeek = 1,
+                                                     .twentyFourHour = true,
+                                                     .measurementSystem = MeasurementSystem::Metric,
+                                                     .temperatureUnit = TemperatureUnit::Celsius});
+    EXPECT_EQ(chosen.formatsId(), "en_US@fw=mon;hours=h23;measure=metric;mu=celsius");
+    EXPECT_EQ(chosen.firstDayOfWeek(), 1);
+    EXPECT_TRUE(chosen.usesTwentyFourHourTime());
+    EXPECT_EQ(chosen.toString(ClockTime{16, 5, 0, 0}, Locale::FormatType::Short), "16:05");
+    EXPECT_EQ(chosen.measurementSystem(), MeasurementSystem::Metric);
+    EXPECT_EQ(chosen.temperatureUnit(), TemperatureUnit::Celsius);
+    // Names and order stay the region's.
+    EXPECT_EQ(chosen.toString(CalendarDate{2026, 10, 14}, Locale::FormatType::Short), "10/14/26");
+
+    const Locale twelve = Locale::regional("de_DE", {.twentyFourHour = false});
+    EXPECT_FALSE(twelve.usesTwentyFourHourTime());
+    EXPECT_EQ(Locale::regional("en_GB", {}).measurementSystem(), MeasurementSystem::UK);
+    EXPECT_EQ(Locale::regional("en_GB", {.measurementSystem = MeasurementSystem::US}).measurementSystem(),
+              MeasurementSystem::US);
+}
+
+TEST(LocaleTest, SystemFollowsThePreferences)
+{
+    const std::string before = Locale::system().formatsId();
+    Locale::setSystemPreferences(RegionalPreferences{.region = "SG", .firstDayOfWeek = 3});
+    Locale::reloadSystem();
+    EXPECT_EQ(Locale::system().territory(), "SG");
+    EXPECT_EQ(Locale::system().firstDayOfWeek(), 3);
+
+    Locale::setSystemPreferences(std::nullopt);
+    Locale::reloadSystem();
+    EXPECT_EQ(Locale::system().formatsId(), before);
+}
+
+TEST(LocaleTest, ReadsPreferencesFromTheServicesSettings)
+{
+    const std::string path = ::testing::TempDir() + "region-test-services.conf";
+    std::FILE* file = std::fopen(path.c_str(), "w");
+    ASSERT_NE(file, nullptr);
+    std::fputs("[Region]\nregion=sg\nfirstWeekday=1\ntwentyFourHour=true\nmeasurement=uk\ntemperature=fahrenheit\n",
+               file);
+    std::fclose(file);
+    const RegionalPreferences preferences = RegionalPreferences::read(path);
+    EXPECT_EQ(preferences.region, "SG");
+    EXPECT_EQ(preferences.firstDayOfWeek, 1);
+    EXPECT_EQ(preferences.twentyFourHour, true);
+    EXPECT_EQ(preferences.measurementSystem, MeasurementSystem::UK);
+    EXPECT_EQ(preferences.temperatureUnit, TemperatureUnit::Fahrenheit);
+    std::remove(path.c_str());
+
+    EXPECT_EQ(RegionalPreferences::read(path), RegionalPreferences{});
 }

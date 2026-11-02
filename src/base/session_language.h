@@ -15,10 +15,11 @@ namespace dbus {
 class Connection;
 }
 
-// Follows the session language that cutefish-services keeps: when it
-// changes, the process's language variables and locale are set again and
-// changed runs. ui::Application holds one; a process without it, such as a
-// daemon, makes its own.
+// Follows the session language and region that cutefish-services keeps:
+// when they change, the process's language variables, locale and regional
+// preferences (Locale::setSystemPreferences) are set again and changed runs.
+// ui::Application holds one; a process without it, such as a daemon, makes
+// its own.
 class SessionLanguage
 {
 public:

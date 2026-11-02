@@ -23,11 +23,16 @@
 #include <unicode/udat.h>
 #include <unicode/udata.h>
 #include <unicode/uloc.h>
+#include <unicode/ulocdata.h>
+#include <unicode/measunit.h>
+#include <unicode/numberformatter.h>
 #include <unicode/unum.h>
 #include <unicode/ures.h>
 #include <unicode/ustring.h>
 
 #include "base/file.h"
+#include "base/paths.h"
+#include "base/settings.h"
 #include "base/strings.h"
 
 // Exported by ICU's common library but declared only in its internal
@@ -43,6 +48,7 @@ struct Locale::Data
     // Language and territory, such as "en_US", or "C".
     std::string name = "C";
     std::string language = "C";
+    std::string territory;
     std::string icuId = "en_US_POSIX";
     bool isC = true;
 
@@ -68,6 +74,9 @@ struct Locale::Data
     int groupLeast = 3;
     int groupHigher = 3;
     int groupTop = 1;
+
+    MeasurementSystem measurement = MeasurementSystem::Metric;
+    TemperatureUnit temperature = TemperatureUnit::Celsius;
 
     std::string byteUnit = "bytes";
     std::array<std::string, 6> siUnits = {"kB", "MB", "GB", "TB", "PB", "EB"};
@@ -282,11 +291,36 @@ static std::string resourceString(const UResourceBundle* bundle, std::initialize
     return resourceString(findResource(bundle, keys).get());
 }
 
+static std::string withKeyword(const std::string& id, const char* keyword, const char* value)
+{
+    char buffer[ULOC_FULLNAME_CAPACITY + ULOC_KEYWORD_AND_VALUES_CAPACITY];
+    std::snprintf(buffer, sizeof(buffer), "%s", id.c_str());
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_setKeywordValue(keyword, value, buffer, sizeof(buffer), &status);
+    return U_FAILURE(status) ? id : std::string(buffer);
+}
+
 // Names and formats are always the Gregorian calendar's, also where another
 // one is the default (fa_IR, th_TH).
 static std::string gregorian(const std::string& id)
 {
-    return id + "@calendar=gregorian";
+    return withKeyword(id, "calendar", "gregorian");
+}
+
+static std::string keywordValue(const std::string& id, const char* keyword)
+{
+    char value[ULOC_KEYWORDS_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    const int32_t length = uloc_getKeywordValue(id.c_str(), keyword, value, sizeof(value), &status);
+    return U_FAILURE(status) || length <= 0 ? std::string() : std::string(value, size_t(length));
+}
+
+static std::string baseName(const std::string& id)
+{
+    char name[ULOC_FULLNAME_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_getBaseName(id.c_str(), name, sizeof(name), &status);
+    return U_FAILURE(status) ? id : std::string(name);
 }
 
 static std::string datePattern(const std::string& id, UDateFormatStyle time, UDateFormatStyle date)
@@ -356,7 +390,7 @@ static std::string unitText(const UResourceBundle* units, const std::string& uni
 static void readUnits(Locale::Data& data)
 {
     const std::string package = std::string(U_ICUDATA_NAME) + U_TREE_SEPARATOR_STRING + "unit";
-    Resource units = openResource(package.c_str(), data.icuId);
+    Resource units = openResource(package.c_str(), baseName(data.icuId));
     if (!units)
         return;
     // CLDR's root makes long units an alias of the short ones, which ICU's
@@ -457,11 +491,12 @@ static std::shared_ptr<const Locale::Data> createData(const std::string& id)
 
     data->isC = false;
     data->icuId = id;
+    const std::string base = baseName(id);
     char likely[ULOC_FULLNAME_CAPACITY];
     UErrorCode status = U_ZERO_ERROR;
-    uloc_addLikelySubtags(id.c_str(), likely, ULOC_FULLNAME_CAPACITY, &status);
+    uloc_addLikelySubtags(base.c_str(), likely, ULOC_FULLNAME_CAPACITY, &status);
     if (U_FAILURE(status))
-        std::snprintf(likely, sizeof(likely), "%s", id.c_str());
+        std::snprintf(likely, sizeof(likely), "%s", base.c_str());
     char language[ULOC_LANG_CAPACITY] = {};
     char territory[ULOC_COUNTRY_CAPACITY] = {};
     status = U_ZERO_ERROR;
@@ -469,6 +504,7 @@ static std::shared_ptr<const Locale::Data> createData(const std::string& id)
     status = U_ZERO_ERROR;
     uloc_getCountry(likely, territory, ULOC_COUNTRY_CAPACITY, &status);
     data->language = language;
+    data->territory = territory;
     data->name = territory[0] ? data->language + "_" + territory : data->language;
 
     const char* icuId = data->icuId.c_str();
@@ -498,7 +534,7 @@ static std::shared_ptr<const Locale::Data> createData(const std::string& id)
         data->pm = dateSymbol(symbols.get(), UDAT_AM_PMS, 1);
     }
 
-    Resource bundle = openResource(nullptr, id);
+    Resource bundle = openResource(nullptr, base);
     // AM and PM are the wide format day periods.
     if (Resource markers = findResource(bundle.get(), {"calendar", "gregorian", "AmPmMarkers"})) {
         UErrorCode markerStatus = U_ZERO_ERROR;
@@ -545,19 +581,108 @@ static std::shared_ptr<const Locale::Data> createData(const std::string& id)
     if (bundle)
         readGrouping(*data, bundle.get());
     readUnits(*data);
+
+    // ICU answers the measurement system from the territory alone.
+    const std::string measure = keywordValue(id, "measure");
+    if (measure == "metric") {
+        data->measurement = MeasurementSystem::Metric;
+    } else if (measure == "ussystem") {
+        data->measurement = MeasurementSystem::US;
+    } else if (measure == "uksystem") {
+        data->measurement = MeasurementSystem::UK;
+    } else {
+        status = U_ZERO_ERROR;
+        const UMeasurementSystem system = ulocdata_getMeasurementSystem(base.c_str(), &status);
+        if (U_SUCCESS(status))
+            data->measurement = system == UMS_US ? MeasurementSystem::US
+                    : system == UMS_UK ? MeasurementSystem::UK : MeasurementSystem::Metric;
+    }
+
+    status = U_ZERO_ERROR;
+    const icu::number::FormattedNumber weather = icu::number::NumberFormatter::withLocale(icu::Locale(id.c_str()))
+                                                         .unit(icu::MeasureUnit::getCelsius())
+                                                         .usage("weather")
+                                                         .formatDouble(20, status);
+    const icu::MeasureUnit unit = weather.getOutputUnit(status);
+    if (U_SUCCESS(status) && std::string_view(unit.getIdentifier()) == "fahrenheit")
+        data->temperature = TemperatureUnit::Fahrenheit;
     return data;
 }
 
-static std::shared_ptr<const Locale::Data> dataFor(std::string_view name)
+// By ICU id, keywords included.
+static std::shared_ptr<const Locale::Data> cachedData(const std::string& id)
 {
     static std::mutex mutex;
     static std::unordered_map<std::string, std::shared_ptr<const Locale::Data>> cache;
-    const std::string id = localeId(name);
     std::lock_guard locker(mutex);
     auto it = cache.find(id);
     if (it == cache.end())
         it = cache.emplace(id, createData(id)).first;
     return it->second;
+}
+
+static std::shared_ptr<const Locale::Data> dataFor(std::string_view name)
+{
+    return cachedData(localeId(name));
+}
+
+static std::string likelySubtags(const std::string& id)
+{
+    char likely[ULOC_FULLNAME_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_addLikelySubtags(id.c_str(), likely, sizeof(likely), &status);
+    return U_FAILURE(status) ? id : std::string(likely);
+}
+
+static std::string scriptOf(const std::string& id)
+{
+    char script[ULOC_SCRIPT_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_getScript(id.c_str(), script, sizeof(script), &status);
+    return script;
+}
+
+static std::string territoryOf(const std::string& id)
+{
+    char territory[ULOC_COUNTRY_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_getCountry(id.c_str(), territory, sizeof(territory), &status);
+    return territory;
+}
+
+static const char* const kWeekdayKeywords[] = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"};
+
+// The language of `language` (an id without codeset) in the region, with a
+// script where the region writes the language in another one by default
+// ("zh_Hant_SG" for Taiwanese Chinese in Singapore), and the choices as
+// keywords.
+static std::string regionalId(const std::string& language, const std::string& region,
+                              const RegionalPreferences& preferences)
+{
+    const std::string full = likelySubtags(language.empty() ? std::string("en") : language);
+    char code[ULOC_LANG_CAPACITY] = {};
+    UErrorCode status = U_ZERO_ERROR;
+    uloc_getLanguage(full.c_str(), code, sizeof(code), &status);
+    std::string id = *code ? code : "en";
+    const std::string territory = region.empty() ? territoryOf(full) : region;
+    const std::string script = scriptOf(full);
+    if (!territory.empty()) {
+        if (!script.empty() && scriptOf(likelySubtags(id + '_' + territory)) != script)
+            id += '_' + script;
+        id += '_' + territory;
+    }
+
+    if (preferences.firstDayOfWeek >= 1 && preferences.firstDayOfWeek <= 7)
+        id = withKeyword(id, "fw", kWeekdayKeywords[preferences.firstDayOfWeek - 1]);
+    if (preferences.twentyFourHour)
+        id = withKeyword(id, "hours", *preferences.twentyFourHour ? "h23" : "h12");
+    if (preferences.measurementSystem) {
+        static const char* const systems[] = {"metric", "ussystem", "uksystem"};
+        id = withKeyword(id, "measure", systems[int(*preferences.measurementSystem)]);
+    }
+    if (preferences.temperatureUnit)
+        id = withKeyword(id, "mu", *preferences.temperatureUnit == TemperatureUnit::Fahrenheit ? "fahrenhe" : "celsius");
+    return id;
 }
 
 // What the C library's locale setup names for the category: LC_ALL, the
@@ -638,14 +763,48 @@ DateTime DateTime::utc(CalendarDate date, ClockTime time)
 // Never freed: a reload leaves the previous locale to whoever holds it.
 static std::atomic<const Locale*> s_system{nullptr};
 
+static std::mutex s_preferencesMutex;
+static std::optional<RegionalPreferences> s_preferences;
+
 const Locale* Locale::readSystem()
 {
+    std::optional<RegionalPreferences> preferences;
+    {
+        std::lock_guard locker(s_preferencesMutex);
+        preferences = s_preferences;
+    }
     auto* system = new Locale;
-    system->m_messages = dataFor(categoryName(LC_MESSAGES_MASK, LC_MESSAGES));
-    system->m_time = dataFor(categoryName(LC_TIME_MASK, LC_TIME));
-    system->m_numeric = dataFor(categoryName(LC_NUMERIC_MASK, LC_NUMERIC));
+    const std::string messages = categoryName(LC_MESSAGES_MASK, LC_MESSAGES);
+    system->m_messages = dataFor(messages);
+    std::string region;
+    if (preferences)
+        region = preferences->region.empty() ? territoryOf(localeId(categoryName(LC_TIME_MASK, LC_TIME)))
+                                             : preferences->region;
+    // Formats of the C locale stay as they are without a region.
+    if (!region.empty()) {
+        system->m_time = cachedData(regionalId(localeId(messages), region, *preferences));
+        system->m_numeric = system->m_time;
+    } else {
+        system->m_time = dataFor(categoryName(LC_TIME_MASK, LC_TIME));
+        system->m_numeric = dataFor(categoryName(LC_NUMERIC_MASK, LC_NUMERIC));
+    }
     system->m_collation = localeId(categoryName(LC_COLLATE_MASK, LC_COLLATE));
     return system;
+}
+
+void Locale::setSystemPreferences(std::optional<RegionalPreferences> preferences)
+{
+    std::lock_guard locker(s_preferencesMutex);
+    s_preferences = std::move(preferences);
+}
+
+Locale Locale::regional(std::string_view language, const RegionalPreferences& preferences)
+{
+    Locale locale(language);
+    locale.m_time = cachedData(regionalId(localeId(language), preferences.region, preferences));
+    locale.m_numeric = locale.m_time;
+    locale.m_groupDigits = true;
+    return locale;
 }
 
 const Locale& Locale::system()
@@ -672,17 +831,20 @@ void Locale::setProcessLocale()
     setlocale(LC_NUMERIC, "C");
 }
 
-std::string Locale::systemLanguage()
+// A variable of /etc/default/locale or /etc/locale.conf without its codeset,
+// such as "en_SG" or "sr_RS@latin"; empty for none, C and POSIX.
+static std::string systemLocaleVariable(std::string_view name)
 {
+    const std::string prefix = std::string(name) + '=';
     for (const char* path : {"/etc/default/locale", "/etc/locale.conf"}) {
         const std::optional<std::string> contents = file::read(path);
         if (!contents)
             continue;
         for (const std::string& line : strings::split(*contents, '\n')) {
             std::string value(strings::trimmed(line));
-            if (!value.starts_with("LANG="))
+            if (!value.starts_with(prefix))
                 continue;
-            value.erase(0, 5);
+            value.erase(0, prefix.size());
             if (value.size() >= 2 && (value.front() == '"' || value.front() == '\'') && value.back() == value.front())
                 value = value.substr(1, value.size() - 2);
             const size_t codeset = value.find('.');
@@ -692,7 +854,23 @@ std::string Locale::systemLanguage()
                 return value;
         }
     }
-    return "en_US";
+    return {};
+}
+
+std::string Locale::systemLanguage()
+{
+    const std::string language = systemLocaleVariable("LANG");
+    return language.empty() ? "en_US" : language;
+}
+
+std::string Locale::systemRegion()
+{
+    for (const char* name : {"LC_TIME", "LANG"}) {
+        const std::string territory = territoryOf(localeId(systemLocaleVariable(name)));
+        if (!territory.empty())
+            return territory;
+    }
+    return {};
 }
 
 Locale::Locale(std::string_view name)
@@ -716,6 +894,67 @@ std::string Locale::name() const
 std::string Locale::language() const
 {
     return m_messages->language;
+}
+
+std::string Locale::territory() const
+{
+    return m_time->territory;
+}
+
+std::string Locale::formatsId() const
+{
+    return m_time->icuId;
+}
+
+bool Locale::usesTwentyFourHourTime() const
+{
+    bool quoted = false;
+    for (const char c : m_time->timeFormats[1]) {
+        if (c == '\'')
+            quoted = !quoted;
+        else if (!quoted && (c == 'h' || c == 'H'))
+            return c == 'H';
+    }
+    return true;
+}
+
+MeasurementSystem Locale::measurementSystem() const
+{
+    return m_time->measurement;
+}
+
+TemperatureUnit Locale::temperatureUnit() const
+{
+    return m_time->temperature;
+}
+
+RegionalPreferences RegionalPreferences::read(const std::string& path)
+{
+    const Settings settings(path);
+    RegionalPreferences preferences;
+    preferences.region = strings::toAsciiUpper(settings.stringValue("Region/region"));
+    const int64_t day = settings.intValue("Region/firstWeekday");
+    preferences.firstDayOfWeek = day >= 1 && day <= 7 ? int(day) : 0;
+    if (settings.contains("Region/twentyFourHour"))
+        preferences.twentyFourHour = settings.boolValue("Region/twentyFourHour");
+    const std::string measurement = settings.stringValue("Region/measurement");
+    if (measurement == "metric")
+        preferences.measurementSystem = MeasurementSystem::Metric;
+    else if (measurement == "us")
+        preferences.measurementSystem = MeasurementSystem::US;
+    else if (measurement == "uk")
+        preferences.measurementSystem = MeasurementSystem::UK;
+    const std::string temperature = settings.stringValue("Region/temperature");
+    if (temperature == "celsius")
+        preferences.temperatureUnit = TemperatureUnit::Celsius;
+    else if (temperature == "fahrenheit")
+        preferences.temperatureUnit = TemperatureUnit::Fahrenheit;
+    return preferences;
+}
+
+std::string RegionalPreferences::sessionPath()
+{
+    return paths::cutefishConfig("services");
 }
 
 std::string Locale::dateFormat(FormatType type) const

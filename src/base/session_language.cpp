@@ -25,23 +25,45 @@ struct SessionLanguage::Private
     dbus::Proxy proxy;
     dbus::Match match;
     dbus::PendingCall call;
+    RegionalPreferences preferences;
 };
+
+// The service syncs its settings before it signals a change.
+static bool readPreferences(RegionalPreferences& current)
+{
+    RegionalPreferences preferences = RegionalPreferences::read(RegionalPreferences::sessionPath());
+    if (preferences == current)
+        return false;
+    current = std::move(preferences);
+    Locale::setSystemPreferences(current);
+    return true;
+}
 
 SessionLanguage::SessionLanguage(dbus::Connection* bus)
     : d(std::make_unique<Private>(bus))
 {
+    d->preferences = RegionalPreferences::read(RegionalPreferences::sessionPath());
+    Locale::setSystemPreferences(d->preferences);
+    Locale::reloadSystem();
+
     d->match = d->proxy.onSignal("languageChanged", [this](const dbus::Message&) {
         d->call = d->proxy.getPropertyAsync("environment", [this](const dbus::Reply& reply) {
+            const bool region = readPreferences(d->preferences);
             const auto value = reply.value<dbus::Variant>();
-            if (const auto variables = value ? value->get<std::map<std::string, std::string>>() : std::nullopt) {
-                if (apply(*variables))
-                    changed.emit();
-            }
+            const auto variables = value ? value->get<std::map<std::string, std::string>>() : std::nullopt;
+            const bool language = variables && apply(*variables);
+            if (region && !language)
+                Locale::reloadSystem();
+            if (region || language)
+                changed.emit();
         });
     });
 }
 
-SessionLanguage::~SessionLanguage() = default;
+SessionLanguage::~SessionLanguage()
+{
+    Locale::setSystemPreferences(std::nullopt);
+}
 
 bool SessionLanguage::apply(const std::map<std::string, std::string>& variables)
 {

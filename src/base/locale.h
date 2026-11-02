@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -55,12 +56,50 @@ struct DateTime
     static DateTime utc(CalendarDate date, ClockTime time);
 };
 
+enum class MeasurementSystem {
+    Metric,
+    US,
+    // Metric, with miles and pints.
+    UK,
+};
+
+enum class TemperatureUnit {
+    Celsius,
+    Fahrenheit,
+};
+
+// The region and the format choices of Settings' Language & Region page, as
+// cutefish-services keeps them in services.conf [Region]; what is not set
+// follows the region.
+struct RegionalPreferences
+{
+    // ISO 3166, such as "SG"; empty for the territory the formats have
+    // otherwise.
+    std::string region;
+    // 1 for Monday to 7 for Sunday; 0 for the region's.
+    int firstDayOfWeek = 0;
+    std::optional<bool> twentyFourHour;
+    std::optional<MeasurementSystem> measurementSystem;
+    std::optional<TemperatureUnit> temperatureUnit;
+
+    // From [Region] of the settings file at the path.
+    static RegionalPreferences read(const std::string& path);
+    // cutefish-services' settings file.
+    static std::string sessionPath();
+
+    bool operator==(const RegionalPreferences&) const = default;
+};
+
 // Dates, times and numbers written by format strings and CLDR's data through
 // ICU. The system locale is read per category: dates, times, day and month
 // names and the first day of the week come from LC_TIME, number symbols from
 // LC_NUMERIC, sorting from LC_COLLATE, and the name, the weekend and the digit
 // grouping from LC_MESSAGES. The categories are read through the C library's
 // locale setup, so a locale that is not installed counts as "C".
+//
+// A process that follows the session (setSystemPreferences) formats dates,
+// times and numbers in the language of LC_MESSAGES and the session's region
+// instead, with its choices.
 class Locale
 {
 public:
@@ -91,6 +130,18 @@ public:
     // "sr_RS@latin", from LANG in /etc/default/locale or /etc/locale.conf;
     // "en_US" without one.
     static std::string systemLanguage();
+    // The system's default region, such as "SG": the territory of LC_TIME,
+    // else of LANG, in the same files; empty without one.
+    static std::string systemRegion();
+    // Locale::system() formats in the region with these choices from now on,
+    // until nullopt goes back to the categories alone; then reloadSystem().
+    static void setSystemPreferences(std::optional<RegionalPreferences> preferences);
+    // The formats of a language, such as "zh_CN", in the preferences' region
+    // (else the language's own) with their choices: the names in the
+    // language, order and conventions of the region, also for pairs the C
+    // library has no locale for ("ja_SG"). Text and sorting follow the
+    // language.
+    static Locale regional(std::string_view language, const RegionalPreferences& preferences);
     // Every category from one locale, such as "en_SG", "zh_CN" or "C"; a
     // codeset or modifier ("en_SG.UTF-8@euro") is ignored.
     explicit Locale(std::string_view name);
@@ -103,6 +154,16 @@ public:
     std::string name() const;
     // The language's code, such as "en"; "C" for the C locale.
     std::string language() const;
+    // The territory of the dates and numbers, such as "SG"; empty for C.
+    std::string territory() const;
+    // ICU's id for the dates and numbers, with the choices as keywords, such
+    // as "zh_Hans_SG@fw=mon;hours=h23".
+    std::string formatsId() const;
+
+    bool usesTwentyFourHourTime() const;
+    MeasurementSystem measurementSystem() const;
+    // For the weather, as CLDR prefers it in the region.
+    TemperatureUnit temperatureUnit() const;
 
     // Format strings, such as "dddd, d MMMM yyyy" or "h:mm Ap".
     std::string dateFormat(FormatType type = FormatType::Long) const;
