@@ -53,8 +53,10 @@ std::string runtimeDirectory()
 std::vector<std::string> dataDirectories()
 {
     // Where Flatpak exports its installed applications' entries and icons,
-    // ahead of the system's as Flatpak orders them.
-    return {dataHome() + "/flatpak/exports/share", "/var/lib/flatpak/exports/share", "/usr/local/share", "/usr/share"};
+    // ahead of the system's as Flatpak orders them. Snap exports its entries
+    // and icons under /var/lib/snapd/desktop, after the system's directories.
+    return {dataHome() + "/flatpak/exports/share", "/var/lib/flatpak/exports/share", "/usr/local/share", "/usr/share",
+            "/var/lib/snapd/desktop"};
 }
 
 std::vector<std::string> configDirectories()
@@ -126,7 +128,7 @@ std::string findExecutable(const std::string& program)
         return access(program.c_str(), X_OK) == 0 ? program : std::string();
 
     const std::string directories[] = {home() + "/.local/bin", "/usr/local/sbin", "/usr/local/bin",
-                                       "/usr/sbin", "/usr/bin", "/sbin", "/bin"};
+                                       "/usr/sbin", "/usr/bin", "/sbin", "/bin", "/snap/bin"};
     for (const std::string& directory : directories) {
         const std::string path = directory + "/" + program;
         if (access(path.c_str(), X_OK) == 0)

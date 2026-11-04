@@ -11,6 +11,7 @@
 #include "base/desktop_entry.h"
 #include "base/event_loop.h"
 #include "base/file.h"
+#include "base/paths.h"
 
 using namespace cutefish::base;
 using namespace std::chrono_literals;
@@ -106,6 +107,53 @@ static std::string launcherEntry(const std::string& name, const std::string& win
 {
     return "[Desktop Entry]\nType=Application\nName=" + name + "\nExec=launcher \"/opt/" + name + "/" + name
         + "\" %U\nStartupWMClass=" + windowClass + "\nNoDisplay=true\n";
+}
+
+TEST(ApplicationRegistryTest, IncludesSnapExportsAfterNativeAndFlatpakEntries)
+{
+    EXPECT_EQ(ApplicationRegistry::desktopPaths(),
+              (std::vector<std::string>{paths::dataHome() + "/applications",
+                                        paths::dataHome() + "/flatpak/exports/share/applications",
+                                        "/var/lib/flatpak/exports/share/applications",
+                                        "/usr/local/share/applications", "/usr/share/applications",
+                                        "/var/lib/snapd/desktop/applications"}));
+}
+
+TEST(ApplicationRegistryTest, TracksSnapExportInstallRefreshAndRemoval)
+{
+    file::TemporaryDirectory directory(std::filesystem::temp_directory_path().string(), "cutefish-snap-test-");
+    ASSERT_TRUE(directory.isValid());
+    const std::string applications = directory.path() + "/desktop/applications";
+    const std::string path = applications + "/example_example.desktop";
+
+    EventLoop loop;
+    auto registry = ApplicationRegistry::create(loop, {applications});
+    ASSERT_TRUE(waitForScan(loop, *registry, 5s));
+    EXPECT_TRUE(registry->applications().empty());
+
+    const std::string contents =
+        "[Desktop Entry]\nType=Application\nName=Example\n"
+        "Exec=env BAMF_DESKTOP_FILE_HINT=" + path + " /snap/bin/example %U\n"
+        "Icon=/snap/example/current/meta/gui/icon.png\nStartupWMClass=example\n"
+        "X-SnapInstanceName=example\nX-SnapAppName=example\n";
+    ASSERT_TRUE(file::writeAtomically(path, contents));
+    ASSERT_TRUE(waitForScan(loop, *registry, 5s));
+    const auto entry = registry->byId("example_example");
+    ASSERT_NE(entry, nullptr);
+    ASSERT_EQ(registry->applications().size(), 1u);
+    EXPECT_EQ(entry->icon, "/snap/example/current/meta/gui/icon.png");
+    EXPECT_EQ(entry->commandForArguments({"https://example.org/"}),
+              (std::vector<std::string>{"env", "BAMF_DESKTOP_FILE_HINT=" + path, "/snap/bin/example",
+                                        "https://example.org/"}));
+    EXPECT_EQ(registry->resolveWindow("", "example", "", ""), entry);
+
+    ASSERT_TRUE(file::writeAtomically(path, contents + "NoDisplay=true\n"));
+    ASSERT_TRUE(waitForScan(loop, *registry, 5s));
+    EXPECT_TRUE(registry->applications().empty());
+
+    ASSERT_TRUE(std::filesystem::remove(path));
+    ASSERT_TRUE(waitForScan(loop, *registry, 5s));
+    EXPECT_EQ(registry->byId("example_example"), nullptr);
 }
 
 TEST(ApplicationRegistryTest, NamesAWindowOfASharedLauncherByItsAppId)
