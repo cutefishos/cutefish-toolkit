@@ -21,7 +21,8 @@ std::string cacheHome();
 std::string stateHome();
 // /run/user/<uid>
 std::string runtimeDirectory();
-// The user's and the system's Flatpak exports, /usr/local/share and /usr/share
+// The user's and the system's Flatpak exports, /usr/local/share, /usr/share,
+// then /var/lib/snapd/desktop for Snap entries and icons.
 std::vector<std::string> dataDirectories();
 // /etc/xdg
 std::vector<std::string> configDirectories();
@@ -47,7 +48,7 @@ std::string userDirectory(UserDirectory directory);
 std::string userDirectory(UserDirectory directory, const std::string& userDirsFile);
 
 // The program's path through ~/.local/bin and the system's binary
-// directories, or itself when it has a slash; empty when not executable.
+// directories, then /snap/bin, or itself when it has a slash; empty when not executable.
 std::string findExecutable(const std::string& program);
 
 } // namespace cutefish::base::paths
