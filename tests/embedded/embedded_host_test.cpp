@@ -189,10 +189,10 @@ static void type(EmbeddedWindow& window, uint32_t keysym, std::string text = {})
     window.key(event, false);
 }
 
-// The middle of a menu's row: five pixels of margin, rows of 30 and 1 between.
+// The middle of a menu's row: five pixels of margin and rows of 26.
 static PointF menuRow(int row)
 {
-    return {40, 5 + row * 31 + 15.0};
+    return {40, 5 + row * 26 + 13.0};
 }
 
 TEST(EmbeddedHostTest, MenuOpensAsAHostPlacedPopup)
@@ -224,7 +224,7 @@ TEST(EmbeddedHostTest, MenuOpensAsAHostPlacedPopup)
     EXPECT_EQ(popup->popupPlacement().gravity, PopupAnchor::BottomRight);
     EXPECT_EQ(popup->scale(), 1.5);
     EXPECT_GT(popup->size().width, 140);
-    EXPECT_EQ(popup->size().height, 5 + 30 + 1 + 30 + 5);
+    EXPECT_EQ(popup->size().height, 5 + 26 + 26 + 5);
     // The menu's body is blurred behind, at the window radius.
     EXPECT_EQ(popup->blurRect(), (RectF{0, 0, popup->size().width, popup->size().height}));
     EXPECT_GT(popup->blurRadius(), 0);
@@ -306,7 +306,7 @@ TEST(EmbeddedHostTest, SubmenusOpenBesideTheirRows)
     EXPECT_TRUE(placement.slide);
     EXPECT_DOUBLE_EQ(placement.anchorRect.x, 2);
     EXPECT_DOUBLE_EQ(placement.anchorRect.right(), root->size().width - 2);
-    EXPECT_DOUBLE_EQ(placement.anchorRect.y, 31);
+    EXPECT_DOUBLE_EQ(placement.anchorRect.y, 26);
     sub->render();
 
     // Another row takes it down.
@@ -746,8 +746,8 @@ TEST(EmbeddedHostTest, BubbleMenusPointAtTheirTarget)
 
     // MenuSurface's implicit size: rows, margins and the arrow's length.
     const SizeF size = menu.implicitSize(&window);
-    EXPECT_EQ(size.width, 320 + 2 * 3);
-    EXPECT_EQ(size.height, 30 + 1 + 5 + 1 + 30 + 2 * 5 + 6);
+    EXPECT_EQ(size.width, 320 + 2 * 5);
+    EXPECT_EQ(size.height, 26 + 12 + 26 + 2 * 5 + 6);
     EXPECT_GT(menu.minimumEdgeLength(), 40);
 
     menu.popupAt(&window, {580, 10});
@@ -859,7 +859,7 @@ TEST(EmbeddedHostTest, PopupAtAsksAboutToShowOnce)
     EXPECT_EQ(asked, 1);
     ASSERT_EQ(host.open.size(), 1u);
     // The row it added counts in the size.
-    EXPECT_EQ(host.open[0]->size().height, 30 + 2 * 5);
+    EXPECT_EQ(host.open[0]->size().height, 26 + 2 * 5);
     menu.close();
     runLoop(10ms);
 }
@@ -896,7 +896,7 @@ TEST(EmbeddedHostTest, OpenMenusTakeChangedRows)
     menu.itemsChanged();
     runLoop(10ms);
     ASSERT_EQ(host.repositioned.size(), 1u);
-    EXPECT_EQ(popup->size().height, 3 * 30 + 2 + 2 * 5);
+    EXPECT_EQ(popup->size().height, 3 * 26 + 2 * 5);
     // The submenu's row is still there: kept, and it has the keys.
     EXPECT_TRUE(more->isOpen());
     type(window, XKB_KEY_Left);

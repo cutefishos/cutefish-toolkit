@@ -108,10 +108,10 @@ TEST(MenuTest, RowsHaveThemeMetrics)
     f.menu.popupFor(f.anchor);
     Window* popup = f.menu.window();
     popup->grab();
-    // Three rows of 30, one separator of 5, a pixel between each, five
-    // pixels above and below.
-    EXPECT_EQ(popup->size().height, 3 * 30 + 5 + 3 + 2 * 5);
-    EXPECT_GE(popup->size().width, 146 + 2 * 3);
+    // Three rows of 26 and one separator of 12, five pixels above and
+    // below.
+    EXPECT_EQ(popup->size().height, 3 * 26 + 12 + 2 * 5);
+    EXPECT_GE(popup->size().width, 158 + 2 * 5);
 }
 
 // A drop-down: half the screen tall at most, opened centred on the checked
@@ -206,10 +206,10 @@ TEST(MenuTest, ClickChoosesTheRowUnderThePointer)
     Window* popup = f.menu.window();
     popup->grab();
     // The second row is disabled; a click there does nothing.
-    TestInput::click(*popup, {40, 5 + 30 + 15});
+    TestInput::click(*popup, {40, 5 + 26 + 13});
     EXPECT_TRUE(f.chosen.empty());
     EXPECT_TRUE(f.menu.isOpen());
-    TestInput::click(*popup, {40, 5 + 15});
+    TestInput::click(*popup, {40, 5 + 13});
     EXPECT_EQ(f.chosen, (std::vector<std::string>{"Open"}));
 }
 
@@ -220,7 +220,7 @@ TEST(MenuTest, HoverLightsTheRowUnderThePointer)
     Window* popup = f.menu.window();
     popup->grab();
     // No button held: the row lights from hover alone, and Return takes it.
-    TestInput::movePointer(*popup, {40, 5 + 30 + 30 + 9 + 15});
+    TestInput::movePointer(*popup, {40, 5 + 26 + 26 + 12 + 13});
     TestInput::typeKey(*popup, key::Return);
     EXPECT_EQ(f.chosen, (std::vector<std::string>{"Quit"}));
 }
@@ -357,8 +357,8 @@ TEST(MenuTest, GlyphsOverGlassKeepTheirColour)
         const Color text = Theme::current().text;
         // The first row's icon at its start, the second row's chevron at its
         // end, labels elsewhere; device pixels at 1.5, clear of the corners.
-        const int iconEnd = 55;
-        const int chevronStart = glass.width() - 45;
+        const int iconEnd = 59;
+        const int chevronStart = glass.width() - 50;
         const int half = glass.height() / 2;
         int glyphWorst = 0;
         int textWorst = 0;
