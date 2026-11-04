@@ -32,7 +32,8 @@ public:
     // An icon of the theme, its parents or hicolor, for an item of the
     // logical size at the scale: the file the lookup picks, at the device
     // size, a smaller picture stretched as an item stretches it; null when
-    // none has it.
+    // none has it. An application's own icon from outside the theme sits on
+    // the theme's plate when the theme has one.
     sk_sp<SkImage> themeIcon(const std::string& name, int size, double scale);
     // themeIcon(name, size, scale) for each name ahead of time: the lookup
     // here, the rasterising on the global pool, the images stored on this
@@ -69,6 +70,7 @@ private:
         char type = 'T';
         // Applications and MimeTypes are left out for a shortened name.
         bool generic = true;
+        bool applications = false;
     };
 
     // A theme base's GTK icon-theme.cache: the directories holding a name, in
@@ -107,16 +109,26 @@ private:
         bool found = false;
     };
 
+    // A file the lookup settles on, and the theme's plate when the file is an
+    // application's own icon from outside the theme.
+    struct Resolved
+    {
+        std::string path;
+        std::string plate;
+    };
+
     IconTheme& theme(const std::string& name);
-    std::string lookup(const std::string& name, const std::string& requested, int size, int scale);
+    std::string lookup(const std::string& name, const std::string& requested, int size, int scale, bool* foreign);
+    Resolved resolve(const std::string& name, int size, double scale);
     // Touches nothing of the loader: any thread.
-    static sk_sp<SkImage> rasterise(const std::string& path, int size, const Color* tint);
+    static sk_sp<SkImage> rasterise(const std::string& path, int size, const Color* tint,
+                                    const std::string& plate = {});
     std::unordered_map<std::string, std::string> m_glyphs;
     sk_sp<SkImage> cached(const std::string& key);
     void store(const std::string& key, sk_sp<SkImage> image);
 
     std::unordered_map<std::string, IconTheme> m_themes;
-    std::unordered_map<std::string, std::string> m_paths;
+    std::unordered_map<std::string, Resolved> m_paths;
     // Least recently used last.
     std::list<std::pair<std::string, sk_sp<SkImage>>> m_images;
     std::unordered_map<std::string, std::list<std::pair<std::string, sk_sp<SkImage>>>::iterator> m_index;
