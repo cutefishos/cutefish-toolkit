@@ -21,8 +21,8 @@ namespace fs = std::filesystem;
 
 static constexpr std::chrono::milliseconds kWatchRetry(2000);
 static constexpr std::chrono::milliseconds kWatchRetryLimit(60000);
-// How long a bundle outside ~/Applications, such as on a disk image, is
-// taken as read before it is checked again.
+// How long a bundle outside the Applications folders, such as on a disk
+// image, is taken as read before it is checked again.
 static constexpr std::chrono::seconds kOtherBundleRecheck(2);
 
 static std::string normalized(std::string_view value)
@@ -104,8 +104,8 @@ static std::vector<DesktopEntry> scanBundles(const std::string& directory, const
     return results;
 }
 
-static std::vector<DesktopEntry> scan(const std::vector<std::string>& directories, const std::string& bundleDirectory,
-                                      const std::string& language)
+static std::vector<DesktopEntry> scan(const std::vector<std::string>& directories,
+                                      const std::vector<std::string>& bundleDirectories, const std::string& language)
 {
     std::vector<DesktopEntry> results;
     std::set<std::string> selectedIds;
@@ -141,9 +141,12 @@ static std::vector<DesktopEntry> scan(const std::vector<std::string>& directorie
     }
 
     const auto handler = std::find_if(results.begin(), results.end(), opensBundles);
-    if (handler != results.end() && !bundleDirectory.empty()) {
-        std::vector<DesktopEntry> bundles = scanBundles(bundleDirectory, *handler);
-        std::move(bundles.begin(), bundles.end(), std::back_inserter(results));
+    if (handler != results.end()) {
+        const DesktopEntry bundleHandler = *handler;
+        for (const std::string& directory : bundleDirectories) {
+            std::vector<DesktopEntry> bundles = scanBundles(directory, bundleHandler);
+            std::move(bundles.begin(), bundles.end(), std::back_inserter(results));
+        }
     }
     return results;
 }
@@ -157,24 +160,24 @@ ApplicationRegistry& ApplicationRegistry::instance(EventLoop* loop)
         loop = EventLoop::current();
     auto& registry = s_instances[loop];
     if (!registry) {
-        registry.reset(new ApplicationRegistry(*loop, desktopPaths(), bundle::applicationsDirectory()));
+        registry.reset(new ApplicationRegistry(*loop, desktopPaths(), bundle::applicationsDirectories()));
         loop->addDestroyHook([loop] { s_instances.erase(loop); });
     }
     return *registry;
 }
 
 std::unique_ptr<ApplicationRegistry> ApplicationRegistry::create(EventLoop& loop, std::vector<std::string> directories,
-                                                                 std::string bundleDirectory)
+                                                                 std::vector<std::string> bundleDirectories)
 {
     return std::unique_ptr<ApplicationRegistry>(
-            new ApplicationRegistry(loop, std::move(directories), std::move(bundleDirectory)));
+            new ApplicationRegistry(loop, std::move(directories), std::move(bundleDirectories)));
 }
 
 ApplicationRegistry::ApplicationRegistry(EventLoop& loop, std::vector<std::string> directories,
-                                         std::string bundleDirectory)
+                                         std::vector<std::string> bundleDirectories)
     : m_loop(loop)
     , m_directories(std::move(directories))
-    , m_bundleDirectory(std::move(bundleDirectory))
+    , m_bundleDirectories(std::move(bundleDirectories))
     , m_debounce(&loop)
     , m_watchRetry(&loop)
     , m_watchRetryDelay(kWatchRetry)
@@ -235,8 +238,8 @@ void ApplicationRegistry::startScan()
     m_loading = true;
     m_language = DesktopEntry::displayLanguage();
     m_scan = runInThread(
-            [directories = m_directories, bundleDirectory = m_bundleDirectory, language = m_language] {
-                return scan(directories, bundleDirectory, language);
+            [directories = m_directories, bundleDirectories = m_bundleDirectories, language = m_language] {
+                return scan(directories, bundleDirectories, language);
             },
             [this](std::vector<DesktopEntry> results) { applyScan(std::move(results)); });
 }
@@ -327,14 +330,14 @@ void ApplicationRegistry::monitorPaths()
         }
     }
 
-    // Copies arrive in it whole, renamed into place, so its own entries are
-    // all there is to follow.
-    if (!m_bundleDirectory.empty()) {
+    // Copies arrive in them whole, renamed into place, so their own entries
+    // are all there is to follow.
+    for (const std::string& bundleDirectory : m_bundleDirectories) {
         std::error_code error;
-        if (fs::is_directory(m_bundleDirectory, error)) {
-            watch(m_bundleDirectory);
+        if (fs::is_directory(bundleDirectory, error)) {
+            watch(bundleDirectory);
         } else {
-            const fs::path directory(m_bundleDirectory);
+            const fs::path directory(bundleDirectory);
             const std::string name = directory.filename().string();
             FileWatch parent = FileWatch::directory(
                     directory.parent_path().string(),
@@ -432,7 +435,8 @@ std::shared_ptr<const DesktopEntry> ApplicationRegistry::otherBundle(const std::
 void ApplicationRegistry::otherBundleRead(const std::string& path, std::optional<DesktopEntry> entry)
 {
     OtherBundle& other = m_otherBundles[path];
-    // Kept out of menus: only ~/Applications holds installed applications.
+    // Kept out of menus: only the Applications folders hold installed
+    // applications.
     if (entry)
         entry->noDisplay = true;
     const DesktopEntry* old = other.entry.get();

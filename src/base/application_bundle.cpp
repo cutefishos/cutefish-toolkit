@@ -275,9 +275,9 @@ static std::vector<std::string> documentTypes(const plist::Value& info)
     return result;
 }
 
-std::string applicationsDirectory()
+std::vector<std::string> applicationsDirectories()
 {
-    return paths::home() + "/Applications";
+    return {paths::home() + "/Applications", "/Applications"};
 }
 
 std::string bundlePath(const std::string& path)

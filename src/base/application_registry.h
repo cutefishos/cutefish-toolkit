@@ -24,8 +24,8 @@ class EventLoop;
 
 // The installed applications: every .desktop file in the user's and the
 // system's applications directories, and the application bundles in
-// ~/Applications when an entry runs them, read on a thread and read again
-// when they change or the session language does.
+// ~/Applications and /Applications when an entry runs them, read on a
+// thread and read again when they change or the session language does.
 class ApplicationRegistry
 {
 public:
@@ -33,7 +33,7 @@ public:
     static ApplicationRegistry& instance(EventLoop* loop = nullptr);
     // A registry of other applications directories, for tests.
     static std::unique_ptr<ApplicationRegistry> create(EventLoop& loop, std::vector<std::string> directories,
-                                                       std::string bundleDirectory = {});
+                                                       std::vector<std::string> bundleDirectories = {});
 
     ApplicationRegistry(const ApplicationRegistry&) = delete;
     ApplicationRegistry& operator=(const ApplicationRegistry&) = delete;
@@ -43,10 +43,10 @@ public:
 
     // An exact id first, then one that differs only in case.
     std::shared_ptr<const DesktopEntry> byId(const std::string& id) const;
-    // As byId, but never a bundle outside ~/Applications.
+    // As byId, but never a bundle outside the Applications folders.
     std::shared_ptr<const DesktopEntry> installedById(const std::string& id) const;
-    // A bundle outside ~/Applications is read on a thread: null until then,
-    // and checked again when asked for later.
+    // A bundle outside the Applications folders is read on a thread: null
+    // until then, and checked again when asked for later.
     std::shared_ptr<const DesktopEntry> byPath(const std::string& path) const;
     // The bundle at path, read now when it is not installed; null when it is
     // no bundle or no entry runs bundles.
@@ -65,7 +65,7 @@ public:
     // What menus show, sorted by name.
     const std::vector<std::shared_ptr<const DesktopEntry>>& applications() const { return m_applications; }
 
-    // After each scan, and when a bundle outside ~/Applications was read.
+    // After each scan, and when a bundle outside the Applications folders was read.
     Signal<> changed;
 
     // ~/.local/share/applications, then the system's.
@@ -74,7 +74,7 @@ public:
     void scheduleScan();
 
 private:
-    ApplicationRegistry(EventLoop& loop, std::vector<std::string> directories, std::string bundleDirectory);
+    ApplicationRegistry(EventLoop& loop, std::vector<std::string> directories, std::vector<std::string> bundleDirectories);
     friend struct std::default_delete<ApplicationRegistry>;
     ~ApplicationRegistry() = default;
 
@@ -84,7 +84,7 @@ private:
     std::shared_ptr<const DesktopEntry> otherBundle(const std::string& path) const;
     void otherBundleRead(const std::string& path, std::optional<DesktopEntry> entry);
 
-    // A bundle outside ~/Applications, as last read.
+    // A bundle outside the Applications folders, as last read.
     struct OtherBundle
     {
         std::shared_ptr<const DesktopEntry> entry;
@@ -96,7 +96,7 @@ private:
 
     EventLoop& m_loop;
     std::vector<std::string> m_directories;
-    std::string m_bundleDirectory;
+    std::vector<std::string> m_bundleDirectories;
     Timer m_debounce;
     // Brings back the watches that could not be made, such as when the
     // user's inotify watches ran out.

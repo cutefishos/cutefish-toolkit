@@ -208,7 +208,7 @@ TEST(ApplicationBundleTest, ListsInstalledBundlesWhenAnEntryRunsThem)
 
     EventLoop loop;
     std::unique_ptr<ApplicationRegistry> registry =
-            ApplicationRegistry::create(loop, {applications.path()}, bundles.path());
+            ApplicationRegistry::create(loop, {applications.path()}, {bundles.path()});
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
     EXPECT_TRUE(registry->entries().empty());
 
@@ -233,12 +233,47 @@ TEST(ApplicationBundleTest, ListsInstalledBundlesWhenAnEntryRunsThem)
     EXPECT_EQ(registry->applications().front()->path, bundles.path() + "/Renamed.app");
     EXPECT_FALSE(registry->installedById(installed));
 
-    // Taken out of ~/Applications, as into the Trash, it is installed no more.
+    // Taken out of the Applications folders, as into the Trash, it is
+    // installed no more.
     fs::rename(bundles.path() + "/Renamed.app", applications.path() + "/Renamed.app");
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
     EXPECT_TRUE(registry->applications().empty());
     EXPECT_FALSE(registry->installedById(bundles.path() + "/Renamed.app"));
     EXPECT_FALSE(registry->installedById(applications.path() + "/Renamed.app"));
+}
+
+TEST(ApplicationBundleTest, ListsBundlesOfEveryApplicationsFolder)
+{
+    file::TemporaryDirectory applications(fs::temp_directory_path().string(), "cutefish-test-");
+    file::TemporaryDirectory user(fs::temp_directory_path().string(), "cutefish-test-");
+    file::TemporaryDirectory system(fs::temp_directory_path().string(), "cutefish-test-");
+    ASSERT_TRUE(applications.isValid() && user.isValid() && system.isValid());
+    ASSERT_TRUE(file::writeAtomically(applications.path() + "/runner.desktop", kHandler));
+    ASSERT_TRUE(makeBundle(user.path() + "/Editor.app", "Editor"));
+    ASSERT_TRUE(makeBundle(system.path() + "/Staged/Editor.app", "Editor"));
+    ASSERT_TRUE(makeBundle(system.path() + "/Staged/Viewer.app", "Viewer"));
+
+    EventLoop loop;
+    std::unique_ptr<ApplicationRegistry> registry =
+            ApplicationRegistry::create(loop, {applications.path()}, {user.path(), system.path() + "/Later"});
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+    ASSERT_EQ(registry->applications().size(), 1u);
+    EXPECT_EQ(registry->applications().front()->path, user.path() + "/Editor.app");
+
+    // A folder made later is seen.
+    fs::rename(system.path() + "/Staged", system.path() + "/Later");
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+
+    // Each copy is an application of its own, the user's first.
+    std::vector<std::string> paths;
+    for (const auto& entry : registry->entries()) {
+        if (entry->bundle)
+            paths.push_back(entry->path);
+    }
+    EXPECT_EQ(paths, (std::vector<std::string>{user.path() + "/Editor.app", system.path() + "/Later/Editor.app",
+                                                system.path() + "/Later/Viewer.app"}));
+    EXPECT_EQ(registry->applications().size(), 3u);
+    EXPECT_TRUE(registry->installedById(system.path() + "/Later/Viewer.app"));
 }
 
 TEST(ApplicationBundleTest, ReadsOtherBundlesOnAThread)
@@ -252,7 +287,7 @@ TEST(ApplicationBundleTest, ReadsOtherBundlesOnAThread)
 
     EventLoop loop;
     std::unique_ptr<ApplicationRegistry> registry =
-            ApplicationRegistry::create(loop, {applications.path()}, elsewhere.path() + "/Applications");
+            ApplicationRegistry::create(loop, {applications.path()}, {elsewhere.path() + "/Applications"});
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
     EXPECT_TRUE(registry->applications().empty());
 

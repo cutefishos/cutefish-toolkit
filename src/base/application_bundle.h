@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/desktop_entry.h"
 
@@ -15,8 +16,8 @@ namespace cutefish::base::bundle {
 
 inline constexpr char kType[] = "application/x-apple-app";
 
-// ~/Applications, where installed bundles go.
-std::string applicationsDirectory();
+// Where installed bundles live: ~/Applications, then /Applications.
+std::vector<std::string> applicationsDirectories();
 
 // The path absolute and without a trailing slash when its name ends in .app;
 // empty otherwise. Reads nothing.
