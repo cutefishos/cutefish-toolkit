@@ -922,12 +922,34 @@ static std::optional<SkIRect> inkBounds(const sk_sp<SkImage>& image)
     return SkIRect::MakeLTRB(left, top, right, bottom);
 }
 
+// The theme's plate at a size, drawn once: every icon on it at that size
+// shares the drawing. Any thread.
+static sk_sp<SkImage> plateImage(const std::string& plate, int size)
+{
+    static std::mutex mutex;
+    static std::unordered_map<std::string, sk_sp<SkImage>> plates;
+    const std::string key = plate + "@" + std::to_string(size);
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (const auto it = plates.find(key); it != plates.end())
+            return it->second;
+    }
+    sk_sp<SkData> data = SkData::MakeFromFileName(plate.c_str());
+    sk_sp<SkImage> image = data ? renderSvg(loadSvg(std::move(data)), size, nullptr) : nullptr;
+    if (!image)
+        return nullptr;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (plates.size() >= 32)
+        plates.clear();
+    plates.emplace(key, image);
+    return image;
+}
+
 // An application's own icon on the theme's plate, its visible part
 // kPlateContent of the size at the longer side and centred.
 static sk_sp<SkImage> renderOnPlate(const std::string& plate, sk_sp<SkData> data, bool svg, int size)
 {
-    sk_sp<SkData> plateData = SkData::MakeFromFileName(plate.c_str());
-    const sk_sp<SkImage> base = plateData ? renderSvg(loadSvg(std::move(plateData)), size, nullptr) : nullptr;
+    const sk_sp<SkImage> base = plateImage(plate, size);
     if (!base)
         return nullptr;
 
