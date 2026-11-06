@@ -53,6 +53,9 @@ public:
     // The text centred in the field while it fits, as horizontalAlignment
     // Text.AlignHCenter; the placeholder too.
     void setHorizontallyCentered(bool centred);
+    // The text against the right margin while it fits, the caret after it;
+    // the placeholder too.
+    void setRightAligned(bool rightAligned);
     // Around the text, left and right; the theme's large spacing unless set.
     void setTextMargins(double left, double right);
     // The rounded background and its border; off for a field drawn into

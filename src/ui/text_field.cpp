@@ -91,6 +91,7 @@ struct TextField::Private
     double fontSize = 0;
     int weight = 400;
     bool centred = false;
+    bool rightAligned = false;
     std::string family;
     std::optional<ColorRecipe> textColor;
     std::optional<ColorRecipe> placeholderColor;
@@ -252,6 +253,8 @@ struct TextField::Private
         paragraphStyle.setTextStyle(style);
         if (centred)
             paragraphStyle.setTextAlign(textlayout::TextAlign::kCenter);
+        else if (rightAligned)
+            paragraphStyle.setTextAlign(textlayout::TextAlign::kRight);
         paragraphStyle.setApplyRoundingHack(false);
         paragraphStyle.setMaxLines(1);
         paragraphStyle.setEllipsis(SkString("…"));
@@ -265,14 +268,18 @@ struct TextField::Private
         return placeholderParagraph.get();
     }
 
-    // Where centred text starts in a content box of the width: centred while
-    // it fits, as TextInput's horizontal alignment, else at the start.
+    // Where centred or right-aligned text starts in a content box of the
+    // width while it fits, as TextInput's horizontal alignment, else at the
+    // start. Right-aligned text leaves room for the widest caret paint draws.
     double alignX(double width) const
     {
-        if (!centred || !paragraph)
+        if ((!centred && !rightAligned) || !paragraph)
             return 0;
         const double used = paragraph->getMaxIntrinsicWidth();
-        return used <= width ? (width - used) / 2 : 0;
+        if (centred)
+            return used <= width ? (width - used) / 2 : 0;
+        constexpr double kCaretRoom = 1.5;
+        return used + kCaretRoom <= width ? width - used - kCaretRoom : 0;
     }
 
     // Logical pixels from the start of the text to the caret at a display offset.
@@ -391,6 +398,13 @@ void TextField::setFontWeight(int weight)
 void TextField::setHorizontallyCentered(bool centred)
 {
     d->centred = centred;
+    d->placeholderParagraph.reset();
+    requestPaint();
+}
+
+void TextField::setRightAligned(bool rightAligned)
+{
+    d->rightAligned = rightAligned;
     d->placeholderParagraph.reset();
     requestPaint();
 }
