@@ -166,11 +166,12 @@ TEST(TextLayoutTest, DrawsFormatsInTheirColours)
 // font, though text fonts have a plain black heart.
 TEST(TextLayoutTest, VariationSelectorAsksForEmoji)
 {
-    TextLayout layout("\u2764\uFE0F", {"Inter", 24, false, false});
+    // Also where the character follows text the text font draws.
+    TextLayout layout("a\u2764\uFE0Fb", {"Inter", 24, false, false});
     layout.setDefaultColor(Color::rgb(0x000000));
     layOut(layout, 0);
     Window window;
-    window.resize({60, 40});
+    window.resize({100, 40});
     window.setBackgroundColor(Color::rgb(0xFFFFFF));
     window.setContentView(std::make_unique<Canvas>([&](Painter& painter) { layout.draw(painter, {2, 4}); }));
     window.show();

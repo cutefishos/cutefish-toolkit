@@ -117,6 +117,17 @@ static const sk_sp<SkTypeface>& typefaceFor(FontSet& set, char32_t c)
     return set.fallbacks.emplace(c, std::move(fallback)).first->second;
 }
 
+// The typeface of the character ending at next, the emoji font when the
+// emoji variation selector follows it.
+static sk_sp<SkTypeface> presentedTypeface(FontSet& set, const std::string& text, UChar32 c, size_t next)
+{
+    const sk_sp<SkTypeface>& face = typefaceFor(set, char32_t(std::max<UChar32>(c, 0)));
+    if (set.emoji && face != set.emoji && text.compare(next, 3, "\xEF\xB8\x8F") == 0
+        && set.emoji->unicharToGlyph(SkUnichar(c)))
+        return set.emoji;
+    return face;
+}
+
 namespace {
 
 // Glyphs of one shaped piece: one font, direction and style.
@@ -444,11 +455,7 @@ void TextLayoutPrivate::shape()
         int32_t next = int32_t(i);
         UChar32 c;
         U8_NEXT(text.data(), next, int32_t(text.size()), c);
-        sk_sp<SkTypeface> face = typefaceFor(set, char32_t(std::max<UChar32>(c, 0)));
-        // A character asked for as emoji by the variation selector after it.
-        if (set.emoji && face != set.emoji && next + 2 < int32_t(text.size())
-            && text.compare(size_t(next), 3, "\xEF\xB8\x8F") == 0 && set.emoji->unicharToGlyph(SkUnichar(c)))
-            face = set.emoji;
+        sk_sp<SkTypeface> face = presentedTypeface(set, text, c, size_t(next));
         const uint8_t level = levels[i];
         size_t end = size_t(next);
         // Marks and joiners stay with what they follow.
@@ -471,7 +478,7 @@ void TextLayoutPrivate::shape()
             const bool joins = category == U_NON_SPACING_MARK || category == U_ENCLOSING_MARK
                     || category == U_COMBINING_SPACING_MARK || d == 0x200D || (d >= 0xFE00 && d <= 0xFE0F)
                     || (d >= 0x1F3FB && d <= 0x1F3FF) || (d >= 0xE0020 && d <= 0xE007F);
-            if (!joins && typefaceFor(set, char32_t(std::max<UChar32>(d, 0))) != face)
+            if (!joins && presentedTypeface(set, text, d, size_t(after)) != face)
                 break;
             end = size_t(after);
         }
