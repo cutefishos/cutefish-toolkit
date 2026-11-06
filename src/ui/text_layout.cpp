@@ -445,6 +445,10 @@ void TextLayoutPrivate::shape()
         UChar32 c;
         U8_NEXT(text.data(), next, int32_t(text.size()), c);
         sk_sp<SkTypeface> face = typefaceFor(set, char32_t(std::max<UChar32>(c, 0)));
+        // A character asked for as emoji by the variation selector after it.
+        if (set.emoji && face != set.emoji && next + 2 < int32_t(text.size())
+            && text.compare(size_t(next), 3, "\xEF\xB8\x8F") == 0 && set.emoji->unicharToGlyph(SkUnichar(c)))
+            face = set.emoji;
         const uint8_t level = levels[i];
         size_t end = size_t(next);
         // Marks and joiners stay with what they follow.
