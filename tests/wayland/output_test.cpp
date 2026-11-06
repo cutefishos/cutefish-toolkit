@@ -258,6 +258,28 @@ TEST(OutputTest, ScaleAndWorkAreaReachTheOutputs)
     EXPECT_TRUE(outputs[0].primary);
 }
 
+// At a fractional scale the logical size is rounded to whole units; the
+// scale is still the one the compositor uses, in 120ths.
+TEST(OutputTest, FractionalScaleSurvivesTheRoundedLogicalSize)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+    wl_display_roundtrip(connection->display());
+    int changes = 0;
+    connection->onOutputsChanged = [&] {
+        ++changes;
+    };
+    // 2160 pixels at 1.75 are 1234.3 units.
+    compositor.resizeOutput(1234, 823);
+    for (int i = 0; i < 100 && changes == 0; ++i)
+        wl_display_roundtrip(connection->display());
+    const std::vector<wayland::Connection::OutputInfo> outputs = connection->outputs();
+    ASSERT_EQ(outputs.size(), 1u);
+    EXPECT_DOUBLE_EQ(outputs[0].scale, 1.75);
+}
+
 // The adopted descriptor is close-on-exec: a program the trusted client
 // starts must not inherit its privileged connection.
 TEST(OutputTest, AdoptedConnectionIsNotInherited)

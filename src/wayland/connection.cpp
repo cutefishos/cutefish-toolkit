@@ -4,6 +4,7 @@
 #include "wayland/connection.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -583,8 +584,10 @@ std::vector<Connection::OutputInfo> Connection::outputs() const
                           output.logicalSize.height}};
         // Either side of the output, whichever way it is turned.
         const double logical = std::max(output.logicalSize.width, output.logicalSize.height);
+        // Scales come in 120ths (fractional-scale-v1) and the logical size in
+        // whole units, so the ratio is rounded back to the scale it came from.
         if (logical > 0 && output.pixelSize.width > 0)
-            info.scale = std::max(output.pixelSize.width, output.pixelSize.height) / logical;
+            info.scale = std::round(std::max(output.pixelSize.width, output.pixelSize.height) / logical * 120) / 120;
         if (const auto area = m_workAreas.find(output.outputName); area != m_workAreas.end()) {
             info.workArea = area->second.area;
             info.primary = area->second.primary;
