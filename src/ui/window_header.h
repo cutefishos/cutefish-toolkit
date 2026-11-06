@@ -34,6 +34,9 @@ public:
 
     void setMinimizeVisible(bool visible);
     void setMaximizeVisible(bool visible);
+    // Off, the maximize button shows disabled and a double click on the bar
+    // does nothing, for windows of a fixed size.
+    void setMaximizeEnabled(bool enabled);
     void setCloseVisible(bool visible);
     // From the top and the start, 4 by default and 8 in dialogs.
     void setButtonMargin(double margin);
