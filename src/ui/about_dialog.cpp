@@ -13,7 +13,6 @@
 #include "base/event_loop.h"
 #include "base/process.h"
 #include "ui/application.h"
-#include "ui/cell_layout.h"
 #include "ui/color_provider.h"
 #include "ui/icon_loader.h"
 #include "ui/keys.h"
@@ -25,9 +24,17 @@
 
 namespace cutefish::ui {
 
-static constexpr double kWidth = 300;
+// As wide as it is; as tall as its contents, which makes it taller than wide.
+static constexpr double kWidth = 280;
 static constexpr double kHeaderHeight = 40;
-static constexpr double kIconSize = 64;
+static constexpr double kIconTop = 40;
+static constexpr double kIconSize = 112;
+static constexpr double kIconGap = 20;
+static constexpr double kNameGap = 8;
+// The description wraps at this width.
+static constexpr double kDescriptionWidth = 200;
+static constexpr double kLinkGap = 20;
+static constexpr double kBottomMargin = 40;
 
 namespace {
 
@@ -57,26 +64,18 @@ private:
     bool m_pressed = false;
 };
 
-// An Image of an image://icontheme source at a sourceSize, as FishUI's
-// provider answers it: a theme icon comes as a pixmap for sourceSize × the
-// scale at the whole pixel ratio above it, and the Image takes that pixmap's
-// size at the window's scale, so a 64 icon is 128 logical at 150%; a file
-// comes at the requested size itself.
-class ProviderImage : public View
+// The application's icon, a theme name or a file, the size in logical
+// pixels at any scale.
+class AboutIcon : public View
 {
 public:
-    ProviderImage(std::string source, double sourceSize)
+    AboutIcon(std::string source, double size)
         : m_source(std::move(source))
-        , m_sourceSize(sourceSize)
+        , m_size(size)
     {
     }
 
-    SizeF sizeHint() const override
-    {
-        const double scale = textLayoutMode().scale;
-        const double side = pixels(scale) / scale;
-        return {side, side};
-    }
+    SizeF sizeHint() const override { return {m_size, m_size}; }
 
 protected:
     void paint(Painter& painter) override
@@ -84,15 +83,14 @@ protected:
         if (m_source.empty())
             return;
         const double scale = painter.scale();
-        const int requested = int(std::lround(m_sourceSize * scale));
-        sk_sp<SkImage> image = isFile() ? IconLoader::instance().pixmap(m_source, requested)
-                                        : IconLoader::instance().themeIcon(m_source, requested, wholeScale(scale),
-                                                                           pixels(scale));
+        const int side = int(std::lround(m_size * scale));
+        sk_sp<SkImage> image = m_source.front() == '/'
+                ? IconLoader::instance().pixmap(m_source, side)
+                : IconLoader::instance().themeIcon(m_source, int(m_size), scale);
         if (!image)
             return;
-        // A plain Image: where it lies, filtered.
+        // Where it lies, filtered.
         const PointF origin = painter.offset();
-        const int side = pixels(scale);
         SkPaint paint;
         paint.setAlphaf(float(painter.opacity()));
         painter.canvas()->drawImageRect(image, SkRect::MakeXYWH(SkScalar(origin.x * scale), SkScalar(origin.y * scale),
@@ -101,16 +99,8 @@ protected:
     }
 
 private:
-    bool isFile() const { return !m_source.empty() && m_source.front() == '/'; }
-    static int wholeScale(double scale) { return std::max(1, int(std::ceil(scale - 1e-9))); }
-    int pixels(double scale) const
-    {
-        const int requested = int(std::lround(m_sourceSize * scale));
-        return isFile() ? requested : requested * wholeScale(scale);
-    }
-
     std::string m_source;
-    double m_sourceSize;
+    double m_size;
 };
 
 } // namespace
@@ -120,50 +110,35 @@ class AboutDialog::Content : public View
 public:
     explicit Content(AboutDialog* dialog)
         : m_header(addChild<WindowHeader>(kHeaderHeight))
-        , m_column(addChild<ColumnLayout>())
+        , m_icon(addChild<AboutIcon>(dialog->m_icon, kIconSize))
+        , m_name(addChild<Label>(dialog->m_name))
+        , m_description(addChild<Label>(dialog->m_description))
+        , m_link(addChild<LinkLabel>())
     {
         m_header->setMinimizeVisible(false);
         // Fixed in both directions: no maximize button.
         m_header->setMaximizeVisible(false);
 
-        View* icon = m_column->addChild<ProviderImage>(dialog->m_icon, kIconSize);
-        LayoutHints centred;
-        centred.horizontalAlignment = Alignment::Center;
-        icon->setLayoutHints(centred);
-
-        View* gap = m_column->addChild<View>();
-        LayoutHints gapHints;
-        gapHints.fallbackHeight = Theme::current().largeSpacing;
-        gap->setLayoutHints(gapHints);
-
-        Label* name = m_column->addChild<Label>(dialog->m_name);
-        name->setFontSize(14.0 * 4 / 3);
-        name->setLayoutHints(centred);
-        Label* description = m_column->addChild<Label>(dialog->m_description);
-        description->setLayoutHints(centred);
-
-        LinkLabel* link = m_column->addChild<LinkLabel>();
-        link->setSpans({{dialog->m_link, 0, ColorId::Highlight, false, true, dialog->m_link}});
-        link->setLayoutHints(centred);
-        link->onClicked = [dialog] {
+        m_name->setFontSize(22);
+        m_name->setWeight(700);
+        m_name->setTextAlignment(Label::TextAlignment::Center);
+        m_description->setFontSize(12);
+        m_description->setColor(withAlpha(ColorId::Text, 0.7));
+        m_description->setTextAlignment(Label::TextAlignment::Center);
+        m_description->setWrap(true);
+        m_link->setSpans({{dialog->m_link, 0, ColorId::Highlight, false, true, dialog->m_link}});
+        m_link->onClicked = [dialog] {
             const std::string url = dialog->m_link;
             if (dialog->onLinkActivated)
                 dialog->onLinkActivated(url);
             else
                 base::Process::startDetached("xdg-open", {url});
         };
-
-        View* filler = m_column->addChild<View>();
-        LayoutHints fill;
-        fill.fillHeight = true;
-        filler->setLayoutHints(fill);
     }
 
-    // The column's implicit height and the header's height twice, as
-    // FishUI's contentHeight.
     double heightForWidth(double width) const override
     {
-        return m_column->heightForWidth(width) + 2 * kHeaderHeight;
+        return arrange(width, false);
     }
 
     bool acceptsPointer() const override { return true; }
@@ -173,9 +148,8 @@ protected:
     {
         const RectF bounds = localRect();
         m_header->setGeometry({0, 0, bounds.width, kHeaderHeight});
-        // The column fills the window under the header, less a header's
-        // height at the bottom.
-        m_column->setGeometry({0, kHeaderHeight, bounds.width, std::max(0.0, bounds.height - 2 * kHeaderHeight)});
+        arrange(bounds.width, true);
+
         // The blur follows the size the content gives the window.
         if (Window* window = this->window(); window && bounds.size() != m_blurSize) {
             m_blurSize = bounds.size();
@@ -190,8 +164,36 @@ protected:
     }
 
 private:
+    // Places the views from the top when asked to; returns the height they take.
+    double arrange(double width, bool place) const
+    {
+        const double middle = width / 2;
+        const auto centred = [&](View* view, double y, double viewWidth, double height) {
+            if (place)
+                view->setGeometry({std::round(middle - viewWidth / 2), y, viewWidth, height});
+        };
+        double y = kHeaderHeight + kIconTop;
+        centred(m_icon, y, kIconSize, kIconSize);
+        y += kIconSize + kIconGap;
+        const double nameHeight = m_name->sizeHint().height;
+        centred(m_name, y, width, nameHeight);
+        y += nameHeight + kNameGap;
+        const double descriptionWidth = std::min(kDescriptionWidth, width);
+        const double descriptionHeight = m_description->heightForWidth(descriptionWidth);
+        centred(m_description, y, descriptionWidth, descriptionHeight);
+        y += descriptionHeight + kLinkGap;
+        // Only the link's own width takes clicks.
+        const SizeF link = m_link->sizeHint();
+        centred(m_link, y, std::min(link.width, width), link.height);
+        y += link.height + kBottomMargin;
+        return y;
+    }
+
     WindowHeader* m_header;
-    ColumnLayout* m_column;
+    View* m_icon;
+    Label* m_name;
+    Label* m_description;
+    LinkLabel* m_link;
     SizeF m_blurSize;
 };
 
@@ -214,6 +216,7 @@ void AboutDialog::show()
     m_window->setBackgroundColor(Color::rgb(0x000000).withAlpha(0));
     m_window->resize({kWidth, 0});
     m_window->setFitsContentHeight(true);
+    m_window->setUserResizable(false);
     m_window->onCloseRequested = [this] { close(); };
     m_window->addShortcut(NoModifier, key::Escape, [this] { close(); });
     m_window->show();
