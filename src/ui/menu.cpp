@@ -152,8 +152,17 @@ public:
         if (m_keyboard && row < 0 && m_menu->m_dropDown)
             return;
         m_keyboard = false;
+        // Over the menu's own margin with a submenu open: the row stays lit and
+        // the hover check decides, as when the pointer leaves the menu. Taking
+        // the submenu down at once here closed it under a pointer crossing the
+        // frame slowly, one pixel at a time, on its way into the submenu.
+        if (row < 0 && m_menu->m_openSubmenu) {
+            setCurrent(submenuRow());
+            m_menu->scheduleSubmenuCheck();
+            return;
+        }
         setCurrent(row);
-        // Another row, or none, takes the submenu down; a row with one opens it.
+        // Another row takes the submenu down; a row with one opens it.
         if (m_menu->m_openSubmenu && row != submenuRow())
             m_menu->closeSubmenu();
         if (row >= 0 && m_menu->m_items[m_rows[size_t(row)].index].submenu)
