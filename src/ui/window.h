@@ -569,7 +569,8 @@ private:
         bool wanted = false;
         bool explicitMaterial = false;
         std::optional<bool> dark;
-        // The shell's glass generation the material was sent at.
+        // The theme and the shell's glass generation the material was sent at.
+        uint64_t theme = 0;
         uint64_t generation = 0;
         bool sent = false;
         bool subscriptionMade = false;

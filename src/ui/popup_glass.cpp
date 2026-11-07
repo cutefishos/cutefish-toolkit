@@ -50,7 +50,20 @@ double glassBlend(double amount, double clearValue, double defaultValue, double 
         + (t3 - t2) * m1;
 }
 
-// The shell's settings file, followed for the tint while the program runs.
+// A blur slider's position (0 Sharper, 1 Softer, 0.3 the default) as the
+// factor the blur is scaled by: a decade each way from the default, over
+// the travel on that side.
+double glassBlurFactor(double blur)
+{
+    const double position = std::isfinite(blur) ? std::clamp(blur, 0.0, 1.0) : 0.3;
+    const double decades = position < 0.3 ? (position - 0.3) / 0.3 : (position - 0.3) / 0.7;
+    return std::pow(10.0, decades);
+}
+
+// The widest blur the glass kernel carries (30 device pixels).
+constexpr double kMaxBlurSigma = 8.0;
+
+// The shell's settings file, followed for the glass while the program runs.
 class ShellGlassTint
 {
 public:
@@ -62,6 +75,7 @@ public:
 
     double tint() const { return m_tint; }
     double blur() const { return m_blur; }
+    bool frosted() const { return m_frosted; }
     uint64_t generation() const { return m_generation; }
     base::Signal<> changed;
 
@@ -85,10 +99,12 @@ private:
         };
         const double tint = read("Appearance/GlassTint", 0.5);
         const double blur = read("Appearance/GlassBlur", 0.3);
-        if (tint == m_tint && blur == m_blur)
+        const bool frosted = settings.boolValue("Appearance/GlassFrosted", false);
+        if (tint == m_tint && blur == m_blur && frosted == m_frosted)
             return;
         m_tint = tint;
         m_blur = blur;
+        m_frosted = frosted;
         ++m_generation;
         changed();
     }
@@ -96,6 +112,7 @@ private:
     std::string m_path;
     double m_tint = 0.5;
     double m_blur = 0.3;
+    bool m_frosted = false;
     uint64_t m_generation = 0;
     base::FileWatch m_watch;
 };
@@ -110,6 +127,11 @@ double shellGlassTint()
 double shellGlassBlur()
 {
     return ShellGlassTint::instance().blur();
+}
+
+bool shellGlassFrosted()
+{
+    return ShellGlassTint::instance().frosted();
 }
 
 uint64_t shellGlassGeneration()
@@ -130,7 +152,7 @@ GlassMaterial windowGlass(bool darkMode, double tint)
 
 GlassMaterial windowGlass(const Color& tint, double opacity)
 {
-    GlassMaterial glass = popupGlass(Theme::current().darkMode, 0.0, shellGlassBlur());
+    GlassMaterial glass = popupGlass(Theme::current().darkMode, shellGlassTint(), shellGlassBlur());
     const double alpha = std::isfinite(opacity) ? std::clamp(opacity, 0.0, 1.0) : 1.0;
     glass.tintRed = tint.r / 255.0;
     glass.tintGreen = tint.g / 255.0;
@@ -140,31 +162,54 @@ GlassMaterial windowGlass(const Color& tint, double opacity)
     return glass;
 }
 
-// From 0.3 to 8, the widest sigma the 30 device pixel kernel carries,
-// geometrically, so 0.3 of the travel is the 0.8 the dock had.
-static double glassBlurSigma(double blur)
+// The frost menus and drop-downs had before the sliders: a white or dark
+// grey, the lens kept to the lip; the edge is the compositor's outline.
+static GlassMaterial frostedPopupGlass(bool darkMode)
 {
-    return 0.3 * std::pow(8.0 / 0.3, std::clamp(blur, 0.0, 1.0));
+    GlassMaterial glass;
+    glass.blurSigma = 6;
+    glass.displacement = 20;
+    glass.chroma = 0.03;
+    glass.saturation = 1.2;
+    if (darkMode) {
+        glass.tintRed = 0.17;
+        glass.tintGreen = 0.17;
+        glass.tintBlue = 0.19;
+    } else {
+        glass.tintRed = 1;
+        glass.tintGreen = 1;
+        glass.tintBlue = 1;
+    }
+    glass.tintAlpha = 0.6;
+    return glass;
 }
 
-GlassMaterial popupGlass(bool, double tint, double blur)
+GlassMaterial popupGlass(bool darkMode, double tint, double blur)
 {
-    // The lens is the dock's and does not move with the Glass effect slider:
-    // that sets only how much of the theme's background colour tints it.
+    // The dock's recipe (cutefish-compositor's tintedGlass), value for value.
+    const double amount = glassAmount(tint);
+    const auto blend = [amount](double clear, double middle, double tinted) {
+        return glassBlend(amount, clear, middle, tinted);
+    };
     GlassMaterial glass;
-    glass.blurSigma = glassBlurSigma(blur);
-    glass.displacement = 36;
+    glass.blurSigma = std::min(kMaxBlurSigma, blend(0.6, 1.0, 8.0) * glassBlurFactor(blur));
+    glass.displacement = blend(36.0, 36.0, 0.0);
     // A colour split along the lip reads as a rainbow fringe next to the rim.
     glass.chroma = 0;
-    glass.saturation = 1.35;
-    // The lit rim fades with the tint: a near-solid surface has no shine.
-    const double amount = glassAmount(tint);
-    glass.rim = glassBlend(amount, 1.0, 0.6, 0.0);
-    const double alpha = glassBlend(amount, 0.10, 0.35, 0.95);
-    const Color background = Theme::current().background;
-    glass.tintRed = background.r / 255.0;
-    glass.tintGreen = background.g / 255.0;
-    glass.tintBlue = background.b / 255.0;
+    glass.saturation = blend(1.4, 1.3, 1.0);
+    glass.rim = 1.0;
+    // A grey tint, blended as its grey and its alpha; in the dark theme the
+    // theme's own grey. More Tinted reaches the frosted panels' opacity
+    // (0.86); the default is the dock's as it was.
+    const double alpha = darkMode ? blend(0.12, 0.29, 0.86) : blend(0.16, 0.25, 0.86);
+    if (darkMode) {
+        const Color background = Theme::current().background;
+        glass.tintRed = background.r / 255.0;
+        glass.tintGreen = background.g / 255.0;
+        glass.tintBlue = background.b / 255.0;
+    } else {
+        glass.tintRed = glass.tintGreen = glass.tintBlue = std::clamp(blend(0.375, 0.6, 1.0), 0.0, 1.0);
+    }
     glass.tintAlpha = std::clamp(alpha, 0.0, 1.0);
     return glass;
 }
@@ -176,6 +221,8 @@ GlassMaterial popupGlass(bool darkMode, double tint)
 
 GlassMaterial popupGlass(bool darkMode)
 {
+    if (shellGlassFrosted())
+        return frostedPopupGlass(darkMode);
     return popupGlass(darkMode, shellGlassTint());
 }
 
@@ -183,13 +230,14 @@ bool PopupGlass::update(Window& window)
 {
     if (!window.backgroundGlassAvailable())
         return false;
-    const bool darkMode = Theme::current().darkMode;
-    // m_tint holds the generation: the blur changes the material too.
-    const double generation = double(shellGlassGeneration());
-    if (m_darkMode != darkMode || m_tint != generation) {
-        m_darkMode = darkMode;
-        m_tint = generation;
-        window.setBackgroundGlass(popupGlass(darkMode));
+    // The theme's generation covers its dark mode and its colours.
+    const uint64_t theme = Theme::generation();
+    const uint64_t generation = shellGlassGeneration();
+    if (!m_sent || m_theme != theme || m_generation != generation) {
+        m_sent = true;
+        m_theme = theme;
+        m_generation = generation;
+        window.setBackgroundGlass(popupGlass(Theme::current().darkMode));
     }
     return true;
 }

@@ -412,7 +412,8 @@ void Window::setBackgroundColor(std::optional<ColorRecipe> color)
 Color Window::backgroundColor() const
 {
     Color color = m_backgroundColor ? m_backgroundColor->resolve() : Theme::current().background;
-    if (m_autoGlass.wanted && m_autoGlass.dark && color.a < 255)
+    // Frosted, the fill is painted as it always was.
+    if (m_autoGlass.wanted && m_autoGlass.dark && !shellGlassFrosted() && color.a < 255)
         color.a = 0;
     return color;
 }
@@ -470,13 +471,19 @@ void Window::applyAutoGlass()
     if (!glass->wanted || !m_platform->glassAvailable())
         return;
     const bool dark = Theme::current().darkMode;
+    const uint64_t theme = Theme::generation();
     const uint64_t generation = shellGlassGeneration();
-    if (glass->sent && glass->dark == dark && glass->generation == generation)
+    if (glass->sent && glass->theme == theme && glass->generation == generation)
         return;
     glass->dark = dark;
+    glass->theme = theme;
     glass->generation = generation;
     glass->sent = true;
-    m_platform->setGlass(windowGlass(dark, shellGlassTint()));
+    // Frosted, the plain blur under the window's own fill, as before.
+    if (shellGlassFrosted())
+        m_platform->setGlass(std::nullopt);
+    else
+        m_platform->setGlass(windowGlass(dark, shellGlassTint()));
     if (!glass->subscriptionMade) {
         glass->subscriptionMade = true;
         glass->subscription = shellGlassTintChanged().connect([this] { applyAutoGlass(); });
