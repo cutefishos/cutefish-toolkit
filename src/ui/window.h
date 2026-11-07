@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/signal.h"
 #include "ui/color_mixer.h"
 #include "ui/event.h"
 #include "ui/geometry.h"
@@ -180,11 +179,6 @@ public:
     // greyscale there.
     void setTranslucentSubpixelText(bool subpixel);
     // The rounded body the compositor blurs behind, outlines and shadows.
-    // Where the compositor draws glass, the blur is the shell's window glass
-    // at the Appearance tint (Settings > Appearance > Glass effect), followed
-    // while the window lives, and a translucent background colour is not
-    // painted at all, the glass being the surface as it is the dock's;
-    // setBackgroundGlass picks a material instead.
     void setBackgroundBlur(const RectF& rect, double radius);
     // The outline that masks the blur instead of the rounded rect, such as
     // a bubble's, as cutefish_surface_blur_v1.set_shape; empty for none.
@@ -561,23 +555,6 @@ private:
     bool m_fitsContentHeight = false;
     SizeF m_fittedSize;
     std::optional<ColorRecipe> m_backgroundColor;
-    // The shell's window glass under a plain blur: asked for by
-    // setBackgroundBlur, ended by setBackgroundGlass; what was sent, and the
-    // tint subscription.
-    struct AutoGlass
-    {
-        bool wanted = false;
-        bool explicitMaterial = false;
-        std::optional<bool> dark;
-        // The theme and the shell's glass generation the material was sent at.
-        uint64_t theme = 0;
-        uint64_t generation = 0;
-        bool sent = false;
-        bool subscriptionMade = false;
-        base::Subscription subscription;
-    };
-    AutoGlass m_autoGlass;
-    void applyAutoGlass();
     WindowStates m_states;
     Window* m_transientParent = nullptr;
     // isActive() as last notified.
