@@ -30,6 +30,7 @@
 #include "ui/layer.h"
 #include "ui/painter.h"
 #include "ui/platform_window.h"
+#include "ui/popup_glass.h"
 #include "ui/text_context.h"
 #include "ui/text_lines.h"
 #include "ui/theme.h"
@@ -410,7 +411,10 @@ void Window::setBackgroundColor(std::optional<ColorRecipe> color)
 
 Color Window::backgroundColor() const
 {
-    return m_backgroundColor ? m_backgroundColor->resolve() : Theme::current().background;
+    Color color = m_backgroundColor ? m_backgroundColor->resolve() : Theme::current().background;
+    if (m_autoGlass.wanted && m_autoGlass.dark && color.a < 255)
+        color.a = 0;
+    return color;
 }
 
 void Window::handleThemeChanged()
@@ -443,6 +447,41 @@ void Window::setTranslucentSubpixelText(bool subpixel)
 void Window::setBackgroundBlur(const RectF& rect, double radius)
 {
     m_platform->setBlur(rect, radius);
+    AutoGlass& glass = m_autoGlass;
+    if (!glass.explicitMaterial) {
+        // An empty rect ends the blur, and the glass with it.
+        const bool blurred = rect.width > 0 && rect.height > 0;
+        if (glass.wanted && !blurred) {
+            glass.dark.reset();
+            glass.sent = false;
+            m_platform->setGlass(std::nullopt);
+        }
+        glass.wanted = blurred;
+        applyAutoGlass();
+    }
+    requestPaint();
+}
+
+// The shell's window glass, sent when the theme or the tint differs from
+// what the compositor has.
+void Window::applyAutoGlass()
+{
+    AutoGlass* glass = &m_autoGlass;
+    if (!glass->wanted || !m_platform->glassAvailable())
+        return;
+    const bool dark = Theme::current().darkMode;
+    const uint64_t generation = shellGlassGeneration();
+    if (glass->sent && glass->dark == dark && glass->generation == generation)
+        return;
+    glass->dark = dark;
+    glass->generation = generation;
+    glass->sent = true;
+    m_platform->setGlass(windowGlass(dark, shellGlassTint()));
+    if (!glass->subscriptionMade) {
+        glass->subscriptionMade = true;
+        glass->subscription = shellGlassTintChanged().connect([this] { applyAutoGlass(); });
+    }
+    scheduleFrame();
     requestPaint();
 }
 
@@ -455,6 +494,12 @@ void Window::setBackgroundBlurShape(const Path& path)
 
 void Window::setBackgroundGlass(const std::optional<GlassMaterial>& material)
 {
+    // A material of the window's own, or the plain blur again, ends the shell's.
+    AutoGlass& glass = m_autoGlass;
+    glass.explicitMaterial = material.has_value();
+    glass.wanted = false;
+    glass.dark.reset();
+    glass.sent = false;
     m_platform->setGlass(material);
     scheduleFrame();
 }
@@ -1652,6 +1697,8 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
         prepareFrame(frameTimeNs);
     // Whatever asked for a paint until here is drawn by this frame.
     m_needsFrame = false;
+    // The theme may have changed since the glass was sent.
+    applyAutoGlass();
     const Color background = backgroundColor();
     // A frame that changes nothing, such as one an animation without visible
     // progress ticks, keeps the frame callbacks coming without drawing.
