@@ -160,11 +160,16 @@ void ThemeIcon::paint(Painter& painter)
         }
         return;
     }
-    // The size is taken in whole logical pixels; a theme size picks the
-    // artwork at 1x.
+    // The theme is searched at the size in whole logical pixels, or at a
+    // theme size for the artwork at 1x; the raster is the rect's device
+    // pixels exactly, so a size between logical pixels at a scale between
+    // whole ones lands pixel for pixel, not a pixel or two short of its rect
+    // and stepping as it grows.
+    const int pixels = int(std::lround(m_size * painter.scale()));
     sk_sp<SkImage> found = m_themeSize > 0
-            ? IconLoader::instance().themeIcon(m_name, m_themeSize, 1, int(std::lround(m_size * painter.scale())))
-            : IconLoader::instance().themeIcon(m_name, int(m_size), painter.scale());
+            ? IconLoader::instance().themeIcon(m_name, m_themeSize, 1, pixels)
+            : IconLoader::instance().themeIcon(m_name, int(std::lround(m_size)), int(std::ceil(painter.scale())),
+                                               pixels);
     if (sk_sp<SkImage> image = std::move(found)) {
         if (!tint) {
             painter.drawImage(image.get(), rect.x, rect.y);
