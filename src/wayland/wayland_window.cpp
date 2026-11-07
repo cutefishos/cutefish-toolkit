@@ -527,7 +527,7 @@ bool WaylandWindow::startDrag(DragSource source)
 
 void WaylandWindow::scaleChanged(double scale)
 {
-    notifyScaleChanged(scale);
+    notifyScaleChanged(Application::wholeScaleRendering() ? std::ceil(scale) : scale);
 }
 
 void WaylandWindow::closeRequested()

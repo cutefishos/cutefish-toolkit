@@ -25,6 +25,7 @@
 namespace cutefish::ui {
 
 static Application* s_instance = nullptr;
+static bool s_wholeScaleRendering = false;
 
 Application::Application(int argc, char** argv, Platform platform)
     : m_arguments(argv, argv + argc)
@@ -106,6 +107,16 @@ Application::~Application()
 Application* Application::instance()
 {
     return s_instance;
+}
+
+void Application::setWholeScaleRendering(bool enabled)
+{
+    s_wholeScaleRendering = enabled;
+}
+
+bool Application::wholeScaleRendering()
+{
+    return s_wholeScaleRendering;
 }
 
 TextContext& Application::text() const

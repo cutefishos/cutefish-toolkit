@@ -64,6 +64,12 @@ public:
 
     static Application* instance();
 
+    // Windows on screen draw at the next whole scale at or above their
+    // output's and the compositor scales them down to it, as on systems
+    // without fractional scales. Set before the first window shows.
+    static void setWholeScaleRendering(bool enabled);
+    static bool wholeScaleRendering();
+
     const std::vector<std::string>& arguments() const { return m_arguments; }
     Platform platform() const { return m_platform; }
 

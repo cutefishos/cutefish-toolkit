@@ -139,6 +139,21 @@ static std::string viewPath(const View* view)
     return path;
 }
 
+// What a new window on screen most likely shows at: the primary output's
+// scale, until the compositor tells the window its own.
+static double expectedScale()
+{
+    const std::vector<Application::Screen> screens = Application::instance()->screens();
+    if (screens.empty())
+        return 1.0;
+    double scale = screens.front().scale;
+    for (const Application::Screen& screen : screens) {
+        if (screen.primary)
+            scale = screen.scale;
+    }
+    return Application::wholeScaleRendering() ? std::ceil(scale) : scale;
+}
+
 Window::Window()
     : m_frameDamage(std::make_unique<FrameDamage>())
     , m_self(std::make_shared<Window*>(this))
@@ -147,6 +162,8 @@ Window::Window()
     m_platform->setAppId(Application::instance()->applicationId());
     m_platform->setMainMenu(Application::instance()->mainMenu());
     Application::instance()->m_windows.push_back(this);
+    if (!m_platform->isHeadless() && !m_platform->isEmbedded())
+        m_scale = expectedScale();
 }
 
 Window::Window(TrustedConnection& connection)
