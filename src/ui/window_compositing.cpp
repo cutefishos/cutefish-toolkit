@@ -34,10 +34,11 @@ static SkIRect intersection(const SkIRect& a, const SkIRect& b)
 }
 
 // Repaints the target inside the clip; `paint` culls by the region it gets.
-// The GPU clips. The raster backend antialiases edges a clip crosses
-// differently, so it paints unclipped aside and copies the clip in, to
-// match full repaints. The scratch reaches only as far as the clip, from the
-// origin: shaders evaluated at other coordinates differ by a level.
+// The GPU clips. The raster backend antialiases edges a clip of many parts
+// crosses differently, so it paints aside, clipped to the parts' bounds
+// alone, and copies the clip in, to match full repaints. The scratch reaches
+// from the origin: shaders evaluated at other coordinates differ by a level.
+// It is kept from frame to frame.
 template<typename Paint>
 static void repaint(SkCanvas* target, const SkRegion& clip, const Paint& paint)
 {
@@ -52,11 +53,21 @@ static void repaint(SkCanvas* target, const SkRegion& clip, const Paint& paint)
     }
     const SkIRect bounds = clip.getBounds();
     const SkSurfaceProps properties = target->getBaseProps();
-    const sk_sp<SkSurface> scratch = SkSurfaces::Raster(
-        target->imageInfo().makeWH(bounds.right(), bounds.bottom()), &properties);
-    if (!scratch)
-        return;
-    paint(scratch->getCanvas());
+    const SkImageInfo info = target->imageInfo();
+    thread_local sk_sp<SkSurface> scratch;
+    if (!scratch || scratch->width() < bounds.right() || scratch->height() < bounds.bottom()
+        || scratch->imageInfo().colorType() != info.colorType() || scratch->imageInfo().alphaType() != info.alphaType()
+        || scratch->props() != properties) {
+        scratch = SkSurfaces::Raster(info.makeWH(std::max(info.width(), bounds.right()),
+                                                  std::max(info.height(), bounds.bottom())), &properties);
+        if (!scratch)
+            return;
+    }
+    SkCanvas* canvas = scratch->getCanvas();
+    canvas->save();
+    canvas->clipIRect(bounds);
+    paint(canvas);
+    canvas->restore();
     SkPaint copy;
     copy.setBlendMode(SkBlendMode::kSrc);
     target->save();
@@ -430,9 +441,7 @@ void Window::updateLayers(View* view, PointF origin, SkCanvas* target, const SkI
         canvas->save();
         canvas->translate(SkScalar(-bounds.x()), SkScalar(-bounds.y()));
         Painter painter(canvas, m_scale);
-        // The raster backend paints whole aside, as repaint() says.
-        if (canvas->recordingContext())
-            painter.setDamage(&layer.damage);
+        painter.setDamage(&layer.damage);
         painter.translate(origin);
         view->paintContent(painter, &layer.damage);
         canvas->restore();
@@ -545,7 +554,7 @@ void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
     const auto paintInside = [&](SkCanvas* target) {
         target->clear(backgroundColor().argb());
         Painter painter(target, m_scale);
-        if (region && target->recordingContext())
+        if (region)
             painter.setDamage(region);
         m_contentView->paintTree(painter, region);
         if (m_overlay)
