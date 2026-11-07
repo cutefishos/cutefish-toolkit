@@ -91,6 +91,9 @@ std::string themeIconPath(const std::string& name, int size = 16, double scale =
 // images into the icon cache on this thread, then `done` here. Icons cached
 // already are skipped; up to 512 icons stay cached.
 void preloadThemeIcons(std::vector<std::string> names, int size, double scale, std::function<void()> done = {});
+// Forgets the icon themes and the lookups made in them, so that icons
+// installed since, such as a new application's, are found.
+void reloadThemeIcons();
 // A theme icon as a ThemeIcon of the size draws it at the scale, as
 // `icon.grabToImage()`: round(size * scale) square, premultiplied RGBA,
 // from the cache when it is there; null when the theme has none.

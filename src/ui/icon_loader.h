@@ -56,6 +56,8 @@ public:
     static sk_sp<SkImage> renderSvgFile(const std::string& path, int width, int height);
     // An application's own single-colour glyph, drawn as the built-in ones.
     void registerGlyph(const std::string& name, std::string svg);
+    // Reads the themes again at the next lookup; rasterised images stay.
+    void reload();
 
 private:
     struct Directory

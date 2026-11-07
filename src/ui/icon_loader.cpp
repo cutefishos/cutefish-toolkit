@@ -840,6 +840,12 @@ std::string IconLoader::lookup(const std::string& name, const std::string& reque
     return best->path;
 }
 
+void IconLoader::reload()
+{
+    m_themes.clear();
+    m_paths.clear();
+}
+
 std::string IconLoader::themeIconPath(const std::string& name, int size, double scale)
 {
     return resolve(name, size, scale).path;

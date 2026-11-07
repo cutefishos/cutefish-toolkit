@@ -98,6 +98,11 @@ void preloadThemeIcons(std::vector<std::string> names, int size, double scale, s
     IconLoader::instance().preloadThemeIcons(names, size, scale, std::move(done));
 }
 
+void reloadThemeIcons()
+{
+    IconLoader::instance().reload();
+}
+
 Bitmap themeIconBitmap(const std::string& name, int size, double scale)
 {
     const sk_sp<SkImage> image = IconLoader::instance().themeIcon(name, size, scale);
