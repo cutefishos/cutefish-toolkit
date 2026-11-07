@@ -211,6 +211,12 @@ static bool opensFiles(const DesktopEntry& entry)
     return !entry.hidden && !entry.terminal;
 }
 
+// One of the desktop's own programs, such as its text editor or video player.
+static bool isDesktopsOwn(const DesktopEntry& entry)
+{
+    return entry.id.starts_with("cutefish-");
+}
+
 // A bundle that is no longer installed opens nothing, even where a list
 // still names it.
 static std::shared_ptr<const DesktopEntry> entryForDesktopId(std::string desktopId)
@@ -394,9 +400,12 @@ std::vector<std::string> applications(const std::string& mimeType, const std::ve
                 matches.push_back(entry);
         }
 
-        // The first one opens files without a default, so keep that the earliest installed.
+        // The first one opens files without a default, so keep that the earliest installed,
+        // except that the desktop's own programs come before third-party ones installed earlier.
         std::stable_sort(matches.begin(), matches.end(),
                          [](const auto& a, const auto& b) { return birthTime(a->path) < birthTime(b->path); });
+        std::stable_partition(matches.begin(), matches.end(),
+                              [](const auto& entry) { return isDesktopsOwn(*entry); });
 
         for (const std::shared_ptr<const DesktopEntry>& entry : matches) {
             // One program installed under two desktop files is offered once.
