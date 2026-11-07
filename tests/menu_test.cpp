@@ -4,10 +4,13 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <vector>
 
+#include "base/event_loop.h"
 #include "test_views.h"
+#include "ui/application.h"
 #include "ui/keys.h"
 #include "ui/layout.h"
 #include "ui/menu.h"
@@ -223,6 +226,30 @@ TEST(MenuTest, HoverLightsTheRowUnderThePointer)
     TestInput::movePointer(*popup, {40, 5 + 26 + 26 + 12 + 13});
     TestInput::typeKey(*popup, key::Return);
     EXPECT_EQ(f.chosen, (std::vector<std::string>{"Quit"}));
+}
+
+// On its way into a submenu the pointer crosses the frame's margin beside the
+// row; the submenu stays until the pointer reaches another row.
+TEST(MenuTest, SubmenuStaysWhileThePointerCrossesTheMargin)
+{
+    Fixture f;
+    Menu* more = f.menu.addSubmenu("More");
+    more->addItem("Inside", [] {});
+    f.menu.popup(&f.window, {20, 20});
+    Window* popup = f.menu.window();
+    popup->grab();
+    const double moreRow = 5 + 26 + 26 + 12 + 26 + 13;
+    TestInput::movePointer(*popup, {40, moreRow});
+    ASSERT_TRUE(more->isOpen());
+
+    TestInput::movePointer(*popup, {popup->size().width - 2, moreRow});
+    cutefish::base::EventLoop& loop = Application::instance()->loop();
+    loop.startTimer(std::chrono::milliseconds(200), false, [&loop] { loop.quit(); });
+    loop.run();
+    EXPECT_TRUE(more->isOpen());
+
+    TestInput::movePointer(*popup, {40, 5 + 13});
+    EXPECT_FALSE(more->isOpen());
 }
 
 TEST(MenuTest, EscapeAndDismissalClose)

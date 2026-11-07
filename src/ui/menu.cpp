@@ -344,7 +344,6 @@ protected:
 
     void pointerMove(const PointerEvent& event) override { pointerMoved(mapToWindow(event.position)); }
     void pointerPress(const PointerEvent& event) override { pointerMoved(mapToWindow(event.position)); }
-    void pointerLeave() override { pointerLeft(); }
 
     void pointerRelease(const PointerEvent& event) override
     {
