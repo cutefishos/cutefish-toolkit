@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 
 #include "include/core/SkBitmap.h"
 #include "include/core/SkBlendMode.h"
@@ -17,6 +18,8 @@
 #include "include/core/SkPaint.h"
 #include "include/core/SkPath.h"
 #include "include/core/SkPathBuilder.h"
+#include "include/core/SkPixelRef.h"
+#include "include/core/SkSurface.h"
 #include "include/effects/SkDashPathEffect.h"
 #include "include/effects/SkGradient.h"
 #include "include/effects/SkImageFilters.h"
@@ -390,20 +393,51 @@ void Canvas2D::fillRadialGradient(const std::vector<GradientStopF>& stops, Point
     m_canvas->drawPaint(paint);
 }
 
+// The pixels, and the texture a GPU canvas drew them from with the part
+// updated since. GPU objects are let go on the thread that draws.
 struct RetainedBitmap::Data
 {
+    std::mutex lock;
+    SkBitmap pixels;
     sk_sp<SkImage> image;
+    sk_sp<SkSurface> texture;
+    GrRecordingContext* context = nullptr;
+    SkIRect stale = SkIRect::MakeEmpty();
+
+    ~Data();
 };
 
+static std::mutex s_releasedLock;
+static std::vector<sk_sp<SkSurface>> s_releasedTextures;
+
+RetainedBitmap::Data::~Data()
+{
+    if (texture) {
+        std::lock_guard<std::mutex> guard(s_releasedLock);
+        s_releasedTextures.push_back(std::move(texture));
+    }
+}
+
 RetainedBitmap::RetainedBitmap() = default;
+
+static void releasePixels(const void*, void* context)
+{
+    static_cast<SkPixelRef*>(context)->unref();
+}
 
 RetainedBitmap::RetainedBitmap(const Bitmap& bitmap)
 {
     if (bitmap.isNull())
         return;
-    sk_sp<SkImage> image = SkImages::RasterFromPixmapCopy(skPixmap(bitmap));
-    if (image)
-        d = std::make_shared<const Data>(Data {std::move(image)});
+    auto data = std::make_shared<Data>();
+    const SkPixmap source = skPixmap(bitmap);
+    if (!data->pixels.tryAllocPixels(source.info()) || !data->pixels.writePixels(source, 0, 0))
+        return;
+    SkPixelRef* pixels = data->pixels.pixelRef();
+    pixels->ref();
+    data->image = SkImages::RasterFromPixmap(data->pixels.pixmap(), releasePixels, pixels);
+    if (data->image)
+        d = std::move(data);
 }
 
 RetainedBitmap::~RetainedBitmap() = default;
@@ -412,17 +446,32 @@ RetainedBitmap& RetainedBitmap::operator=(const RetainedBitmap&) = default;
 
 int RetainedBitmap::width() const
 {
-    return d ? d->image->width() : 0;
+    return d ? d->pixels.width() : 0;
 }
 
 int RetainedBitmap::height() const
 {
-    return d ? d->image->height() : 0;
+    return d ? d->pixels.height() : 0;
 }
 
 size_t RetainedBitmap::byteCount() const
 {
-    return d ? size_t(d->image->width()) * size_t(d->image->height()) * 4 : 0;
+    return d ? size_t(d->pixels.width()) * size_t(d->pixels.height()) * 4 : 0;
+}
+
+void RetainedBitmap::update(const Bitmap& bitmap, const Rect& rect)
+{
+    if (!d || bitmap.width() != width() || bitmap.height() != height())
+        return;
+    SkIRect area = SkIRect::MakeXYWH(rect.x, rect.y, rect.width, rect.height);
+    if (!area.intersect(SkIRect::MakeWH(width(), height())))
+        return;
+    SkPixmap source;
+    if (!skPixmap(bitmap).extractSubset(&source, area))
+        return;
+    std::lock_guard<std::mutex> guard(d->lock);
+    d->pixels.writePixels(source, area.x(), area.y());
+    d->stale.join(area);
 }
 
 void Canvas2D::drawBitmap(const Bitmap& bitmap, const RectF& rect, bool mirrored)
@@ -436,7 +485,41 @@ void Canvas2D::drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool 
 {
     if (!m_canvas || bitmap.isNull())
         return;
-    drawImage(bitmap.d->image.get(), rect, mirrored);
+    GrRecordingContext* context = m_canvas->recordingContext();
+    if (context) {
+        std::lock_guard<std::mutex> guard(s_releasedLock);
+        s_releasedTextures.clear();
+    }
+    RetainedBitmap::Data& data = *bitmap.d;
+    std::unique_lock<std::mutex> guard(data.lock);
+    // Drawn as an image until a part of it changes; from then on from a
+    // texture of its own that takes each changed part alone.
+    if (!context || (data.stale.isEmpty() && !data.texture)) {
+        const sk_sp<SkImage> image = data.image;
+        guard.unlock();
+        drawImage(image.get(), rect, mirrored);
+        return;
+    }
+    if (!data.texture || data.context != context) {
+        const SkSurfaceProps properties;
+        data.texture = m_canvas->makeSurface(data.pixels.info(), &properties);
+        data.context = context;
+        if (!data.texture) {
+            const sk_sp<SkImage> image = data.image;
+            guard.unlock();
+            drawImage(image.get(), rect, mirrored);
+            return;
+        }
+        data.texture->writePixels(data.pixels.pixmap(), 0, 0);
+    } else if (!data.stale.isEmpty()) {
+        SkPixmap part;
+        if (data.pixels.pixmap().extractSubset(&part, data.stale))
+            data.texture->writePixels(part, data.stale.x(), data.stale.y());
+    }
+    data.stale.setEmpty();
+    const sk_sp<SkImage> image = data.texture->makeImageSnapshot();
+    guard.unlock();
+    drawImage(image.get(), rect, mirrored);
 }
 
 void Canvas2D::drawImage(SkImage* image, const RectF& rect, bool mirrored)

@@ -77,6 +77,27 @@ TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)
     EXPECT_TRUE(ui::RetainedBitmap().isNull());
 }
 
+TEST(Canvas2DTest, RetainedBitmapsTakeChangedParts)
+{
+    Bitmap source(4, 2, Format::Argb32Premultiplied);
+    source.fill(0xFFFF0000u);
+    ui::RetainedBitmap retained(source);
+    const ui::RetainedBitmap copy = retained;
+    source.fill(0xFF0000FFu);
+    retained.update(source, {1, 0, 2, 1});
+
+    Bitmap drawn(4, 2, Format::Argb32Premultiplied);
+    Canvas2D canvas(drawn);
+    canvas.setImageSmoothing(Canvas2D::Smoothing::None);
+    canvas.drawBitmap(copy, {0, 0, 4, 2});
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 4; ++x) {
+            const bool changed = y == 0 && (x == 1 || x == 2);
+            EXPECT_EQ(drawn.pixel(x, y), changed ? 0xFF0000FFu : 0xFFFF0000u) << x << "," << y;
+        }
+    }
+}
+
 TEST(Canvas2DTest, DmaBufImagesNeedAGpuCanvas)
 {
     const int fd = memfd_create("canvas-2d-test", MFD_CLOEXEC);

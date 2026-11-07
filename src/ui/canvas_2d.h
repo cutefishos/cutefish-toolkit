@@ -37,11 +37,15 @@ public:
     int height() const;
     // The pixels the handle keeps, for the bytes it costs.
     size_t byteCount() const;
+    // Copies the rect of `bitmap`, which has this one's size, in; a GPU
+    // canvas uploads only that part again. Every copy of the handle shows
+    // it. Any thread.
+    void update(const Bitmap& bitmap, const Rect& rect);
 
 private:
     friend class Canvas2D;
     struct Data;
-    std::shared_ptr<const Data> d;
+    std::shared_ptr<Data> d;
 };
 
 // A picture another process draws into a DMA-BUF, such as a web page's
