@@ -105,6 +105,8 @@ public:
     virtual void setBlur(const RectF& rect, double radius) = 0;
     // The outline masking the blur.
     virtual void setBlurShape(const Path&) {}
+    // Wayland only: a blur over the subsurfaces placed below the window.
+    virtual void setSubsurfaceBlur(const RectF&, double) {}
     // Wayland only: glass instead of the plain blur, or none.
     virtual void setGlass(const std::optional<GlassMaterial>&) {}
     // Whether the compositor draws blur and glass behind this window.

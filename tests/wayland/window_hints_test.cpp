@@ -19,6 +19,7 @@
 #include <wayland-client.h>
 #include <wayland-server.h>
 
+#include "cutefish-surface-blur-v1-server-protocol.h"
 #include "cutefish-window-hints-v1-server-protocol.h"
 #include "cutefish-window-placement-v1-server-protocol.h"
 #include "fractional-scale-v1-server-protocol.h"
@@ -61,6 +62,7 @@ public:
         global(&wp_viewporter_interface, 1);
         global(&wp_fractional_scale_manager_v1_interface, 1);
         global(&cutefish_window_hints_v1_interface, 1);
+        global(&cutefish_surface_blur_v1_interface, 1);
         if (placement)
             global(&cutefish_window_placement_v1_interface, 1);
         m_client = wl_client_create(m_display, fds[0]);
@@ -159,7 +161,8 @@ private:
         auto* resource = static_cast<wl_resource*>(object);
         auto* self = static_cast<FakeCompositor*>(wl_resource_get_user_data(resource));
         const bool hints = wl_resource_instance_of(resource, &cutefish_window_hints_v1_interface, nullptr)
-                           || wl_resource_instance_of(resource, &cutefish_window_placement_v1_interface, nullptr);
+                           || wl_resource_instance_of(resource, &cutefish_window_placement_v1_interface, nullptr)
+                           || wl_resource_instance_of(resource, &cutefish_surface_blur_v1_interface, nullptr);
         Request request{message->name, {}};
         int index = 0;
         for (const char* c = message->signature; *c; ++c) {
@@ -329,6 +332,32 @@ TEST(WindowHintsProtocolTest, BodyShapeIsSentAndUnset)
     ASSERT_EQ(hints.size(), 2u);
     EXPECT_EQ(hints[0].name, "set_body_shape");
     EXPECT_EQ(hints[1].name, "unset_body_shape");
+}
+
+// The blur over the subsurfaces below goes out rounded to whole logical
+// pixels, apart from the background blur, and an empty rect unsets it.
+TEST(WindowHintsProtocolTest, SubsurfaceBlurIsSentAndUnset)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+
+    Target target;
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    shell->setSubsurfaceBlur({10.4, 20.6, 200, 99.8}, 12.2);
+    shell->setSubsurfaceBlur({}, 0);
+    connection->flush();
+    settle(compositor, connection->display());
+
+    std::vector<FakeCompositor::Request> requests = compositor.hints();
+    std::erase_if(requests, [](const FakeCompositor::Request& request) {
+        return request.name.find("over_subsurfaces") == std::string::npos;
+    });
+    ASSERT_EQ(requests.size(), 2u);
+    EXPECT_EQ(requests[0].name, "set_over_subsurfaces");
+    EXPECT_EQ(requests[0].arguments, (std::vector<int64_t>{10, 21, 200, 99, 12}));
+    EXPECT_EQ(requests[1].name, "unset_over_subsurfaces");
 }
 
 // Opacity goes out as the hint; a toplevel places itself only where the

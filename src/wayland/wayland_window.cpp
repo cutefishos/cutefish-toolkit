@@ -179,6 +179,8 @@ void WaylandWindow::show(int width, int height)
         m_shell->setBlur(m_blurRect, m_blurRadius);
         if (!m_blurShape.isEmpty())
             m_shell->setBlurShape(m_blurShape);
+        if (m_subsurfaceBlurRect.width > 0 && m_subsurfaceBlurRect.height > 0)
+            m_shell->setSubsurfaceBlur(m_subsurfaceBlurRect, m_subsurfaceBlurRadius);
         if (m_glass)
             m_shell->setGlass(m_glass);
         if (m_opacity < 1)
@@ -209,6 +211,16 @@ void WaylandWindow::setBlurShape(const Path& path)
     m_blurShape = path;
     if (m_shell)
         m_shell->setBlurShape(path);
+}
+
+void WaylandWindow::setSubsurfaceBlur(const RectF& rect, double radius)
+{
+    if (rect == m_subsurfaceBlurRect && radius == m_subsurfaceBlurRadius)
+        return;
+    m_subsurfaceBlurRect = rect;
+    m_subsurfaceBlurRadius = radius;
+    if (m_shell)
+        m_shell->setSubsurfaceBlur(rect, radius);
 }
 
 void WaylandWindow::setGlass(const std::optional<GlassMaterial>& material)

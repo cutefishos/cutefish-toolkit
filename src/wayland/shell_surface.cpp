@@ -519,6 +519,21 @@ void ShellSurface::setBlur(const RectF& rect, double radius)
                                  int(std::round(rect.bottom())) - top, int(std::round(radius)));
 }
 
+void ShellSurface::setSubsurfaceBlur(const RectF& rect, double radius)
+{
+    cutefish_surface_blur_v1* blur = m_connection.surfaceBlur();
+    if (!blur)
+        return;
+    if (rect.width <= 0 || rect.height <= 0) {
+        cutefish_surface_blur_v1_unset_over_subsurfaces(blur, m_surface);
+        return;
+    }
+    const int left = int(std::round(rect.x));
+    const int top = int(std::round(rect.y));
+    cutefish_surface_blur_v1_set_over_subsurfaces(blur, m_surface, left, top, int(std::round(rect.right())) - left,
+                                                  int(std::round(rect.bottom())) - top, int(std::round(radius)));
+}
+
 void ShellSurface::setBlurShape(const Path& path)
 {
     cutefish_surface_blur_v1* blur = m_connection.surfaceBlur();

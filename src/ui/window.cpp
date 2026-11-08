@@ -453,6 +453,13 @@ void Window::setBackgroundBlurShape(const Path& path)
     scheduleFrame();
 }
 
+void Window::setSubsurfaceBlur(const RectF& rect, double radius)
+{
+    m_platform->setSubsurfaceBlur(rect, radius);
+    // Surface state the next commit carries.
+    scheduleFrame();
+}
+
 void Window::setBackgroundGlass(const std::optional<GlassMaterial>& material)
 {
     m_platform->setGlass(material);

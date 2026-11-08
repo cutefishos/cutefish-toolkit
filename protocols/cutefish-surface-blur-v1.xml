@@ -187,5 +187,29 @@
       <arg name="surface" type="object" interface="wl_surface"/>
       <arg name="intensity" type="fixed"/>
     </request>
+    <request name="set_over_subsurfaces">
+      <description summary="blur the surface's subsurfaces placed below it">
+        A second rounded blur rectangle, drawn after the subsurfaces placed
+        below the surface and before the surface itself, so it blurs them
+        together with what lies behind the whole surface tree: a translucent
+        panel the surface paints over content one of its subsurfaces below it
+        shows, such as a video or a terminal drawn by the GPU. Coordinates and
+        radius are surface-local logical pixels, as for set; width and height
+        must be positive and radius nonnegative, and it is clamped to half the
+        smaller dimension. The compositor chooses the blur as for set; the
+        client paints its own tint. Independent of set and the glass material.
+        Pending surface state; a subsequent set_over_subsurfaces replaces it.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="radius" type="int"/>
+    </request>
+    <request name="unset_over_subsurfaces">
+      <description summary="remove the blur over the subsurfaces on the next commit"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
   </interface>
 </protocol>

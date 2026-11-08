@@ -158,6 +158,8 @@ public:
     void setBlur(const RectF& rect, double radius);
     // The outline masking the blur; an empty path goes back to the rect.
     void setBlurShape(const Path& path);
+    // The blur over the subsurfaces placed below; an empty rect turns it off.
+    void setSubsurfaceBlur(const RectF& rect, double radius);
     // Glass over the blur rect, or the plain blur without a material.
     void setGlass(const std::optional<GlassMaterial>& material);
     void setResizeAroundCenter(bool aroundCenter);
