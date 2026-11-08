@@ -12,6 +12,8 @@
 #include "include/core/SkRegion.h"
 #include "include/core/SkSurface.h"
 
+#include "ui/geometry.h"
+
 namespace cutefish::ui {
 
 class View;
@@ -20,8 +22,10 @@ class View;
 struct Layer
 {
     sk_sp<SkSurface> surface;
-    // Where the texture sits untransformed, in window device pixels.
+    // Where the texture sits untransformed, in window device pixels, and
+    // where the view was then, untransformed, in logical pixels.
     SkIRect bounds = SkIRect::MakeEmpty();
+    PointF position;
     // Window device pixels, untransformed, whose texture content is stale.
     SkRegion damage;
     bool repaintAll = true;

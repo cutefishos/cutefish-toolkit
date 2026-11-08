@@ -394,6 +394,44 @@ TEST(CompositingTest, TransformsMoveTexturesWithoutRepainting)
     }
 }
 
+TEST(CompositingTest, MovedLayersKeepTheirTextures)
+{
+    for (const double scale : {1.0, 1.5}) {
+        Window window;
+        auto root = std::make_unique<View>();
+        View* group = root->addChild<View>();
+        group->setGeometry({0, 0, 200, 100});
+        Shapes* moved = group->addChild<Shapes>();
+        moved->setGeometry({20, 20, 60, 40});
+        moved->setLayered(true);
+        window.resize({200, 100});
+        window.setContentView(std::move(root));
+        window.setScale(scale);
+        window.show();
+
+        uint64_t now = 1000000000;
+        TestInput::presentFrame(window, now += kFrameNs);
+        const int paints = moved->paints;
+        // Two device pixels at either scale, by the view and by its parent.
+        moved->setGeometry({20 + 2 / scale, 20, 60, 40});
+        TestInput::presentFrame(window, now += kFrameNs);
+        group->setGeometry({0, 4 / scale, 200, 100});
+        const Image kept = TestInput::presentFrame(window, now += kFrameNs);
+        EXPECT_EQ(moved->paints, paints) << scale;
+        // The texture lands where painting there would.
+        moved->setLayered(false);
+        EXPECT_LE(maxDifference(kept, window.grab()), kTextureRounding) << scale;
+
+        // Part of a device pixel paints the texture again.
+        moved->setLayered(true);
+        TestInput::presentFrame(window, now += kFrameNs);
+        const int layeredPaints = moved->paints;
+        moved->setGeometry({20.25, 20, 60, 40});
+        TestInput::presentFrame(window, now += kFrameNs);
+        EXPECT_GT(moved->paints, layeredPaints) << scale;
+    }
+}
+
 TEST(CompositingTest, ClippedAwayLayersPaintOnceInView)
 {
     for (const double scale : {1.0, 1.5}) {

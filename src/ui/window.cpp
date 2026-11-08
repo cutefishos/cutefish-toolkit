@@ -550,6 +550,11 @@ void Window::setFullScreenRevealHandler(std::function<void(int offset, int durat
     m_platform->onFullScreenReveal = std::move(handler);
 }
 
+void Window::setPrepareFrameHandler(std::function<void()> handler)
+{
+    m_platform->onPrepareFrame = std::move(handler);
+}
+
 bool Window::setScreenPosition(PointF position)
 {
     return m_platform->setScreenPosition(position);
@@ -1702,6 +1707,8 @@ void Window::prepareFrame(uint64_t frameTimeNs)
             && client->m_ticking)
             client->tick(frameTimeNs);
     }
+    if (m_platform->onPrepareFrame)
+        m_platform->onPrepareFrame();
 
     if (layoutIfNeeded()) {
         updateHover();

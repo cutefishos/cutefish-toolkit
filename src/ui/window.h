@@ -224,6 +224,10 @@ public:
     // it, or away when `offset` is 0; the slide takes `durationMs` and eases
     // out.
     void setFullScreenRevealHandler(std::function<void(int offset, int durationMs)> handler);
+    // Called for every frame the window renders, after its frame clients
+    // ticked and before it lays out: what the handler changes in the tree
+    // lands in that frame.
+    void setPrepareFrameHandler(std::function<void()> handler);
     // Puts the window's top left at a point in the compositor's global
     // logical coordinates (Application::screens()): before show() it opens
     // there, afterwards it moves there; the compositor keeps it reachable.

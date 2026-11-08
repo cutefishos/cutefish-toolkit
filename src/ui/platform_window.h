@@ -153,6 +153,8 @@ public:
 
     // See Window::setFullScreenRevealHandler().
     std::function<void(int offset, int durationMs)> onFullScreenReveal;
+    // See Window::setPrepareFrameHandler().
+    std::function<void()> onPrepareFrame;
 
 protected:
     // Another window's platform side, such as a window a drag carries.

@@ -642,3 +642,24 @@ TEST(WindowTest, ResizeFromLayoutLaysTheContentOutAtTheNewSize)
     EXPECT_EQ(content->geometry().width, 300);
     EXPECT_EQ(content->geometry().height, 200);
 }
+
+TEST(WindowTest, PrepareFrameHandlerRunsBeforeTheFrameLaysOut)
+{
+    Window window;
+    auto root = std::make_unique<View>();
+    View* child = root->addChild<View>();
+    window.resize({200, 100});
+    window.setContentView(std::move(root));
+    window.show();
+    window.grab();
+
+    int prepared = 0;
+    window.setPrepareFrameHandler([&] {
+        ++prepared;
+        child->setGeometry({10, 10, 50, 20});
+    });
+    child->requestPaint();
+    TestInput::presentFrame(window, 2000000000);
+    EXPECT_EQ(prepared, 1);
+    EXPECT_EQ(child->geometry().width, 50);
+}

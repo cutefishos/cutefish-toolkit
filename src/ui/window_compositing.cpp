@@ -402,9 +402,26 @@ void Window::updateLayers(View* view, PointF origin, SkCanvas* target, const SkI
             return;
     }
     if (bounds != layer.bounds) {
+        // Moved by whole device pixels, with nothing else changed: the
+        // texture still holds the view as painted there.
+        const double movedX = (position.x - layer.position.x) * m_scale;
+        const double movedY = (position.y - layer.position.y) * m_scale;
+        const int dx = int(std::lround(movedX));
+        const int dy = int(std::lround(movedY));
+        const bool whole = std::abs(movedX - dx) < 1e-3 && std::abs(movedY - dy) < 1e-3;
+        if (!layer.repaintAll && whole && (dx || dy) && scrolls.empty()
+            && bounds == layer.bounds.makeOffset(dx, dy)) {
+            // Damage asked for before the move lies where the view was, and
+            // after it where the view is.
+            SkRegion moved = layer.damage;
+            moved.translate(dx, dy);
+            layer.damage.op(moved, SkRegion::kUnion_Op);
+        } else {
+            layer.repaintAll = true;
+        }
         layer.bounds = bounds;
-        layer.repaintAll = true;
     }
+    layer.position = position;
     if (!layer.repaintAll) {
         SkCanvas* canvas = layer.surface->getCanvas();
         for (const Layer::Scroll& scroll : scrolls) {
