@@ -127,6 +127,38 @@ struct FrameStatistics
     uint64_t discarded = 0;
 };
 
+// What a blur behind part of a window lays over the blurred backdrop: a
+// tint, then a colour blended over that by one of the W3C compositing modes
+// (None for no fill). Straight colours, 0 to 1.
+struct BackdropFill
+{
+    enum class Blend {
+        None,
+        Normal,
+        Multiply,
+        Screen,
+        Overlay,
+        Darken,
+        Lighten,
+        ColorDodge,
+        ColorBurn,
+        HardLight,
+        SoftLight,
+        Difference,
+        Exclusion,
+        Hue,
+        Saturation,
+        Color,
+        Luminosity,
+    };
+
+    double tint[4] = {0, 0, 0, 0};
+    Blend blend = Blend::None;
+    double color[4] = {0, 0, 0, 0};
+
+    bool operator==(const BackdropFill&) const = default;
+};
+
 // A top-level window drawing its own frame, or a popup of one. It renders on
 // the UI thread, once per frame callback, and a configure is answered by the
 // next commit with a buffer of the new size.
@@ -190,6 +222,15 @@ public:
     // pixels; an empty rect for none. Wayland only; applies with the next
     // frame.
     void setSubsurfaceBlur(const RectF& rect, double radius);
+    // The outline masking that blur instead of its rounded rect, clipped to
+    // it; several subpaths blur several areas. Empty for none. Wayland only;
+    // applies with the next frame.
+    void setSubsurfaceBlurShape(const Path& path);
+    // What that blur lays over what it blurred, before the window's pixels:
+    // a tint, then a colour blended over that, as a translucent panel whose
+    // content blends with what shows behind it. Wayland only; applies with
+    // the next frame.
+    void setSubsurfaceBlurFill(const BackdropFill& fill);
     // Glass instead of the plain blur over the blur rect, or the plain blur
     // again without one. Wayland only; applies with the next frame.
     void setBackgroundGlass(const std::optional<GlassMaterial>& material);

@@ -460,6 +460,18 @@ void Window::setSubsurfaceBlur(const RectF& rect, double radius)
     scheduleFrame();
 }
 
+void Window::setSubsurfaceBlurShape(const Path& path)
+{
+    m_platform->setSubsurfaceBlurShape(path);
+    scheduleFrame();
+}
+
+void Window::setSubsurfaceBlurFill(const BackdropFill& fill)
+{
+    m_platform->setSubsurfaceBlurFill(fill);
+    scheduleFrame();
+}
+
 void Window::setBackgroundGlass(const std::optional<GlassMaterial>& material)
 {
     m_platform->setGlass(material);

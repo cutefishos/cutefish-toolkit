@@ -37,6 +37,8 @@ public:
     virtual void statusItemPlaced(const RectF& rect) = 0;
 };
 
+struct BackdropFill;
+
 // The window-system side of a Window: its surface, its buffers and the events
 // that come back. Window does layout, painting, pacing and input routing.
 class PlatformWindow
@@ -107,6 +109,8 @@ public:
     virtual void setBlurShape(const Path&) {}
     // Wayland only: a blur over the subsurfaces placed below the window.
     virtual void setSubsurfaceBlur(const RectF&, double) {}
+    virtual void setSubsurfaceBlurShape(const Path&) {}
+    virtual void setSubsurfaceBlurFill(const BackdropFill&) {}
     // Wayland only: glass instead of the plain blur, or none.
     virtual void setGlass(const std::optional<GlassMaterial>&) {}
     // Whether the compositor draws blur and glass behind this window.

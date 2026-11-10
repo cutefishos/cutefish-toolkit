@@ -539,6 +539,27 @@ void Canvas2D::drawImage(SkImage* image, const RectF& rect, bool mirrored)
     m_canvas->restore();
 }
 
+void Canvas2D::blurBackdrop(const Path& path, double radius)
+{
+    if (!m_canvas || radius <= 0 || path.isEmpty())
+        return;
+    // The radius is in the canvas's own units; the filter works in the
+    // layer's, which the transform scales.
+    SkMatrix inverse;
+    if (!m_canvas->getTotalMatrix().invert(&inverse))
+        return;
+    const SkVector device = m_owned->base.mapVector(SkScalar(radius), 0);
+    const SkScalar sigma = std::abs(inverse.mapVector(device.length(), 0).x()) / 2;
+    m_canvas->save();
+    m_canvas->clipPath(PathAccess::toSkPath(path), m_state.antialias);
+    SkPaint replace;
+    replace.setBlendMode(SkBlendMode::kSrc);
+    const sk_sp<SkImageFilter> blur = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
+    m_canvas->saveLayer(SkCanvas::SaveLayerRec(nullptr, &replace, blur.get(), 0));
+    m_canvas->restore();
+    m_canvas->restore();
+}
+
 void Canvas2D::beginGroup()
 {
     if (!m_canvas)

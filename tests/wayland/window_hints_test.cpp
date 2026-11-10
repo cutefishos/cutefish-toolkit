@@ -335,7 +335,8 @@ TEST(WindowHintsProtocolTest, BodyShapeIsSentAndUnset)
 }
 
 // The blur over the subsurfaces below goes out rounded to whole logical
-// pixels, apart from the background blur, and an empty rect unsets it.
+// pixels, apart from the background blur, and an empty rect unsets it; its
+// shape goes out as its own request.
 TEST(WindowHintsProtocolTest, SubsurfaceBlurIsSentAndUnset)
 {
     FakeCompositor compositor;
@@ -346,6 +347,18 @@ TEST(WindowHintsProtocolTest, SubsurfaceBlurIsSentAndUnset)
     Target target;
     auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
     shell->setSubsurfaceBlur({10.4, 20.6, 200, 99.8}, 12.2);
+    // Two areas in it.
+    Path areas;
+    areas.addRect({10, 21, 200, 30});
+    areas.addRect({10, 80, 200, 30});
+    shell->setSubsurfaceBlurShape(areas);
+    shell->setSubsurfaceBlurShape(Path());
+    BackdropFill fill;
+    fill.tint[3] = 0.5;
+    fill.blend = BackdropFill::Blend::Color;
+    fill.color[0] = 1;
+    fill.color[3] = 1;
+    shell->setSubsurfaceBlurFill(fill);
     shell->setSubsurfaceBlur({}, 0);
     connection->flush();
     settle(compositor, connection->display());
@@ -354,10 +367,16 @@ TEST(WindowHintsProtocolTest, SubsurfaceBlurIsSentAndUnset)
     std::erase_if(requests, [](const FakeCompositor::Request& request) {
         return request.name.find("over_subsurfaces") == std::string::npos;
     });
-    ASSERT_EQ(requests.size(), 2u);
+    ASSERT_EQ(requests.size(), 5u);
     EXPECT_EQ(requests[0].name, "set_over_subsurfaces");
     EXPECT_EQ(requests[0].arguments, (std::vector<int64_t>{10, 21, 200, 99, 12}));
-    EXPECT_EQ(requests[1].name, "unset_over_subsurfaces");
+    EXPECT_EQ(requests[1].name, "set_over_subsurfaces_shape");
+    EXPECT_EQ(requests[2].name, "unset_over_subsurfaces_shape");
+    EXPECT_EQ(requests[3].name, "set_over_subsurfaces_fill");
+    EXPECT_EQ(requests[3].arguments,
+              (std::vector<int64_t>{0, 0, 0, wl_fixed_from_double(0.5), CUTEFISH_SURFACE_BLUR_V1_BACKDROP_BLEND_COLOR,
+                                    wl_fixed_from_double(1), 0, 0, wl_fixed_from_double(1)}));
+    EXPECT_EQ(requests[4].name, "unset_over_subsurfaces");
 }
 
 // Opacity goes out as the hint; a toplevel places itself only where the

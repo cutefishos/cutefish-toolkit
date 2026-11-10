@@ -226,6 +226,11 @@ public:
     // False when this canvas cannot draw it; nothing is drawn then.
     bool drawDmaBufImage(const DmaBufImage& image, const RectF& rect, bool mirrored = false);
 
+    // Replaces what is already drawn inside the path, and the clip, by it
+    // blurred: a Gaussian of `radius` (the canvas's units, as for shadows),
+    // sampling what lies around the path too. A frosted panel's backdrop.
+    void blurBackdrop(const Path& path, double radius);
+
     // Drawing from here on is a group, composited as one at the matching
     // end with the global alpha, composite mode and shadow of the begin.
     void beginGroup();

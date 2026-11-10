@@ -211,5 +211,69 @@
       <description summary="remove the blur over the subsurfaces on the next commit"/>
       <arg name="surface" type="object" interface="wl_surface"/>
     </request>
+    <request name="set_over_subsurfaces_shape">
+      <description summary="blur over the subsurfaces only inside an outline">
+        Masks the blur of set_over_subsurfaces by an outline instead of its
+        rounded rectangle, clipped to that rectangle, which must still be set
+        for any effect to show. Several subpaths blur several areas, such as
+        separate translucent panels over one video. path is as for set_shape;
+        the filled area follows the nonzero winding rule. An empty array
+        removes the shape, the same as unset_over_subsurfaces_shape. Pending
+        surface state; a subsequent request replaces it.
+
+        An unknown command, a command cut short, a path that does not start
+        with move_to or an array longer than 4096 values is invalid geometry.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="path" type="array"/>
+    </request>
+    <request name="unset_over_subsurfaces_shape">
+      <description summary="go back to the rounded rectangle for the blur over the subsurfaces"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+    <enum name="backdrop_blend">
+      <entry name="none" value="0" summary="no fill"/>
+      <entry name="normal" value="1"/>
+      <entry name="multiply" value="2"/>
+      <entry name="screen" value="3"/>
+      <entry name="overlay" value="4"/>
+      <entry name="darken" value="5"/>
+      <entry name="lighten" value="6"/>
+      <entry name="color_dodge" value="7"/>
+      <entry name="color_burn" value="8"/>
+      <entry name="hard_light" value="9"/>
+      <entry name="soft_light" value="10"/>
+      <entry name="difference" value="11"/>
+      <entry name="exclusion" value="12"/>
+      <entry name="hue" value="13"/>
+      <entry name="saturation" value="14"/>
+      <entry name="color" value="15"/>
+      <entry name="luminosity" value="16"/>
+    </enum>
+    <request name="set_over_subsurfaces_fill">
+      <description summary="tint the blur over the subsurfaces and blend a colour over it">
+        What the blur of set_over_subsurfaces lays over what it blurred,
+        inside its outline and before the surface's own pixels: the tint,
+        then the colour blended over that by the mode, as the W3C compositing
+        modes blend a source over a backdrop. A material the client would
+        paint as a tint with content blending over it, such as a recoloured
+        panel, blends with the blurred subsurfaces this way rather than with
+        its tint alone; the client then paints neither there. Components are
+        straight alpha and clamped to the 0 to 1 range; the mode none removes
+        the fill. Pending surface state; a subsequent request replaces it.
+
+        A mode the enum does not name is invalid geometry.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="tint_red" type="fixed"/>
+      <arg name="tint_green" type="fixed"/>
+      <arg name="tint_blue" type="fixed"/>
+      <arg name="tint_alpha" type="fixed"/>
+      <arg name="mode" type="uint" enum="backdrop_blend"/>
+      <arg name="red" type="fixed"/>
+      <arg name="green" type="fixed"/>
+      <arg name="blue" type="fixed"/>
+      <arg name="alpha" type="fixed"/>
+    </request>
   </interface>
 </protocol>

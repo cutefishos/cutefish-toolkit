@@ -46,6 +46,30 @@ TEST(Canvas2DTest, FillsThroughTheTransform)
     EXPECT_EQ(bitmap.pixel(1, 1), 0u);
 }
 
+TEST(Canvas2DTest, BlursTheBackdropInsideThePath)
+{
+    // Red on the left half, blue on the right; the blur is over the middle.
+    Bitmap bitmap(40, 20, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    ASSERT_TRUE(canvas.isValid());
+    canvas.setFillColor(kRed);
+    canvas.fillRect({0, 0, 20, 20});
+    canvas.setFillColor(kBlue);
+    canvas.fillRect({20, 0, 20, 20});
+    const uint32_t outside = bitmap.pixel(12, 10);
+    Path path;
+    path.addRect({14, 0, 12, 20});
+    canvas.blurBackdrop(path, 8);
+    // Either side of the edge mixes; the edge's own column is half and half.
+    const uint32_t left = bitmap.pixel(18, 10), right = bitmap.pixel(21, 10);
+    EXPECT_GT(left & 0xFF, 0x20u);
+    EXPECT_GT((right >> 16) & 0xFF, 0x20u);
+    EXPECT_EQ(left >> 24, 0xFFu);
+    // Outside the path nothing changes.
+    EXPECT_EQ(bitmap.pixel(12, 10), outside);
+    EXPECT_EQ(bitmap.pixel(30, 10), 0xFF0000FFu);
+}
+
 TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)
 {
     Bitmap source(4, 2, Format::Argb32Premultiplied);

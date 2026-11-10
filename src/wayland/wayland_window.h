@@ -72,6 +72,8 @@ public:
     void setBlur(const RectF& rect, double radius) override;
     void setBlurShape(const Path& path) override;
     void setSubsurfaceBlur(const RectF& rect, double radius) override;
+    void setSubsurfaceBlurShape(const Path& path) override;
+    void setSubsurfaceBlurFill(const BackdropFill& fill) override;
     void setGlass(const std::optional<GlassMaterial>& material) override;
     bool glassAvailable() const override;
     void setResizeAroundCenter(bool aroundCenter) override;
@@ -154,6 +156,8 @@ private:
     Path m_blurShape;
     RectF m_subsurfaceBlurRect;
     double m_subsurfaceBlurRadius = 0;
+    Path m_subsurfaceBlurShape;
+    BackdropFill m_subsurfaceBlurFill;
     std::optional<GlassMaterial> m_glass;
     double m_opacity = 1;
     std::vector<SubsurfaceClient*> m_subsurfaces;
