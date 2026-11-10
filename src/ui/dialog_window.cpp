@@ -32,6 +32,8 @@ static constexpr double kButton = 32;
 static constexpr double kControlsMargin = 0;
 static constexpr double kControlsHeaderHeight = 32;
 static constexpr double kControlsTitleSize = 12;
+// The content sits a little under the title bar.
+static constexpr double kControlsContentGap = 4;
 // The three window controls, inset in the buttons' line as one control in a
 // 32-pixel slot.
 static constexpr double kControlsWidth = window_controls::kRowWidth + (kButton - window_controls::kButton);
@@ -235,7 +237,7 @@ public:
     double heightForWidth(double width) const override
     {
         const double content = m_content ? m_content->heightForWidth(width - 2 * kContentPadding) : 0;
-        return headerHeight() + content + kContentPadding;
+        return contentTop() + content + kContentPadding;
     }
 
     bool acceptsPointer() const override { return true; }
@@ -263,8 +265,9 @@ protected:
         const double right = m_controlsVisible ? left : kButtonMargin;
         m_title->setGeometry({left, line, std::max(0.0, width - left - right), kButton});
         if (m_content) {
-            m_content->setGeometry({kContentPadding, header, width - 2 * kContentPadding,
-                                    std::max(0.0, geometry().height - header - kContentPadding)});
+            const double top = contentTop();
+            m_content->setGeometry({kContentPadding, top, width - 2 * kContentPadding,
+                                    std::max(0.0, geometry().height - top - kContentPadding)});
         }
     }
 
@@ -277,6 +280,7 @@ protected:
 
 private:
     double headerHeight() const { return m_controlsVisible ? kControlsHeaderHeight : kHeaderHeight; }
+    double contentTop() const { return m_controlsVisible ? kControlsHeaderHeight + kControlsContentGap : kHeaderHeight; }
 
     DialogWindow* m_dialog;
     WindowHeader* m_header;
