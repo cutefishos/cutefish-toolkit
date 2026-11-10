@@ -352,9 +352,25 @@ TEST(WindowTest, DialogTakesTheHeightOfItsContent)
     column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
     dialog.setContentView(std::move(column));
     dialog.show();
-    // A 44-pixel header, the content, 16 below it.
-    EXPECT_EQ(dialog.window()->size().height, 44 + 100 + 16);
+    // A 32-pixel title bar with the window controls, the content, 16 below it.
+    EXPECT_EQ(dialog.window()->size().height, 32 + 100 + 16);
     EXPECT_EQ(dialog.window()->size().width, 320);
+}
+
+TEST(WindowTest, DialogWithoutControlsKeepsTheTallerHeader)
+{
+    Window parent;
+    parent.resize({400, 300});
+    parent.setContentView(std::make_unique<View>());
+    parent.show();
+
+    DialogWindow dialog(&parent, "Details", 320);
+    dialog.setCloseVisible(false);
+    auto column = std::make_unique<Column>();
+    column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
+    dialog.setContentView(std::move(column));
+    dialog.show();
+    EXPECT_EQ(dialog.window()->size().height, 44 + 100 + 16);
 }
 
 TEST(WindowTest, ThemeChangesReachLabels)

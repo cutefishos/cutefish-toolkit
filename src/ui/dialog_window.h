@@ -56,7 +56,7 @@ private:
 };
 
 // A dialog: a modal window over its parent, its title on the line of
-// its close button and its height that of its content.
+// its window controls and its height that of its content.
 class DialogWindow
 {
 public:
@@ -78,7 +78,8 @@ public:
     }
     // A back button, before the title, for pages that replace each other.
     void setBackVisible(bool visible);
-    // Hidden for dialogs whose own Cancel or Close button closes them.
+    // The window controls, the close one alone enabled; hidden for dialogs
+    // whose own Cancel or Close button closes them.
     void setCloseVisible(bool visible);
 
     void show();

@@ -17,15 +17,24 @@
 #include "ui/theme.h"
 #include "ui/translation.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
+#include "ui/window_header.h"
 
 namespace cutefish::ui {
 
 // The dialog's metrics.
 static constexpr double kHeaderHeight = 44;
 static constexpr double kButtonMargin = 8;
-// The window controls, centred on the 32-pixel buttons' line.
-static constexpr double kControl = 22;
 static constexpr double kButton = 32;
+// With the window controls, the header is a title bar: 32 high, the controls'
+// first centre 16 in from the top and the start, the title centred on the
+// window in a smaller size.
+static constexpr double kControlsMargin = 0;
+static constexpr double kControlsHeaderHeight = 32;
+static constexpr double kControlsTitleSize = 12;
+// The three window controls, inset in the buttons' line as one control in a
+// 32-pixel slot.
+static constexpr double kControlsWidth = window_controls::kRowWidth + (kButton - window_controls::kButton);
 static constexpr double kContentPadding = 16;
 static constexpr double kTitleSize = 14;
 static constexpr double kConfirmMinimumWidth = 336;
@@ -183,11 +192,15 @@ class DialogWindow::Root : public View
 public:
     explicit Root(DialogWindow* dialog, std::string title)
         : m_dialog(dialog)
-        , m_close(addChild<HeaderButton>("close", kControl))
+        , m_header(addChild<WindowHeader>(kHeaderHeight))
         , m_back(addChild<HeaderButton>(std::string(), kButton))
         , m_title(addChild<Label>(std::move(title)))
     {
-        m_title->setFontSize(kTitleSize);
+        m_header->setButtonMargin(kControlsMargin);
+        m_header->setMinimizeEnabled(false);
+        m_header->setMaximizeEnabled(false);
+        m_title->setFontSize(kControlsTitleSize);
+        m_title->setTextAlignment(Label::TextAlignment::Center);
         m_title->setVerticallyCentered(true);
         m_back->setGlyph("chevron-left");
         m_back->setVisible(false);
@@ -195,13 +208,20 @@ public:
             if (m_dialog->onBack)
                 m_dialog->onBack();
         };
-        m_close->setWindowControl(true);
-        m_close->onClicked = [this] { m_dialog->close(); };
     }
 
     Label* title() const { return m_title; }
     HeaderButton* back() const { return m_back; }
-    HeaderButton* closeButton() const { return m_close; }
+    void setControlsVisible(bool visible)
+    {
+        m_header->setCloseVisible(visible);
+        m_header->setMinimizeVisible(visible);
+        m_header->setMaximizeVisible(visible);
+        m_controlsVisible = visible;
+        m_title->setFontSize(visible ? kControlsTitleSize : kTitleSize);
+        m_title->setTextAlignment(visible ? Label::TextAlignment::Center : Label::TextAlignment::Left);
+        requestLayout();
+    }
     View* content() const { return m_content; }
 
     void setContent(std::unique_ptr<View> view)
@@ -215,7 +235,7 @@ public:
     double heightForWidth(double width) const override
     {
         const double content = m_content ? m_content->heightForWidth(width - 2 * kContentPadding) : 0;
-        return kHeaderHeight + content + kContentPadding;
+        return headerHeight() + content + kContentPadding;
     }
 
     bool acceptsPointer() const override { return true; }
@@ -225,12 +245,13 @@ protected:
     {
         const double width = geometry().width;
         // The title is centred on the buttons' line.
-        const double line = kButtonMargin;
+        const double header = headerHeight();
+        const double line = m_controlsVisible ? (header - kButton) / 2 : kButtonMargin;
         double x = kButtonMargin;
         double left = kContentPadding;
-        if (m_close->isVisible()) {
-            m_close->setGeometry({x + (kButton - kControl) / 2, line + (kButton - kControl) / 2, kControl, kControl});
-            x += kButton + Theme::current().smallSpacing;
+        m_header->setGeometry({0, 0, width, header});
+        if (m_controlsVisible) {
+            x = kControlsMargin + kControlsWidth + Theme::current().smallSpacing;
             left = x;
         }
         if (m_back->isVisible()) {
@@ -238,10 +259,12 @@ protected:
             x += kButton + Theme::current().smallSpacing;
             left = x;
         }
-        m_title->setGeometry({left, line, std::max(0.0, width - left - kButtonMargin), kButton});
+        // Centred on the window: as far from the end as the buttons take at the start.
+        const double right = m_controlsVisible ? left : kButtonMargin;
+        m_title->setGeometry({left, line, std::max(0.0, width - left - right), kButton});
         if (m_content) {
-            m_content->setGeometry({kContentPadding, kHeaderHeight, width - 2 * kContentPadding,
-                                    std::max(0.0, geometry().height - kHeaderHeight - kContentPadding)});
+            m_content->setGeometry({kContentPadding, header, width - 2 * kContentPadding,
+                                    std::max(0.0, geometry().height - header - kContentPadding)});
         }
     }
 
@@ -253,11 +276,14 @@ protected:
     }
 
 private:
+    double headerHeight() const { return m_controlsVisible ? kControlsHeaderHeight : kHeaderHeight; }
+
     DialogWindow* m_dialog;
-    HeaderButton* m_close;
+    WindowHeader* m_header;
     HeaderButton* m_back;
     Label* m_title;
     View* m_content = nullptr;
+    bool m_controlsVisible = true;
 };
 
 DialogWindow::DialogWindow(Window* parent, std::string title, double width)
@@ -293,7 +319,7 @@ void DialogWindow::setBackVisible(bool visible)
 
 void DialogWindow::setCloseVisible(bool visible)
 {
-    m_root->closeButton()->setVisible(visible);
+    m_root->setControlsVisible(visible);
 }
 
 void DialogWindow::show()
@@ -379,19 +405,20 @@ void ConfirmDialog::setText(std::string text)
     }
 }
 
-// The dialog's content, with the window's close button over its corner
-// when there is no Cancel button to do its work.
+// The dialog's content, with the window controls over its corner when
+// there is no Cancel button to do their work.
 class ConfirmContent final : public View
 {
 public:
-    ConfirmContent(std::unique_ptr<View> content, std::function<void()> close)
+    ConfirmContent(std::unique_ptr<View> content, bool controls)
         : m_content(content.get())
     {
         addChild(std::move(content));
-        if (close) {
-            m_close = addChild<HeaderButton>("close", kControl);
-            m_close->setWindowControl(true);
-            m_close->onClicked = std::move(close);
+        if (controls) {
+            m_header = addChild<WindowHeader>(kControlsHeaderHeight);
+            m_header->setButtonMargin(kControlsMargin);
+            m_header->setMinimizeEnabled(false);
+            m_header->setMaximizeEnabled(false);
         }
     }
 
@@ -404,9 +431,8 @@ protected:
     {
         const RectF bounds = localRect();
         m_content->setGeometry(bounds);
-        if (m_close)
-            m_close->setGeometry({kButtonMargin + (kButton - kControl) / 2, kButtonMargin + (kButton - kControl) / 2,
-                                  kControl, kControl});
+        if (m_header)
+            m_header->setGeometry({0, 0, bounds.width, kControlsHeaderHeight});
     }
 
     // The empty parts of the window move it.
@@ -418,7 +444,7 @@ protected:
 
 private:
     View* m_content;
-    HeaderButton* m_close = nullptr;
+    WindowHeader* m_header = nullptr;
 };
 
 void ConfirmDialog::show()
@@ -430,15 +456,13 @@ void ConfirmDialog::show()
     m_window->onCloseRequested = [this] { finish(false); };
 
     auto column = std::make_unique<Column>();
-    column->setMargins({kContentPadding, kContentPadding, kContentPadding, 12});
+    // Under the window controls' line when they show.
+    column->setMargins({kContentPadding, m_cancelVisible ? kContentPadding : kControlsHeaderHeight, kContentPadding, 12});
     column->setSpacing(kContentPadding);
 
     auto* texts = column->addChild<Column>();
     texts->setSpacing(4);
     texts->setLayoutHints({.fillWidth = true});
-    // Clear of the close corner of the window.
-    if (!m_cancelVisible)
-        texts->setMargins({32, 0, 0, 0});
     Label* title = texts->addChild<Label>(m_title);
     m_titleLabel = title;
     title->setFontSize(kTitleSize);
@@ -476,10 +500,7 @@ void ConfirmDialog::show()
     // Measured as the window will lay the buttons out, before they are in it.
     column->setTextLayoutMode(m_window->textLayoutMode());
     const double width = std::max(kConfirmMinimumWidth, actions->sizeHint().width + 2 * kContentPadding);
-    std::function<void()> close;
-    if (!m_cancelVisible)
-        close = [this] { finish(false); };
-    m_window->setContentView(std::make_unique<ConfirmContent>(std::move(column), std::move(close)));
+    m_window->setContentView(std::make_unique<ConfirmContent>(std::move(column), !m_cancelVisible));
     m_window->resize({width, 0});
     m_window->setFitsContentHeight(true);
     // A destructive action waits for a deliberate choice.

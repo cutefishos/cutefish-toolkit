@@ -111,6 +111,11 @@ void WindowHeader::setMaximizeVisible(bool visible)
     m_maximize->setVisible(visible);
 }
 
+void WindowHeader::setMinimizeEnabled(bool enabled)
+{
+    m_minimize->setEnabled(enabled);
+}
+
 void WindowHeader::setMaximizeEnabled(bool enabled)
 {
     m_maximize->setEnabled(enabled);

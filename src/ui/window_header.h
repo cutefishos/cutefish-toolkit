@@ -34,6 +34,8 @@ public:
 
     void setMinimizeVisible(bool visible);
     void setMaximizeVisible(bool visible);
+    // Off, the minimize button shows disabled.
+    void setMinimizeEnabled(bool enabled);
     // Off, the maximize button shows disabled and a double click on the bar
     // does nothing, for windows of a fixed size.
     void setMaximizeEnabled(bool enabled);

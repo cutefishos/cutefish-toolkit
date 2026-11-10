@@ -114,9 +114,11 @@ public:
         , m_description(addChild<Label>(dialog->m_description))
         , m_link(addChild<LinkLabel>())
     {
-        m_header->setMinimizeVisible(false);
-        // Fixed in both directions: no maximize button.
-        m_header->setMaximizeVisible(false);
+        // The controls' first centre 16 in from the top and the start.
+        m_header->setButtonMargin(0);
+        m_header->setMinimizeEnabled(false);
+        // Fixed in both directions.
+        m_header->setMaximizeEnabled(false);
 
         m_name->setFontSize(22);
         m_name->setWeight(700);

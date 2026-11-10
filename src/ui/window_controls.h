@@ -18,6 +18,7 @@ namespace window_controls {
 
 inline constexpr double kButton = 22;
 inline constexpr double kSpacing = 1;
+inline constexpr double kRowWidth = 3 * kButton + 2 * kSpacing;
 
 struct State
 {
