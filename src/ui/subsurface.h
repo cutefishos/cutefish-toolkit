@@ -49,6 +49,9 @@ public:
     // An opaque surface (the default) lets the compositor skip what is
     // under it. Applies with the next buffer.
     void setOpaque(bool opaque);
+    // Above or below the window, from the window's next frame on; the
+    // surface and what it shows stay.
+    void setStacking(Stacking stacking);
 
     // Buffers show as soon as they are swapped, except across a size change:
     // the window frame that changes the subsurface's size first calls this

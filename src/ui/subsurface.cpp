@@ -62,6 +62,7 @@ struct SubsurfacePrivate final : wayland::SubsurfaceClient
     bool swapIntervalSet = false;
 
     // UI thread state.
+    Subsurface::Stacking stacking = Subsurface::Stacking::Below;
     RectF geometry;
     PointF placedPosition = {-1e9, -1e9};
     // Synchronised for the window's commit under way.
@@ -172,6 +173,7 @@ Subsurface::Subsurface(Window* window, Stacking stacking)
     d->surface = wl_compositor_create_surface(connection.compositor());
     wl_surface* parentSurface = parent->shell()->surface();
     d->subsurface = wl_subcompositor_get_subsurface(connection.subcompositor(), d->surface, parentSurface);
+    d->stacking = stacking;
     if (stacking == Stacking::Below)
         wl_subsurface_place_below(d->subsurface, parentSurface);
     else
@@ -244,6 +246,21 @@ void Subsurface::setGeometry(const RectF& rect)
 RectF Subsurface::geometry() const
 {
     return d->geometry;
+}
+
+void Subsurface::setStacking(Stacking stacking)
+{
+    if (!d->subsurface || !d->parent || stacking == d->stacking)
+        return;
+    d->stacking = stacking;
+    wl_surface* parentSurface = d->parent->shell()->surface();
+    if (stacking == Stacking::Below)
+        wl_subsurface_place_below(d->subsurface, parentSurface);
+    else
+        wl_subsurface_place_above(d->subsurface, parentSurface);
+    // The order lands with the window's next commit.
+    if (d->window)
+        d->window->scheduleFrame();
 }
 
 void Subsurface::setOpaque(bool opaque)
