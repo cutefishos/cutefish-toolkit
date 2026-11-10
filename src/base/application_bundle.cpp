@@ -275,6 +275,17 @@ static std::vector<std::string> documentTypes(const plist::Value& info)
     return result;
 }
 
+// A terminal says so with the Shell role on a document type, whatever its
+// rank: it runs what it is handed.
+static bool isTerminal(const plist::Value& info)
+{
+    const plist::Value* documents = info.find("CFBundleDocumentTypes");
+    if (!documents)
+        return false;
+    return std::any_of(documents->array.begin(), documents->array.end(),
+                       [](const plist::Value& document) { return document.string("CFBundleTypeRole") == "Shell"; });
+}
+
 std::vector<std::string> applicationsDirectories()
 {
     return {paths::home() + "/Applications", "/Applications"};
@@ -390,6 +401,8 @@ std::optional<DesktopEntry> read(const std::string& path, const DesktopEntry& ha
     // show the launch on.
     entry.startupNotify = !info->flag("LSUIElement") && !info->flag("LSBackgroundOnly");
     entry.mimeTypes = documentTypes(*info);
+    if (isTerminal(*info))
+        entry.categories.push_back("TerminalEmulator");
     entry.exec = execFor(bundle, handler);
     entry.tryExec = handler.tryExec;
     return entry;

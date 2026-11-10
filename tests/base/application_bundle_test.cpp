@@ -195,6 +195,40 @@ TEST(ApplicationBundleTest, OpensItsDocumentTypes)
     EXPECT_FALSE(bundle::opensType(*entry, "application/zip"));
     EXPECT_FALSE(bundle::opensType(*entry, "application/octet-stream"));
     EXPECT_FALSE(bundle::opensType(*entry, "imagex/png"));
+    EXPECT_TRUE(entry->categories.empty());
+}
+
+TEST(ApplicationBundleTest, IsATerminalWithTheShellRole)
+{
+    file::TemporaryDirectory directory(fs::temp_directory_path().string(), "cutefish-test-");
+    ASSERT_TRUE(directory.isValid());
+    const std::string path = directory.path() + "/Shell.app";
+    ASSERT_TRUE(makeBundle(path, "Shell"));
+    ASSERT_TRUE(file::writeAtomically(path + "/Contents/Info.plist", R"(<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Shell</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Shell</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.unix-executable</string></array>
+		</dict>
+	</array>
+</dict>
+</plist>
+)"));
+
+    const auto handler = DesktopEntry::parse("runner", "/x/runner.desktop", kHandler, "en_US");
+    ASSERT_TRUE(handler);
+    const auto entry = bundle::read(path, *handler);
+    ASSERT_TRUE(entry);
+    EXPECT_EQ(entry->categories, (std::vector<std::string>{"TerminalEmulator"}));
 }
 
 TEST(ApplicationBundleTest, ListsInstalledBundlesWhenAnEntryRunsThem)
