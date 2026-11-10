@@ -150,6 +150,28 @@ protected:
     }
 };
 
+// Squares on a fixed grid cut by its bounds, so a change of size changes
+// only what it uncovers, noting what each paint was asked for.
+class FixedGrid : public View
+{
+public:
+    int paints = 0;
+    std::vector<RectF> painted;
+
+protected:
+    void paint(Painter& painter) override
+    {
+        ++paints;
+        painted = painter.clipRects();
+        painter.clip(localRect());
+        painter.fillRect(localRect(), Color::rgb(0xF0F0F0));
+        for (double y = 0; y < geometry().height; y += 20) {
+            for (double x = 0; x < geometry().width; x += 20)
+                painter.fillRect({x + 4, y + 4, 12, 12}, Color::rgb(0x2E7DF7));
+        }
+    }
+};
+
 } // namespace
 
 static int mismatches(const Image& a, const Image& b, std::string* first = nullptr)
@@ -429,6 +451,60 @@ TEST(CompositingTest, MovedLayersKeepTheirTextures)
         moved->setGeometry({20.25, 20, 60, 40});
         TestInput::presentFrame(window, now += kFrameNs);
         EXPECT_GT(moved->paints, layeredPaints) << scale;
+    }
+}
+
+static bool paintsAt(const std::vector<RectF>& rects, PointF point)
+{
+    for (const RectF& rect : rects) {
+        if (rect.contains(point))
+            return true;
+    }
+    return false;
+}
+
+TEST(CompositingTest, ResizedLayersKeepTheirTextures)
+{
+    for (const double scale : {1.0, 1.5}) {
+        Window window;
+        auto root = std::make_unique<View>();
+        FixedGrid* grid = root->addChild<FixedGrid>();
+        grid->setGeometry({10, 10, 100, 60});
+        grid->setLayered(true);
+        grid->setOpaqueLayer(true);
+        grid->setKeepsLayerOnResize(true);
+        window.resize({400, 300});
+        window.setContentView(std::move(root));
+        window.setScale(scale);
+        window.show();
+
+        uint64_t now = 1000000000;
+        TestInput::presentFrame(window, now += kFrameNs);
+        // Growing paints only what it uncovers, inside the texture and past
+        // it, and so does shrinking, which uncovers nothing.
+        for (const SizeF size : {SizeF {120, 70}, SizeF {300, 240}, SizeF {80, 50}}) {
+            const int paints = grid->paints;
+            const RectF before = grid->geometry();
+            grid->setGeometry({10, 10, size.width, size.height});
+            const Image kept = TestInput::presentFrame(window, now += kFrameNs);
+            if (size.width > before.width) {
+                EXPECT_GT(grid->paints, paints) << scale;
+                EXPECT_FALSE(paintsAt(grid->painted, {before.width / 2, before.height / 2})) << scale;
+                EXPECT_TRUE(paintsAt(grid->painted, {size.width - 1, size.height - 1})) << scale;
+            } else {
+                EXPECT_EQ(grid->paints, paints) << scale;
+            }
+            grid->setLayered(false);
+            EXPECT_LE(maxDifference(kept, window.grab()), kTextureRounding) << scale << " " << size.width;
+            grid->setLayered(true);
+            TestInput::presentFrame(window, now += kFrameNs);
+        }
+
+        // Without it, a change of size paints it whole.
+        grid->setKeepsLayerOnResize(false);
+        grid->setGeometry({10, 10, 90, 60});
+        TestInput::presentFrame(window, now += kFrameNs);
+        EXPECT_TRUE(paintsAt(grid->painted, {45, 30})) << scale;
     }
 }
 

@@ -101,8 +101,10 @@ void View::setGeometry(const RectF& geometry)
     if (geometry == m_geometry)
         return;
     const bool resized = geometry.size() != m_geometry.size();
-    // A texture moved whole device pixels is kept (Window::updateLayers).
-    if (!resized && needsLayer())
+    // A texture moved whole device pixels is kept (Window::updateLayers), as
+    // is one resized about its top left that asks for its changes itself.
+    const bool kept = !resized || (m_keepsLayerOnResize && geometry.topLeft() == m_geometry.topLeft());
+    if (kept && needsLayer())
         invalidateComposite();
     else
         invalidate();

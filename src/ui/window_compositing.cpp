@@ -396,10 +396,25 @@ void Window::updateLayers(View* view, PointF origin, SkCanvas* target, const SkI
         const SkImageInfo info = target->imageInfo()
                                      .makeWH(room(bounds.width()), room(bounds.height()))
                                      .makeAlphaType(opaque ? kOpaque_SkAlphaType : kPremul_SkAlphaType);
+        const sk_sp<SkSurface> previous = std::move(layer.surface);
         layer.surface = target->makeSurface(info, &properties);
-        layer.repaintAll = true;
         if (!layer.surface)
             return;
+        // Grown past its texture about the same top left, it takes what the
+        // old one holds along.
+        const bool keeps = previous && view->m_keepsLayerOnResize && !layer.repaintAll
+                && previous->recordingContext() == target->recordingContext() && !layer.bounds.isEmpty()
+                && bounds.topLeft() == layer.bounds.topLeft() && scrolls.empty();
+        if (keeps) {
+            SkPaint copy;
+            copy.setBlendMode(SkBlendMode::kSrc);
+            const SkIRect kept = SkIRect::MakeWH(std::min(layer.bounds.width(), bounds.width()),
+                                                 std::min(layer.bounds.height(), bounds.height()));
+            layer.surface->getCanvas()->drawImage(previous->makeImageSnapshot(kept), 0, 0, SkSamplingOptions(),
+                                                  &copy);
+        } else {
+            layer.repaintAll = true;
+        }
     }
     if (bounds != layer.bounds) {
         // Moved by whole device pixels, with nothing else changed: the
@@ -416,6 +431,13 @@ void Window::updateLayers(View* view, PointF origin, SkCanvas* target, const SkI
             SkRegion moved = layer.damage;
             moved.translate(dx, dy);
             layer.damage.op(moved, SkRegion::kUnion_Op);
+        } else if (!layer.repaintAll && !dx && !dy && view->m_keepsLayerOnResize && !layer.bounds.isEmpty()
+                   && bounds.topLeft() == layer.bounds.topLeft()) {
+            // Resized about its top left: the texture, which still fits,
+            // holds what the old size showed.
+            SkRegion uncovered(bounds);
+            uncovered.op(layer.bounds, SkRegion::kDifference_Op);
+            layer.damage.op(uncovered, SkRegion::kUnion_Op);
         } else {
             layer.repaintAll = true;
         }

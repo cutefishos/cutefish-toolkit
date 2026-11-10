@@ -145,6 +145,12 @@ public:
     // nothing it or its children paint reaches outside.
     bool hasOpaqueLayer() const { return m_opaqueLayer; }
     void setOpaqueLayer(bool opaque);
+    // A layered view that asks itself for the parts a change of its size
+    // changes keeps its texture when it grows or shrinks about its top
+    // left: only what the new size uncovers is painted then, with whatever
+    // it asked for. Otherwise a change of size paints it whole.
+    bool keepsLayerOnResize() const { return m_keepsLayerOnResize; }
+    void setKeepsLayerOnResize(bool keeps) { m_keepsLayerOnResize = keeps; }
     // Moves what the view last painted inside the rect, in its coordinates,
     // by (dx, dy) and paints only what that uncovers, along with whatever was
     // waiting to be painted there, moved with it. A view without a layer, or
@@ -341,6 +347,7 @@ private:
     bool m_layered = false;
     // In the padding before m_layer, as m_cursorShape is.
     bool m_opaqueLayer = false;
+    bool m_keepsLayerOnResize = false;
     std::unique_ptr<Layer> m_layer;
     bool m_dirty = false;
     bool m_compositeDirty = false;
