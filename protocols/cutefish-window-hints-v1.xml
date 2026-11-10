@@ -186,10 +186,12 @@
     <request name="set_fullscreen_bars">
       <description summary="the bars a fullscreen window shows along its top">
         For a window in the fullscreen state that draws bars along its top,
-        such as a title bar or toolbar, height logical pixels tall. When the
-        panel along the top edge of the output slides over the window, the
-        pointer anywhere over the panel or over a band this tall below it
-        keeps the panel there. With push 1 the compositor moves the whole
+        such as a title bar or toolbar, height logical pixels tall. Over a
+        fullscreen window that has not made this request, the panel along
+        the top edge of the output does not come back to the pointer at the
+        top edge. Once it has, the pointer there brings the panel over the
+        window, and the pointer anywhere over the panel or over a band this
+        tall below it keeps the panel there. With push 1 the compositor moves the whole
         window down with the panel as it comes in, and back up as it leaves,
         so the bars stay whole below it; with push 0 the window stays where
         it is, under the panel, and the client can follow fullscreen_reveal
