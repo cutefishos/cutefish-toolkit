@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <mutex>
 
 #include "include/core/SkBitmap.h"
@@ -19,10 +20,12 @@
 #include "include/core/SkPath.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPixelRef.h"
+#include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
 #include "include/effects/SkDashPathEffect.h"
 #include "include/effects/SkGradient.h"
 #include "include/effects/SkImageFilters.h"
+#include "include/effects/SkRuntimeEffect.h"
 
 #include "ui/painter.h"
 #include "ui/text_layout.h"
@@ -556,6 +559,92 @@ void Canvas2D::blurBackdrop(const Path& path, double radius)
     replace.setBlendMode(SkBlendMode::kSrc);
     const sk_sp<SkImageFilter> blur = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
     m_canvas->saveLayer(SkCanvas::SaveLayerRec(nullptr, &replace, blur.get(), 0));
+    m_canvas->restore();
+    m_canvas->restore();
+}
+
+// The lens in device pixels: the distance in from the rounded rect's edge
+// decides how far out the backdrop is read, along the edge's normal.
+static const char* const kLensShader = R"(
+uniform shader backdrop;
+uniform float4 rect;
+uniform float radius;
+uniform float bezel;
+uniform float bend;
+uniform float profile;
+uniform float dispersion;
+uniform float saturation;
+
+half4 saturated(half4 colour)
+{
+    half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
+    colour.rgb = clamp(mix(half3(luma), colour.rgb, half(saturation)), 0, colour.a);
+    return colour;
+}
+
+half4 main(float2 p)
+{
+    float2 centre = (rect.xy + rect.zw) / 2;
+    float2 inner = (rect.zw - rect.xy) / 2 - radius;
+    float2 d = p - centre;
+    float2 q = abs(d) - inner;
+    float2 normal;
+    float depth;
+    if (q.x > 0 && q.y > 0) {
+        normal = normalize(q) * sign(d);
+        depth = radius - length(q);
+    } else if (q.x > q.y) {
+        normal = float2(sign(d.x), 0);
+        depth = radius - q.x;
+    } else {
+        normal = float2(0, sign(d.y));
+        depth = radius - q.y;
+    }
+    float amount = bend * pow(clamp(1 - depth / bezel, 0, 1), profile);
+    if (amount <= 0)
+        return saturated(backdrop.eval(p));
+    half4 middle = backdrop.eval(p + normal * amount);
+    half red = backdrop.eval(p + normal * amount * (1 + dispersion)).r;
+    half blue = backdrop.eval(p + normal * amount * (1 - dispersion)).b;
+    return saturated(half4(red, middle.g, blue, middle.a));
+}
+)";
+
+void Canvas2D::lensBackdrop(const RectF& rect, double radius, const Lens& lens)
+{
+    if (!m_canvas || rect.width <= 0 || rect.height <= 0)
+        return;
+    static const sk_sp<SkRuntimeEffect> effect = [] {
+        SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForShader(SkString(kLensShader));
+        if (!result.effect)
+            fprintf(stderr, "cutefish-toolkit: %s\n", result.errorText.c_str());
+        return result.effect;
+    }();
+    const SkMatrix total = m_canvas->getTotalMatrix();
+    if (!effect || !total.isScaleTranslate())
+        return;
+    const float scale = std::abs(total.getScaleX());
+    const SkRect device = total.mapRect(toSkRect(rect));
+    const float deviceRadius = std::min(float(radius) * scale, std::min(device.width(), device.height()) / 2);
+    SkRuntimeShaderBuilder builder(effect);
+    builder.uniform("rect") = SkV4{device.left(), device.top(), device.right(), device.bottom()};
+    builder.uniform("radius") = deviceRadius;
+    builder.uniform("bezel") = std::max(float(lens.bezel) * scale, 1.0f);
+    builder.uniform("bend") = float(lens.bend) * scale;
+    builder.uniform("profile") = float(std::max(lens.profile, 0.01));
+    builder.uniform("dispersion") = float(lens.dispersion);
+    builder.uniform("saturation") = float(lens.saturation);
+    const float sigma = float(lens.blur) * scale / 2;
+    sk_sp<SkImageFilter> blur = sigma > 0 ? SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr) : nullptr;
+    const float reach = float(lens.bend) * scale * float(1 + std::abs(lens.dispersion));
+    const sk_sp<SkImageFilter> filter = SkImageFilters::RuntimeShader(builder, reach, "backdrop", std::move(blur));
+    m_canvas->save();
+    m_canvas->clipRRect(SkRRect::MakeRectXY(toSkRect(rect), SkScalar(radius), SkScalar(radius)), m_state.antialias);
+    // The filter then works in device pixels, as the uniforms are.
+    m_canvas->resetMatrix();
+    SkPaint replace;
+    replace.setBlendMode(SkBlendMode::kSrc);
+    m_canvas->saveLayer(SkCanvas::SaveLayerRec(&device, &replace, filter.get(), 0));
     m_canvas->restore();
     m_canvas->restore();
 }

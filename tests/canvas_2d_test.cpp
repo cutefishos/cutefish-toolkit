@@ -70,6 +70,24 @@ TEST(Canvas2DTest, BlursTheBackdropInsideThePath)
     EXPECT_EQ(bitmap.pixel(30, 10), 0xFF0000FFu);
 }
 
+TEST(Canvas2DTest, LensBendsTheBackdropInFromBeyondItsEdge)
+{
+    // Red on the left, blue from x 30; the lens starts in the blue.
+    Bitmap bitmap(80, 20, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    ASSERT_TRUE(canvas.isValid());
+    canvas.setFillColor(kRed);
+    canvas.fillRect({0, 0, 30, 20});
+    canvas.setFillColor(kBlue);
+    canvas.fillRect({30, 0, 50, 20});
+    canvas.lensBackdrop({32, 0, 40, 20}, 4, {0, 1, 8, 6, 2, 0});
+    // Just inside its left edge the lens shows the red from further out;
+    // deep inside, and outside it, nothing moves.
+    EXPECT_EQ(bitmap.pixel(32, 10), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(50, 10), 0xFF0000FFu);
+    EXPECT_EQ(bitmap.pixel(31, 10), 0xFF0000FFu);
+}
+
 TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)
 {
     Bitmap source(4, 2, Format::Argb32Premultiplied);

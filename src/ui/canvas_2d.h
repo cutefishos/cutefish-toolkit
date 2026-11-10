@@ -231,6 +231,23 @@ public:
     // sampling what lies around the path too. A frosted panel's backdrop.
     void blurBackdrop(const Path& path, double radius);
 
+    // A slab of glass over what is already drawn inside a rounded rect, in
+    // the canvas's units: what lies under it is blurred and its colours
+    // saturated, and within `bezel` of the edge it is bent in from up to
+    // `bend` further out, most at the edge, the falloff the power `profile`
+    // of the depth left. The bend splits colours apart by `dispersion` of
+    // itself, red bent more and blue less.
+    struct Lens
+    {
+        double blur = 0;
+        double saturation = 1;
+        double bezel = 8;
+        double bend = 0;
+        double profile = 2;
+        double dispersion = 0;
+    };
+    void lensBackdrop(const RectF& rect, double radius, const Lens& lens);
+
     // Drawing from here on is a group, composited as one at the matching
     // end with the global alpha, composite mode and shadow of the begin.
     void beginGroup();
