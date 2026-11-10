@@ -361,7 +361,7 @@ void EmbeddedWindow::updateLayout()
 
 bool EmbeddedWindow::needsRender() const
 {
-    return m_configured && m_contentView && (m_needsFrame || m_layoutNeeded || hasTickingClients());
+    return m_configured && m_contentView && (m_needsFrame || m_layoutNeeded || m_hoverStale || hasTickingClients());
 }
 
 void EmbeddedWindow::beginFrame(uint64_t frameTimeNs)
@@ -430,7 +430,7 @@ void EmbeddedWindow::finishFrame()
         }
     }
     // Running animations want the next frame as well.
-    if (m_needsFrame || hasTickingClients())
+    if (m_needsFrame || m_hoverStale || hasTickingClients())
         platform()->requestRender();
 }
 

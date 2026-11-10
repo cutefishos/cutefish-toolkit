@@ -923,7 +923,7 @@ void Window::handleFrameDone()
 {
     m_framePending = false;
     m_configureAnswered = false;
-    if (m_needsFrame || hasTickingClients())
+    if (m_needsFrame || m_hoverStale || hasTickingClients())
         postRender();
 }
 
@@ -1522,8 +1522,14 @@ void Window::updateHoverChain()
     }
 }
 
+void Window::deferHover()
+{
+    m_hoverDeferred = true;
+}
+
 void Window::updateHover()
 {
+    m_hoverStale = false;
     updateHoverChain();
     View* view = m_contentView && m_pointerInside ? viewAt(m_pointer, true) : nullptr;
     if (view != m_hovered) {
@@ -1735,7 +1741,10 @@ void Window::prepareFrame(uint64_t frameTimeNs)
     if (m_platform->onPrepareFrame)
         m_platform->onPrepareFrame();
 
-    if (layoutIfNeeded()) {
+    const bool laidOut = layoutIfNeeded();
+    if (std::exchange(m_hoverDeferred, false)) {
+        m_hoverStale = true;
+    } else if (laidOut || m_hoverStale) {
         updateHover();
     } else if (m_pointerInside) {
         // A scroll or an animation may have moved a view under the pointer.

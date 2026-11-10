@@ -3,8 +3,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "test_views.h"
 #include "ui/header_backdrop.h"
@@ -290,6 +293,213 @@ TEST_F(ScrollTest, ListViewMakesOnlyRowsInSight)
     listView->scrollToRow(999);
     window.grab(3);
     EXPECT_EQ(listView->scrollPosition().y, 20000 - 100);
+}
+
+namespace {
+
+// A row that tracks hover and counts everything it hears of the pointer.
+class HoverRow : public View
+{
+public:
+    HoverRow() { setTracksHover(true); }
+
+    bool acceptsPointer() const override { return true; }
+
+    bool entered = false;
+    int events = 0;
+
+protected:
+    void hoverChanged() override { ++events; }
+    void hoverMove(const PointerEvent&) override { ++events; }
+    void pointerEnter() override
+    {
+        entered = true;
+        ++events;
+    }
+    void pointerLeave() override
+    {
+        entered = false;
+        ++events;
+    }
+};
+
+struct RowScene
+{
+    RowScene()
+    {
+        auto scroll = std::make_unique<ScrollView>();
+        view = scroll.get();
+        Box* content = view->setContent<Box>(SizeF{300, 4000});
+        for (int row = 0; row < 200; ++row) {
+            HoverRow* item = content->addChild<HoverRow>();
+            item->setGeometry({0, row * 20.0, 300, 20});
+            rows.push_back(item);
+        }
+        window.resize({300, 300});
+        window.setContentView(std::move(scroll));
+        window.show();
+        window.grab(1);
+        view->setScrollPosition({0, 500});
+        window.grab(2);
+    }
+
+    HoverRow* rowUnder(PointF point) const
+    {
+        return rows[size_t(std::floor((point.y + view->scrollPosition().y) / 20))];
+    }
+
+    int events() const
+    {
+        int count = 0;
+        for (const HoverRow* row : rows)
+            count += row->events;
+        return count;
+    }
+
+    void forgetEvents()
+    {
+        for (HoverRow* row : rows)
+            row->events = 0;
+    }
+
+    Window window;
+    ScrollView* view;
+    std::vector<HoverRow*> rows;
+};
+
+} // namespace
+
+// The row under a resting pointer stays hovered while a coast carries it
+// away, and the pointer hovers the row it is over once the coast slows.
+TEST_F(ScrollTest, FastCoastKeepsTheHoveredRow)
+{
+    RowScene scene;
+    TestInput::movePointer(scene.window, {50, 50});
+    HoverRow* hovered = scene.rowUnder({50, 50});
+    EXPECT_TRUE(hovered->isHovered());
+    EXPECT_TRUE(hovered->entered);
+
+    swipe(scene.window, 16, 2000);
+    scene.forgetEvents();
+    const double released = scene.view->scrollPosition().y;
+    for (int time = 2066; time <= 2300; time += 16) {
+        frame(scene.window, time);
+        EXPECT_TRUE(hovered->isHovered());
+        EXPECT_TRUE(hovered->entered);
+        EXPECT_EQ(scene.events(), 0);
+    }
+    EXPECT_GT(scene.view->scrollPosition().y, released + 60);
+
+    // Slower than the threshold, with some way still to go.
+    frame(scene.window, 2600);
+    const double slow = scene.view->scrollPosition().y;
+    HoverRow* under = scene.rowUnder({50, 50});
+    EXPECT_NE(under, hovered);
+    EXPECT_FALSE(hovered->isHovered());
+    EXPECT_FALSE(hovered->entered);
+    EXPECT_TRUE(under->isHovered());
+    EXPECT_TRUE(under->entered);
+
+    for (int time = 2616; time <= 4000; time += 16)
+        frame(scene.window, time);
+    EXPECT_GT(scene.view->scrollPosition().y, slow);
+    under = scene.rowUnder({50, 50});
+    EXPECT_TRUE(under->isHovered());
+    EXPECT_TRUE(under->entered);
+}
+
+TEST_F(ScrollTest, PointerMotionDuringAFastCoastHoversAtOnce)
+{
+    RowScene scene;
+    TestInput::movePointer(scene.window, {50, 50});
+    swipe(scene.window, 16, 2000);
+    frame(scene.window, 2066);
+    frame(scene.window, 2082);
+
+    TestInput::movePointer(scene.window, {50, 150});
+    HoverRow* under = scene.rowUnder({50, 150});
+    EXPECT_TRUE(under->isHovered());
+    EXPECT_TRUE(under->entered);
+    EXPECT_FALSE(scene.rowUnder({50, 50})->isHovered());
+}
+
+TEST_F(ScrollTest, WheelStepHoversInTheNextFrame)
+{
+    RowScene scene;
+    TestInput::movePointer(scene.window, {50, 50});
+    HoverRow* hovered = scene.rowUnder({50, 50});
+    now = 1000;
+    ScrollEvent event;
+    event.value120Y = 120;
+    event.deltaY = 10;
+    TestInput::scroll(scene.window, {50, 50}, event);
+    frame(scene.window, 1000);
+    HoverRow* under = scene.rowUnder({50, 50});
+    EXPECT_NE(under, hovered);
+    EXPECT_FALSE(hovered->isHovered());
+    EXPECT_TRUE(under->isHovered());
+}
+
+// Fingers that stop on the touchpad tick no more frames; the next frame
+// hovers what the gesture brought under the pointer.
+TEST_F(ScrollTest, PausedGestureHoversWithoutInput)
+{
+    RowScene scene;
+    TestInput::movePointer(scene.window, {50, 50});
+    for (uint32_t time = 1016; time <= 1048; time += 16) {
+        touchpad(scene.window, {0, 10}, time);
+        frame(scene.window, time);
+    }
+    HoverRow* hovered = nullptr;
+    for (HoverRow* row : scene.rows) {
+        if (row->isHovered())
+            hovered = row;
+    }
+    ASSERT_NE(hovered, nullptr);
+    EXPECT_NE(hovered, scene.rowUnder({50, 50}));
+
+    for (int time = 1064; time <= 1160; time += 16)
+        frame(scene.window, time);
+    HoverRow* under = scene.rowUnder({50, 50});
+    EXPECT_FALSE(hovered->isHovered());
+    EXPECT_TRUE(under->isHovered());
+    EXPECT_TRUE(under->entered);
+}
+
+// A recycled row view loses its hover before it shows another row.
+TEST_F(ScrollTest, RecycledListRowIsNotHovered)
+{
+    Window window;
+    auto list = std::make_unique<ListView>();
+    std::map<View*, size_t> bound;
+    list->createItem = [] { return std::make_unique<HoverRow>(); };
+    list->bindItem = [&bound](View* item, size_t row) { bound[item] = row; };
+    list->setRowHeight(20);
+    list->setRowCount(1000);
+    ListView* listView = list.get();
+    window.resize({200, 100});
+    window.setContentView(std::move(list));
+    window.show();
+    window.grab(1);
+
+    TestInput::movePointer(window, {50, 10});
+    auto* first = static_cast<HoverRow*>(listView->itemForRow(0));
+    ASSERT_NE(first, nullptr);
+    EXPECT_TRUE(first->isHovered());
+    EXPECT_TRUE(first->entered);
+
+    swipe(window, 30, 2000, {50, 10});
+    int reused = 0;
+    for (int time = 2066; time <= 2200; time += 16) {
+        frame(window, time);
+        if (first->isVisible() && bound[first] != 0) {
+            ++reused;
+            EXPECT_FALSE(first->isHovered());
+            EXPECT_FALSE(first->entered);
+        }
+    }
+    EXPECT_GT(listView->scrollPosition().y, 200);
+    EXPECT_GT(reused, 0);
 }
 
 // A view that counts presses.

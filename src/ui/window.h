@@ -509,6 +509,7 @@ private:
     void paintContent(SkCanvas* canvas, const SkRegion* region);
     void updateHover();
     void updateHoverChain();
+    void deferHover();
     void updateCursor();
     void scheduleToolTip(View* view);
     void showToolTip(View* view, const RectF& rect, const std::string& text);
@@ -630,6 +631,10 @@ private:
     PointF m_pointer;
     // Layout passes re-hover only a pointer still over the window.
     bool m_pointerInside = false;
+    // Set by FrameClient::deferHover() in this frame's ticks.
+    bool m_hoverDeferred = false;
+    // A deferred frame skipped a hover update; frames keep coming until one makes it.
+    bool m_hoverStale = false;
     View* m_hovered = nullptr;
     // The views tracking hover that the pointer is within, deepest first.
     std::vector<View*> m_hoverChain;

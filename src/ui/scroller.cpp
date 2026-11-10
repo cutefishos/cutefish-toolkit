@@ -20,6 +20,8 @@ static constexpr double rubberBandResistance = 0.55;
 static constexpr double minimumFlickSpeed = 40.0;
 static constexpr double maximumFlickSpeed = 6000.0;
 static constexpr double stopSpeed = 5.0;
+// Hover follows a coast again below this speed, with about 22 pixels of it left.
+static constexpr double hoverResumeSpeed = 100.0;
 static constexpr double velocityTimeout = 80;
 // The flick velocity is a line fitted to the last samples of this window.
 static constexpr double velocityWindow = 100;
@@ -94,6 +96,19 @@ void Scroller::tick(uint64_t frameTimeNs)
     advance(double(frameTimeNs) / 1e6);
     if (!m_frameRequested)
         stopTicking();
+
+    bool fast = m_gesture && m_consumed;
+    if (!fast && m_coasting) {
+        const Axis x = m_target->horizontalAxis();
+        const Axis y = m_target->verticalAxis();
+        const PointF position = m_target->position();
+        // A rubber band's speed crosses zero where it turns round.
+        fast = m_paged || position.x != bounded(position.x, x.minimum, x.maximum)
+                || position.y != bounded(position.y, y.minimum, y.maximum)
+                || std::hypot(m_velocity.x, m_velocity.y) > hoverResumeSpeed;
+    }
+    if (fast)
+        deferHover();
 }
 
 void Scroller::interrupt(Interruption reason)

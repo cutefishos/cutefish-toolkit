@@ -38,6 +38,9 @@ public:
 protected:
     void startTicking();
     void stopTicking();
+    // From tick(): this frame moves content fast under the pointer, so hover
+    // stays as it is until a frame that does not.
+    void deferHover();
 
     // The frame's time, CLOCK_MONOTONIC: a frame clock stepping by whole
     // refreshes rather than when rendering happened to start.

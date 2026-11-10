@@ -34,4 +34,10 @@ void FrameClient::stopTicking()
     m_ticking = false;
 }
 
+void FrameClient::deferHover()
+{
+    if (m_window)
+        m_window->deferHover();
+}
+
 } // namespace cutefish::ui
