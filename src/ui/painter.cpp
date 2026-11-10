@@ -364,6 +364,22 @@ void Painter::drawShadow(const RectF& rect, double radius, double sigma, Color c
     m_canvas->drawRRect(SkRRect::MakeRectXY(toSkRect(deviceRect(shifted)), r, r), paint);
 }
 
+void Painter::drawOuterShadow(const RectF& rect, double radius, Corners corners, double sigma, Color color,
+                              PointF offset)
+{
+    const bool continuous = corners == Corners::Continuous;
+    const SkScalar r = SkScalar(radius * m_scale);
+    const SkRect shape = toSkRect(snappedRect(rect));
+    const SkRect shadow = shape.makeOffset(SkScalar(offset.x * m_scale), SkScalar(offset.y * m_scale));
+    SkPaint paint = makePaint(color, m_opacity, true);
+    paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle, SkScalar(sigma * m_scale)));
+
+    m_canvas->save();
+    m_canvas->clipPath(roundedRectPath(shape, r, continuous), SkClipOp::kDifference, true);
+    m_canvas->drawPath(roundedRectPath(shadow, r, continuous), paint);
+    m_canvas->restore();
+}
+
 void Painter::drawHorizontalLine(double x, double y, double width, Color color, int widthPx)
 {
     const int left = toDevice(m_offset.x + x);

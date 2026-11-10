@@ -115,6 +115,10 @@ public:
     static double shadowReach(double sigma) { return 3 * sigma; }
     // A blurred copy of the rounded rect, sigma in logical pixels, under what follows.
     void drawShadow(const RectF& rect, double radius, double sigma, Color color, PointF offset = {});
+    // The shadow only past the snapped rounded rect, so a translucent fill
+    // drawn over it keeps its own colour.
+    void drawOuterShadow(const RectF& rect, double radius, Corners corners, double sigma, Color color,
+                         PointF offset = {});
     void drawHorizontalLine(double x, double y, double width, Color color, int widthPx = 1);
     void drawVerticalLine(double x, double y, double height, Color color, int widthPx = 1);
     // Antialiased and not snapped, for glyph-like strokes.
