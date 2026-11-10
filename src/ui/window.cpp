@@ -1639,8 +1639,12 @@ void Window::updateCursor()
 
 void Window::scheduleRender()
 {
-    // A paint asked for while rendering is drawn on the next frame.
-    if (!m_configured || m_framePending || m_rendering || m_platform->isHeadless())
+    // A paint asked for while rendering is drawn on the next frame. One
+    // asked for while only a frame that drew nothing is pending, as an
+    // animation without visible progress ticks, renders at once and its
+    // commit takes over that frame's callback: it shows at the next refresh,
+    // as in a window that was idle.
+    if (!m_configured || (m_framePending && !m_framePendingUnchanged) || m_rendering || m_platform->isHeadless())
         return;
     // The host renders when it composites next.
     if (m_platform->isEmbedded()) {
@@ -1682,6 +1686,7 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
     if (!hasPendingDamage() && m_platform->presentUnchanged(m_size, m_scale, background.a == 255)) {
         m_rendering = false;
         m_framePending = true;
+        m_framePendingUnchanged = true;
         return true;
     }
     const bool presented = m_platform->present(
@@ -1693,6 +1698,7 @@ bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
 
     // Headless and embedded windows hear of no frame callbacks.
     m_framePending = !m_platform->isHeadless() && !m_platform->isEmbedded();
+    m_framePendingUnchanged = false;
     if (std::exchange(m_configureUnanswered, false))
         m_configureAnswered = true;
     ++m_statistics.rendered;

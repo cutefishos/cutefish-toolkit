@@ -620,6 +620,8 @@ private:
     // last frame callback answered one.
     bool m_configureUnanswered = false;
     bool m_configureAnswered = false;
+    // The frame callback waited for came with a commit that drew nothing.
+    bool m_framePendingUnchanged = false;
     int m_configureTimer = 0;
     FrameStatistics m_statistics;
     uint64_t m_frameTimeNs = 0;
