@@ -79,6 +79,8 @@ public:
     void setWrap(Wrap wrap);
     // Logical pixels between stops; 0 for eight spaces.
     void setTabStopDistance(double distance);
+    // Space added after each glyph, in ems of the font.
+    void setLetterSpacing(double ems);
     void setFormats(std::vector<TextFormatRange> formats);
     // For text outside every coloured range.
     void setDefaultColor(Color color);

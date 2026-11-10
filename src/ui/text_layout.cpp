@@ -174,7 +174,7 @@ class Collector final : public SkShaper::RunHandler
 {
 public:
     Collector(std::vector<GlyphRun>& runs, std::vector<Cluster>& clusters, size_t base, uint8_t level, bool bold,
-              bool italic, bool roundAdvances)
+              bool italic, bool roundAdvances, double spacing)
         : m_runs(runs)
         , m_clusters(clusters)
         , m_base(base)
@@ -182,6 +182,7 @@ public:
         , m_bold(bold)
         , m_italic(italic)
         , m_round(roundAdvances)
+        , m_spacing(spacing)
     {
     }
 
@@ -227,7 +228,7 @@ public:
                 const double advance = m_positions[j + 1].x() - m_positions[j].x();
                 run.x[j] = float(pen + m_offsets[j].x());
                 run.y[j] = m_offsets[j].y();
-                pen += m_round ? std::round(advance) : advance;
+                pen += m_round ? std::round(advance + m_spacing) : advance + m_spacing;
                 ++j;
             }
             cluster.glyphCount = j - i;
@@ -264,6 +265,7 @@ private:
     bool m_bold;
     bool m_italic;
     bool m_round;
+    double m_spacing = 0;
     std::vector<SkGlyphID> m_glyphs;
     std::vector<SkPoint> m_positions;
     std::vector<SkPoint> m_offsets;
@@ -282,6 +284,7 @@ struct TextLayoutPrivate
     bool hintedLayout = true;
     TextLayout::Wrap wrap = TextLayout::Wrap::None;
     double tabStop = 0;
+    double letterSpacing = 0;
     std::vector<TextFormatRange> formats;
     Color defaultColor = Color::rgb(0x000000);
 
@@ -497,7 +500,7 @@ void TextLayoutPrivate::shape()
         std::unique_ptr<SkShaper::ScriptRunIterator> script = SkShapers::HB::ScriptRunIterator(text.data() + i, length);
         const std::string& locale = Application::instance()->text().locale();
         SkShaper::TrivialLanguageRunIterator language(locale.empty() ? "en" : locale.c_str(), length);
-        Collector collector(runs, clusters, i, level, bold, italic, roundAdvances);
+        Collector collector(runs, clusters, i, level, bold, italic, roundAdvances, letterSpacing * pixelSize);
         if (s_shaper && script) {
             s_shaper->shape(text.data() + i, length, fontRuns, bidiRuns, *script, language, nullptr, 0,
                             std::numeric_limits<SkScalar>::max(), &collector);
@@ -589,6 +592,12 @@ void TextLayout::setWrap(Wrap wrap)
 void TextLayout::setTabStopDistance(double distance)
 {
     d->tabStop = distance;
+}
+
+void TextLayout::setLetterSpacing(double ems)
+{
+    d->letterSpacing = ems;
+    d->invalidate();
 }
 
 void TextLayout::setFormats(std::vector<TextFormatRange> formats)
