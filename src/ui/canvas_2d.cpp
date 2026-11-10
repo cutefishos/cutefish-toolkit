@@ -640,11 +640,11 @@ void Canvas2D::lensBackdrop(const RectF& rect, double radius, const Lens& lens)
     const sk_sp<SkImageFilter> filter = SkImageFilters::RuntimeShader(builder, reach, "backdrop", std::move(blur));
     m_canvas->save();
     m_canvas->clipRRect(SkRRect::MakeRectXY(toSkRect(rect), SkScalar(radius), SkScalar(radius)), m_state.antialias);
-    // The filter then works in device pixels, as the uniforms are. Inside a
-    // group nothing of what lies under the group reaches the filter, and what
-    // is drawn there is left as it is.
+    // The filter then works in device pixels, as the uniforms are.
     m_canvas->resetMatrix();
-    m_canvas->saveLayer(SkCanvas::SaveLayerRec(&device, nullptr, filter.get(), 0));
+    SkPaint replace;
+    replace.setBlendMode(SkBlendMode::kSrc);
+    m_canvas->saveLayer(SkCanvas::SaveLayerRec(&device, &replace, filter.get(), 0));
     m_canvas->restore();
     m_canvas->restore();
 }
