@@ -112,7 +112,6 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme)
     mixer[ColorId::ToolTipBackground] = withAlpha(ColorId::SecondBackground, 0.95);
     mixer[ColorId::ToolTipShadow] = kBlack.withAlpha(0.15);
     mixer[ColorId::ToastShadow] = kBlack.withAlpha(0.14);
-    mixer[ColorId::AboutDialogBackground] = withAlpha(ColorId::Background, 0.8);
 }
 
 } // namespace cutefish::ui

@@ -110,7 +110,6 @@ enum class ColorId : uint16_t {
     ToolTipBackground,
     ToolTipShadow,
     ToastShadow,
-    AboutDialogBackground,
 
     ToolkitEnd,
 

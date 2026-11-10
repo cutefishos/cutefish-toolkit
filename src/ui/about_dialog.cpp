@@ -18,7 +18,6 @@
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
-#include "ui/theme.h"
 #include "ui/window.h"
 #include "ui/window_header.h"
 
@@ -149,18 +148,6 @@ protected:
         const RectF bounds = localRect();
         m_header->setGeometry({0, 0, bounds.width, kHeaderHeight});
         arrange(bounds.width, true);
-
-        // The blur follows the size the content gives the window.
-        if (Window* window = this->window(); window && bounds.size() != m_blurSize) {
-            m_blurSize = bounds.size();
-            window->setBackgroundBlur(bounds, Theme::current().windowRadius);
-        }
-    }
-
-    void paint(Painter& painter) override
-    {
-        // Over the compositor's blur, as FishUI.Window's background.
-        painter.fillRect(localRect(), color(ColorId::AboutDialogBackground));
     }
 
 private:
@@ -194,7 +181,6 @@ private:
     Label* m_name;
     Label* m_description;
     LinkLabel* m_link;
-    SizeF m_blurSize;
 };
 
 AboutDialog::AboutDialog(Window* parent)
@@ -213,7 +199,6 @@ void AboutDialog::show()
     m_window = std::make_unique<Window>();
     m_window->setTransientParent(m_parent, true);
     m_window->setContentView(std::make_unique<Content>(this));
-    m_window->setBackgroundColor(Color::rgb(0x000000).withAlpha(0));
     m_window->resize({kWidth, 0});
     m_window->setFitsContentHeight(true);
     m_window->setUserResizable(false);
