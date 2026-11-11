@@ -1242,9 +1242,11 @@ void Menu::checkSubmenuHover()
 {
     if (!m_openSubmenu || m_submenuFromKeyboard)
         return;
-    const Rows* submenuRows = m_openSubmenu->rows();
-    if (submenuRows && submenuRows->pointerInside())
-        return;
+    for (const Menu* open = m_openSubmenu; open; open = open->m_openSubmenu) {
+        const Rows* openRows = open->rows();
+        if (openRows && openRows->pointerInside())
+            return;
+    }
     const Rows* own = rows();
     if (own && own->pointerInside() && own->current() == own->submenuRow())
         return;

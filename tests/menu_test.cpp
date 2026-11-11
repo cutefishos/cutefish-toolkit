@@ -252,6 +252,46 @@ TEST(MenuTest, SubmenuStaysWhileThePointerCrossesTheMargin)
     EXPECT_FALSE(more->isOpen());
 }
 
+TEST(MenuTest, SubmenusStayWhileThePointerIsInADeeperOne)
+{
+    Fixture f;
+    Menu* more = f.menu.addSubmenu("More");
+    more->addItem("Inside", [] {});
+    Menu* deeper = more->addSubmenu("Deeper");
+    deeper->addItem("Deepest", [] {});
+    f.menu.popup(&f.window, {20, 20});
+    Window* popup = f.menu.window();
+    popup->grab();
+    const double moreRow = 5 + 26 + 26 + 12 + 26 + 13;
+    TestInput::movePointer(*popup, {40, moreRow});
+    ASSERT_TRUE(more->isOpen());
+
+    // Into More and onto Deeper, then into Deeper's own window: each menu
+    // the pointer leaves hears it.
+    TestInput::leavePointer(*popup);
+    Window* moreWindow = more->window();
+    moreWindow->grab();
+    TestInput::movePointer(*moreWindow, {40, 5 + 26 + 13});
+    ASSERT_TRUE(deeper->isOpen());
+    TestInput::leavePointer(*moreWindow);
+    Window* deeperWindow = deeper->window();
+    deeperWindow->grab();
+    TestInput::movePointer(*deeperWindow, {40, 5 + 13});
+    cutefish::base::EventLoop& loop = Application::instance()->loop();
+    loop.startTimer(std::chrono::milliseconds(200), false, [&loop] { loop.quit(); });
+    loop.run();
+    EXPECT_TRUE(f.menu.isOpen());
+    EXPECT_TRUE(more->isOpen());
+    EXPECT_TRUE(deeper->isOpen());
+
+    // Back on another row of the first menu, both go.
+    TestInput::leavePointer(*deeperWindow);
+    TestInput::movePointer(*popup, {40, 5 + 13});
+    EXPECT_FALSE(more->isOpen());
+    EXPECT_FALSE(deeper->isOpen());
+    EXPECT_TRUE(f.menu.isOpen());
+}
+
 TEST(MenuTest, EscapeAndDismissalClose)
 {
     Fixture f;
