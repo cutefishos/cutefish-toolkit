@@ -44,7 +44,8 @@ public:
     explicit ImageView(std::string path = {});
     ~ImageView() override;
 
-    // A file; empty shows nothing.
+    // A file; empty shows nothing. The same file again is decoded again
+    // when it has been written over since.
     void setSource(std::string path);
     const std::string& source() const { return m_source; }
     // Through the freedesktop thumbnail cache, as Cutefish's
@@ -106,6 +107,9 @@ private:
     void setStatus(Status status);
 
     std::string m_source;
+    // The file as it was when set, so a picture written over is not
+    // taken from the cache.
+    std::string m_stamp;
     bool m_thumbnail = false;
     FillMode m_fillMode = FillMode::Stretch;
     SizeF m_sourceSize;

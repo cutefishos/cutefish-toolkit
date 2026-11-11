@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include <sys/stat.h>
+
 #include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
@@ -181,6 +183,16 @@ static void store(const std::string& key, std::shared_ptr<const ImageView::Pictu
     }
 }
 
+// Changes when the file is written over or replaced under the same name.
+static std::string fileStamp(const std::string& path)
+{
+    struct stat info;
+    if (path.empty() || stat(path.c_str(), &info) != 0)
+        return {};
+    return std::to_string(info.st_ino) + ":" + std::to_string(info.st_size) + ":"
+            + std::to_string(info.st_mtim.tv_sec) + "." + std::to_string(info.st_mtim.tv_nsec);
+}
+
 static base::ThreadPool& decodePool()
 {
     // Two threads: scrolling a grid queues many.
@@ -204,10 +216,20 @@ void ImageView::reset()
 
 void ImageView::setSource(std::string path)
 {
-    if (path == m_source && m_status != Status::Null)
+    std::string stamp = fileStamp(path);
+    if (path == m_source && m_status != Status::Null) {
+        // Written over: decoded again, the picture it has showing meanwhile.
+        if (stamp != m_stamp) {
+            m_stamp = std::move(stamp);
+            m_loading.reset();
+            m_requested.clear();
+            requestLayout();
+        }
         return;
+    }
     reset();
     m_source = std::move(path);
+    m_stamp = std::move(stamp);
     setStatus(m_source.empty() ? Status::Null : Status::Loading);
     requestLayout();
 }
@@ -357,9 +379,7 @@ void ImageView::load(double scale)
             scaling = ImageScaling::Stretch;
     }
 
-    // Cached by name and size: a file changed under the same name
-    // shows again once its entry is gone.
-    const std::string key = std::string(m_thumbnail ? "thumbnail:" : "file:") + m_source + "|"
+    const std::string key = std::string(m_thumbnail ? "thumbnail:" : "file:") + m_source + "|" + m_stamp + "|"
             + std::to_string(width) + "x" + std::to_string(height) + "|" + std::to_string(int(scaling))
             + (m_autoTransform ? "|turned" : "");
     if (key == m_requested)

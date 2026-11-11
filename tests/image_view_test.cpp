@@ -323,6 +323,39 @@ TEST_F(ImageViewTest, ReportsStatus)
     EXPECT_EQ(missing.view->status(), ImageView::Status::Null);
 }
 
+// A file written over under the same name, as a service that keeps one copy
+// per account does, shows its new picture when it is set again.
+TEST_F(ImageViewTest, DecodesAFileWrittenOverAgain)
+{
+    const std::string path = writePng("written-over.png", 40, 20);
+    Shown shown = show(path, {60, 60}, ImageView::FillMode::Pad);
+    ASSERT_TRUE(waitForLoads({shown.view}));
+    EXPECT_EQ(shown.view->sizeHint(), (SizeF{40, 20}));
+
+    shown.view->setSource(path);
+    EXPECT_EQ(shown.view->status(), ImageView::Status::Ready);
+
+    writePng("written-over.png", 20, 40);
+    shown.view->setSource(path);
+    // The old picture stays while the new one decodes.
+    EXPECT_EQ(shown.view->status(), ImageView::Status::Ready);
+    auto& loop = Application::instance()->loop();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    cutefish::base::Timer poll(&loop);
+    poll.onTimeout = [&] {
+        shown.window->grab();
+        if (shown.view->sizeHint() == SizeF{20, 40} || std::chrono::steady_clock::now() > deadline)
+            loop.quit();
+    };
+    poll.start(std::chrono::milliseconds(5));
+    loop.run();
+    EXPECT_EQ(shown.view->sizeHint(), (SizeF{20, 40}));
+    const Image image = shown.window->grab();
+    EXPECT_TRUE(near(image.pixel(25, 15), kRed));
+    EXPECT_TRUE(near(image.pixel(35, 15), kBlue));
+    EXPECT_TRUE(near(image.pixel(10, 30), kWhite));
+}
+
 TEST_F(ImageViewTest, CutsToRoundedCorners)
 {
     const std::string path = writePng("corners.png", 40, 40);
