@@ -831,6 +831,81 @@ void Connection::setCursorShape(ShellSurface* shell, CursorShape shape)
         break;
     case CursorShape::Blank:
         break;
+    case CursorShape::ContextMenu:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CONTEXT_MENU;
+        break;
+    case CursorShape::Help:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_HELP;
+        break;
+    case CursorShape::Progress:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_PROGRESS;
+        break;
+    case CursorShape::Wait:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_WAIT;
+        break;
+    case CursorShape::Cell:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CELL;
+        break;
+    case CursorShape::Crosshair:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CROSSHAIR;
+        break;
+    case CursorShape::VerticalText:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_VERTICAL_TEXT;
+        break;
+    case CursorShape::Alias:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALIAS;
+        break;
+    case CursorShape::Copy:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_COPY;
+        break;
+    case CursorShape::NoDrop:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NO_DROP;
+        break;
+    case CursorShape::AllScroll:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_SCROLL;
+        break;
+    case CursorShape::ColumnResize:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_COL_RESIZE;
+        break;
+    case CursorShape::RowResize:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ROW_RESIZE;
+        break;
+    case CursorShape::ResizeNorth:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_N_RESIZE;
+        break;
+    case CursorShape::ResizeEast:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_E_RESIZE;
+        break;
+    case CursorShape::ResizeSouth:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_S_RESIZE;
+        break;
+    case CursorShape::ResizeWest:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_W_RESIZE;
+        break;
+    case CursorShape::ResizeNorthEast:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NE_RESIZE;
+        break;
+    case CursorShape::ResizeNorthWest:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NW_RESIZE;
+        break;
+    case CursorShape::ResizeSouthEast:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SE_RESIZE;
+        break;
+    case CursorShape::ResizeSouthWest:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE;
+        break;
+    case CursorShape::ResizeNorthEastSouthWest:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NESW_RESIZE;
+        break;
+    case CursorShape::ResizeNorthWestSouthEast:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NWSE_RESIZE;
+        break;
+    case CursorShape::ZoomIn:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ZOOM_IN;
+        break;
+    case CursorShape::ZoomOut:
+        wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ZOOM_OUT;
+        break;
     }
     wp_cursor_shape_device_v1_set_shape(m_cursorShapeDevice, m_enterSerial, wire);
 }

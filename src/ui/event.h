@@ -180,6 +180,34 @@ enum class CursorShape {
     ResizeVertical,
     // No pointer at all.
     Blank,
+    Crosshair,
+    Copy,
+    ContextMenu,
+    Help,
+    // Busy, but still taking clicks.
+    Progress,
+    Wait,
+    Cell,
+    VerticalText,
+    Alias,
+    NoDrop,
+    AllScroll,
+    ColumnResize,
+    RowResize,
+    // Moving one edge or corner outward.
+    ResizeNorth,
+    ResizeEast,
+    ResizeSouth,
+    ResizeWest,
+    ResizeNorthEast,
+    ResizeNorthWest,
+    ResizeSouthEast,
+    ResizeSouthWest,
+    // Along a diagonal both ways.
+    ResizeNorthEastSouthWest,
+    ResizeNorthWestSouthEast,
+    ZoomIn,
+    ZoomOut,
 };
 
 } // namespace cutefish::ui
