@@ -19,6 +19,7 @@
 #include "include/core/SkPath.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPixelRef.h"
+#include "include/core/SkShader.h"
 #include "include/core/SkSurface.h"
 #include "include/effects/SkDashPathEffect.h"
 #include "include/effects/SkGradient.h"
@@ -483,6 +484,13 @@ void Canvas2D::drawBitmap(const Bitmap& bitmap, const RectF& rect, bool mirrored
 
 void Canvas2D::drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool mirrored)
 {
+    withImage(bitmap, [&](SkImage* image) {
+        drawImage(image, rect, mirrored);
+    });
+}
+
+void Canvas2D::withImage(const RetainedBitmap& bitmap, const std::function<void(SkImage*)>& use)
+{
     if (!m_canvas || bitmap.isNull())
         return;
     GrRecordingContext* context = m_canvas->recordingContext();
@@ -497,7 +505,7 @@ void Canvas2D::drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool 
     if (!context || (data.stale.isEmpty() && !data.texture)) {
         const sk_sp<SkImage> image = data.image;
         guard.unlock();
-        drawImage(image.get(), rect, mirrored);
+        use(image.get());
         return;
     }
     if (!data.texture || data.context != context) {
@@ -507,7 +515,7 @@ void Canvas2D::drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool 
         if (!data.texture) {
             const sk_sp<SkImage> image = data.image;
             guard.unlock();
-            drawImage(image.get(), rect, mirrored);
+            use(image.get());
             return;
         }
         data.texture->writePixels(data.pixels.pixmap(), 0, 0);
@@ -519,7 +527,7 @@ void Canvas2D::drawBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool 
     data.stale.setEmpty();
     const sk_sp<SkImage> image = data.texture->makeImageSnapshot();
     guard.unlock();
-    drawImage(image.get(), rect, mirrored);
+    use(image.get());
 }
 
 void Canvas2D::drawImage(SkImage* image, const RectF& rect, bool mirrored)
@@ -537,6 +545,34 @@ void Canvas2D::drawImage(SkImage* image, const RectF& rect, bool mirrored)
     }
     m_canvas->drawImageRect(image, toSkRect(rect), toSampling(m_state.smoothing), &paint);
     m_canvas->restore();
+}
+
+void Canvas2D::clipToBitmap(const Bitmap& bitmap, const RectF& rect, bool mirrored)
+{
+    if (!m_canvas || bitmap.isNull())
+        return;
+    clipToImage(SkImages::RasterFromPixmapCopy(skPixmap(bitmap)).get(), rect, mirrored);
+}
+
+void Canvas2D::clipToBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool mirrored)
+{
+    withImage(bitmap, [&](SkImage* image) {
+        clipToImage(image, rect, mirrored);
+    });
+}
+
+void Canvas2D::clipToImage(SkImage* image, const RectF& rect, bool mirrored)
+{
+    if (!image)
+        return;
+    SkMatrix local = SkMatrix::RectToRect(SkRect::Make(image->bounds()), toSkRect(rect));
+    if (mirrored) {
+        local.postScale(1, -1);
+        local.postTranslate(0, SkScalar(rect.y * 2 + rect.height));
+    }
+    m_canvas->clipRect(toSkRect(rect), m_state.antialias);
+    m_canvas->clipShader(image->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, toSampling(m_state.smoothing),
+                                           &local));
 }
 
 void Canvas2D::blurBackdrop(const Path& path, double radius)

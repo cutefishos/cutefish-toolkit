@@ -176,6 +176,11 @@ public:
 
     void clipToRect(const RectF& rect);
     void clipToPath(const Path& path);
+    // Drawing from here on is kept by the alpha of the bitmap stretched
+    // over `rect`, and nowhere outside the rect; clearing and every
+    // composite mode go through it as through any clip.
+    void clipToBitmap(const Bitmap& bitmap, const RectF& rect, bool mirrored = false);
+    void clipToBitmap(const RetainedBitmap& bitmap, const RectF& rect, bool mirrored = false);
     // The clip's bounds in the current coordinates.
     RectF clipBounds() const;
 
@@ -267,6 +272,8 @@ private:
 
     void applyMatrix();
     void drawImage(SkImage* image, const RectF& rect, bool mirrored);
+    void clipToImage(SkImage* image, const RectF& rect, bool mirrored);
+    void withImage(const RetainedBitmap& bitmap, const std::function<void(SkImage*)>& use);
     void drawWith(const std::function<void(SkCanvas*, const void* paint)>& draw, const ColorF& color,
                   bool stroke);
 

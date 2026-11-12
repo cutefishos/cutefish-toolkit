@@ -177,6 +177,41 @@ TEST(Canvas2DTest, ClipsSavesAndAlpha)
     EXPECT_EQ(bitmap.pixel(8, 8), 0u);
 }
 
+TEST(Canvas2DTest, ClipsToABitmapsAlpha)
+{
+    Bitmap mask(2, 2, Format::Argb32Premultiplied);
+    mask.fill(0u);
+    mask.setPixel(0, 0, 0xFF000000u);
+    mask.setPixel(1, 1, 0x80000000u);
+
+    Bitmap bitmap(12, 12, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    canvas.setImageSmoothing(Canvas2D::Smoothing::None);
+    canvas.setFillColor(kBlue);
+    canvas.fillRect({0, 0, 12, 12});
+
+    canvas.save();
+    canvas.clipToBitmap(mask, {2, 2, 8, 8});
+    canvas.setFillColor(kRed);
+    canvas.fillRect({0, 0, 12, 12});
+    canvas.restore();
+    EXPECT_EQ(bitmap.pixel(3, 3), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(8, 3), 0xFF0000FFu);
+    EXPECT_NEAR(double((bitmap.pixel(8, 8) >> 16) & 0xff), 128, 1);
+    // Outside the rect nothing is drawn, whatever the bitmap's edge holds.
+    EXPECT_EQ(bitmap.pixel(1, 1), 0xFF0000FFu);
+
+    // Clearing reaches what was drawn before the clip.
+    canvas.save();
+    canvas.clipToBitmap(ui::RetainedBitmap(mask), {2, 2, 8, 8}, true);
+    canvas.clearRect({0, 0, 12, 12});
+    canvas.restore();
+    EXPECT_EQ(bitmap.pixel(3, 8), 0u);
+    EXPECT_EQ(bitmap.pixel(3, 3), 0xFFFF0000u);
+    EXPECT_NEAR(double(bitmap.alpha(8, 3)), 127, 1);
+    EXPECT_EQ(bitmap.pixel(1, 1), 0xFF0000FFu);
+}
+
 TEST(Canvas2DTest, StrokesAndDashes)
 {
     Bitmap bitmap(20, 5, Format::Argb32Premultiplied);
