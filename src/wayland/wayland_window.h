@@ -89,6 +89,7 @@ public:
     bool setScreenPosition(PointF position) override;
     void setUserResizable(bool resizable) override;
     void setMainMenu(Menu* menu) override;
+    void setDockMenu(Menu* menu);
     void setStatusItemIdentifier(const std::string& identifier) override;
     void setStatusItemHighlight(bool highlighted) override;
     void setForeignParent(const std::string& handle, bool modal) override;
@@ -162,6 +163,7 @@ private:
     double m_opacity = 1;
     std::vector<SubsurfaceClient*> m_subsurfaces;
     std::shared_ptr<MainMenuMirror> m_mainMenu;
+    std::shared_ptr<MainMenuMirror> m_dockMenu;
     wl_egl_window* m_eglWindow = nullptr;
     EGLSurface m_eglSurface = EGL_NO_SURFACE;
     sk_sp<SkSurface> m_surface;

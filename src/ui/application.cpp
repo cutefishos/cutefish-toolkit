@@ -151,6 +151,23 @@ void Application::setMainMenu(Menu* menu)
     }
 }
 
+// Kept outside the class, which keeps its layout.
+static Menu* s_dockMenu = nullptr;
+
+void Application::setDockMenu(Menu* menu)
+{
+    s_dockMenu = menu;
+    for (Window* window : m_windows) {
+        if (!window->m_parent)
+            window->updateDockMenu();
+    }
+}
+
+Menu* Application::dockMenu() const
+{
+    return s_dockMenu;
+}
+
 void Application::setApplicationId(std::string applicationId)
 {
     m_applicationId = std::move(applicationId);

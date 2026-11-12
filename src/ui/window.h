@@ -430,6 +430,8 @@ private:
     // Hands mainMenu() to the platform, here and in the transient children
     // without a menu of their own.
     void updateMainMenu();
+    // Hands Application::dockMenu() to the platform.
+    void updateDockMenu();
     Color backgroundColor() const;
 
     friend class EmbeddedWindow;

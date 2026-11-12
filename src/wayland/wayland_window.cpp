@@ -475,6 +475,18 @@ void WaylandWindow::setMainMenu(Menu* menu)
                                                 m_mainMenu ? m_mainMenu->proxy() : nullptr);
 }
 
+void WaylandWindow::setDockMenu(Menu* menu)
+{
+    if (!m_shell || !m_shell->toplevel() || !m_connection->mainMenus())
+        return;
+    std::shared_ptr<MainMenuMirror> mirror = m_connection->mainMenu(menu);
+    if (mirror == m_dockMenu)
+        return;
+    m_dockMenu = std::move(mirror);
+    cutefish_main_menu_manager_v1_set_dock_menu(m_connection->mainMenus(), m_shell->surface(),
+                                                m_dockMenu ? m_dockMenu->proxy() : nullptr);
+}
+
 void WaylandWindow::setStatusItemIdentifier(const std::string& identifier)
 {
     if (m_shell)

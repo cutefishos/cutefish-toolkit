@@ -107,6 +107,10 @@ public:
     // the application's name. Not owned; it stays while it is the main menu.
     void setMainMenu(Menu* menu);
     Menu* mainMenu() const { return m_mainMenu; }
+    // The entries the dock's menu for the application shows after its
+    // windows. Not owned; it stays while it is the dock menu.
+    void setDockMenu(Menu* menu);
+    Menu* dockMenu() const;
 
     struct Screen
     {

@@ -41,6 +41,18 @@
       <arg name="surface" type="object" interface="wl_surface"/>
       <arg name="menu" type="object" interface="cutefish_menu_v1" allow-null="true"/>
     </request>
+    <request name="set_dock_menu">
+      <description summary="the menu the dock shows for the application">
+        The entries the dock's menu for the window's application shows after
+        the list of its windows; null for none. The surface has the
+        xdg_toplevel role, else this is the invalid_surface error. Before the
+        dock's menu shows, the menu hears will_open, and its entries are
+        activated as a main menu's are. A window keeps the menu until it is
+        set again or the menu is destroyed.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="menu" type="object" interface="cutefish_menu_v1" allow-null="true"/>
+    </request>
   </interface>
 
   <interface name="cutefish_menu_v1" version="1">

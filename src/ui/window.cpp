@@ -161,6 +161,7 @@ Window::Window()
     m_platform = PlatformWindow::create(this, nullptr, {}, false);
     m_platform->setAppId(Application::instance()->applicationId());
     m_platform->setMainMenu(Application::instance()->mainMenu());
+    updateDockMenu();
     Application::instance()->m_windows.push_back(this);
     if (!m_platform->isHeadless() && !m_platform->isEmbedded())
         m_scale = expectedScale();
@@ -173,6 +174,7 @@ Window::Window(TrustedConnection& connection)
     m_platform = std::make_unique<wayland::WaylandWindow>(this, *connection.m_connection, *connection.m_gpu);
     m_platform->setAppId(Application::instance()->applicationId());
     m_platform->setMainMenu(Application::instance()->mainMenu());
+    updateDockMenu();
     Application::instance()->m_windows.push_back(this);
 }
 
@@ -269,6 +271,12 @@ Menu* Window::mainMenu() const
     if (m_mainMenu)
         return m_mainMenu;
     return m_transientParent ? m_transientParent->mainMenu() : Application::instance()->mainMenu();
+}
+
+void Window::updateDockMenu()
+{
+    if (auto* platform = dynamic_cast<wayland::WaylandWindow*>(m_platform.get()))
+        platform->setDockMenu(Application::instance()->dockMenu());
 }
 
 void Window::updateMainMenu()
