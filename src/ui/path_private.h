@@ -4,6 +4,7 @@
 #pragma once
 
 #include "include/core/SkPath.h"
+#include "include/core/SkRRect.h"
 #include "base/transform.h"
 #include "ui/path.h"
 
@@ -20,6 +21,9 @@ struct PathAccess
 private:
     template<typename Map>
     static SkPath convert(const Path& path, Map map);
+    template<typename Map>
+    static bool roundedRect(const Path& path, Map map, SkRRect* rrect, SkPathDirection* direction,
+                            unsigned* start);
 };
 
 } // namespace cutefish::ui

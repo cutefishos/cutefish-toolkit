@@ -46,6 +46,54 @@ TEST(Canvas2DTest, FillsThroughTheTransform)
     EXPECT_EQ(bitmap.pixel(1, 1), 0u);
 }
 
+// Anticlockwise from the top edge: a round upper left corner, a square lower
+// left, a smaller round lower right and a square upper right.
+static Path mixedCornerOutline()
+{
+    const double k = 0.5522847498;
+    Path path;
+    path.moveTo(12, 2);
+    path.cubicTo(12 - 10 * k, 2, 2, 12 - 10 * k, 2, 12);
+    path.lineTo(2, 30);
+    path.lineTo(32, 30);
+    path.cubicTo(32 + 6 * k, 30, 38, 24 + 6 * k, 38, 24);
+    path.lineTo(38, 2);
+    path.close();
+    return path;
+}
+
+static void expectMixedCorners(const Bitmap& bitmap)
+{
+    EXPECT_EQ(bitmap.pixel(20, 16), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(3, 3), 0u);
+    EXPECT_EQ(bitmap.pixel(6, 6), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(3, 28), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(37, 29), 0u);
+    EXPECT_EQ(bitmap.pixel(35, 27), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(36, 3), 0xFFFF0000u);
+    EXPECT_EQ(bitmap.pixel(1, 16), 0u);
+    EXPECT_EQ(bitmap.pixel(39, 16), 0u);
+}
+
+TEST(Canvas2DTest, FillsARoundedOutlineCornerByCorner)
+{
+    Bitmap bitmap(40, 32, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    canvas.setFillColor(kRed);
+    canvas.fillPath(mixedCornerOutline());
+    expectMixedCorners(bitmap);
+}
+
+TEST(Canvas2DTest, ClipsToARoundedOutlineCornerByCorner)
+{
+    Bitmap bitmap(40, 32, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    canvas.clipToPath(mixedCornerOutline());
+    canvas.setFillColor(kRed);
+    canvas.fillRect({0, 0, 40, 32});
+    expectMixedCorners(bitmap);
+}
+
 TEST(Canvas2DTest, BlursTheBackdropInsideThePath)
 {
     // Red on the left half, blue on the right; the blur is over the middle.

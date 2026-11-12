@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "base/transform.h"
 #include "include/core/SkPaint.h"
@@ -18,12 +19,176 @@ namespace cutefish::ui {
 // The control point distance that makes a cubic follow a quarter circle.
 static constexpr double kKappa = 0.5522847498;
 
+// A closed contour of lines along its bounds with a quarter-ellipse cubic at
+// some or all corners, as addRoundedRect, addEllipse and arc-cornered outlines
+// make.
+template<typename Map>
+bool PathAccess::roundedRect(const Path& path, Map map, SkRRect* rrect, SkPathDirection* direction,
+                             unsigned* start)
+{
+    struct Segment
+    {
+        bool cubic;
+        PointF from;
+        PointF c1;
+        PointF c2;
+        PointF to;
+    };
+
+    static constexpr size_t kMaxSegments = 10;
+    const size_t count = path.m_verbs.size();
+    if (count < 6 || count > kMaxSegments + 2 || path.m_verbs.front() != Path::Verb::Move
+        || path.m_verbs.back() != Path::Verb::Close)
+        return false;
+
+    Segment segments[kMaxSegments + 1];
+    size_t segmentCount = 0;
+    const PointF first = map(path.m_points[0]);
+    PointF current = first;
+    double left = first.x;
+    double top = first.y;
+    double right = first.x;
+    double bottom = first.y;
+    size_t index = 1;
+    size_t cubics = 0;
+    for (size_t i = 1; i + 1 < count; ++i) {
+        Segment segment{};
+        segment.from = current;
+        if (path.m_verbs[i] == Path::Verb::Line) {
+            segment.to = map(path.m_points[index++]);
+        } else if (path.m_verbs[i] == Path::Verb::Cubic) {
+            segment.cubic = true;
+            segment.c1 = map(path.m_points[index]);
+            segment.c2 = map(path.m_points[index + 1]);
+            segment.to = map(path.m_points[index + 2]);
+            index += 3;
+            ++cubics;
+        } else {
+            return false;
+        }
+        current = segment.to;
+        left = std::min(left, current.x);
+        top = std::min(top, current.y);
+        right = std::max(right, current.x);
+        bottom = std::max(bottom, current.y);
+        segments[segmentCount++] = segment;
+    }
+    if (cubics == 0 || cubics > 4)
+        return false;
+    {
+        Segment closing{};
+        closing.from = current;
+        closing.to = first;
+        segments[segmentCount++] = closing;
+    }
+
+    const double width = right - left;
+    const double height = bottom - top;
+    if (!(width > 0) || !(height > 0) || !std::isfinite(width) || !std::isfinite(height))
+        return false;
+    const double tolerance = std::max(width, height) * 1e-5 + 1e-6;
+    const auto near = [tolerance](double a, double b) { return std::abs(a - b) <= tolerance; };
+
+    // Upper left, upper right, lower right, lower left.
+    double radii[4][2] = {};
+    bool rounded[4] = {};
+    double travelled = 0;
+    double area = 0;
+    for (size_t i = 0; i < segmentCount; ++i) {
+        const Segment& segment = segments[i];
+        const double dx = segment.to.x - segment.from.x;
+        const double dy = segment.to.y - segment.from.y;
+        area += segment.from.x * segment.to.y - segment.to.x * segment.from.y;
+        travelled += std::abs(dx) + std::abs(dy);
+        if (!segment.cubic) {
+            const bool alongRow = near(dy, 0) && (near(segment.from.y, top) || near(segment.from.y, bottom));
+            const bool alongColumn = near(dx, 0)
+                                  && (near(segment.from.x, left) || near(segment.from.x, right));
+            if (!alongRow && !alongColumn)
+                return false;
+            continue;
+        }
+
+        if (near(dx, 0) || near(dy, 0))
+            return false;
+        const bool leavesAlongRow = std::abs(segment.c1.y - segment.from.y)
+                                 <= std::abs(segment.c1.x - segment.from.x);
+        const PointF corner = leavesAlongRow ? PointF{segment.to.x, segment.from.y}
+                                             : PointF{segment.from.x, segment.to.y};
+        const bool atLeft = near(corner.x, left);
+        const bool atTop = near(corner.y, top);
+        if ((!atLeft && !near(corner.x, right)) || (!atTop && !near(corner.y, bottom)))
+            return false;
+        const int which = atTop ? (atLeft ? 0 : 1) : (atLeft ? 3 : 2);
+        if (rounded[which])
+            return false;
+        rounded[which] = true;
+        radii[which][0] = std::abs(dx);
+        radii[which][1] = std::abs(dy);
+
+        const double slack = (std::abs(dx) + std::abs(dy)) * 0.005 + tolerance;
+        const PointF c1{segment.from.x + (corner.x - segment.from.x) * kKappa,
+                        segment.from.y + (corner.y - segment.from.y) * kKappa};
+        const PointF c2{segment.to.x + (corner.x - segment.to.x) * kKappa,
+                        segment.to.y + (corner.y - segment.to.y) * kKappa};
+        if (std::abs(segment.c1.x - c1.x) > slack || std::abs(segment.c1.y - c1.y) > slack
+            || std::abs(segment.c2.x - c2.x) > slack || std::abs(segment.c2.y - c2.y) > slack)
+            return false;
+    }
+    // Once round, no edge walked twice.
+    if (std::abs(travelled - 2 * (width + height)) > 8 * tolerance)
+        return false;
+    if (radii[0][0] + radii[1][0] > width + tolerance || radii[3][0] + radii[2][0] > width + tolerance
+        || radii[0][1] + radii[3][1] > height + tolerance
+        || radii[1][1] + radii[2][1] > height + tolerance)
+        return false;
+
+    // The eight points where the edges meet the corners, clockwise from the
+    // upper left corner's point on the top edge, as addRRect numbers them.
+    const PointF joints[8] = {
+        {left + radii[0][0], top},     {right - radii[1][0], top},
+        {right, top + radii[1][1]},    {right, bottom - radii[2][1]},
+        {right - radii[2][0], bottom}, {left + radii[3][0], bottom},
+        {left, bottom - radii[3][1]},  {left, top + radii[0][1]},
+    };
+    *start = 0;
+    double nearest = std::numeric_limits<double>::max();
+    for (unsigned i = 0; i < 8; ++i) {
+        const double distance = std::abs(joints[i].x - first.x) + std::abs(joints[i].y - first.y);
+        if (distance < nearest) {
+            nearest = distance;
+            *start = i;
+        }
+    }
+    if (nearest > 2 * tolerance)
+        return false;
+
+    SkVector corners[4];
+    for (int i = 0; i < 4; ++i)
+        corners[i] = SkVector::Make(SkScalar(radii[i][0]), SkScalar(radii[i][1]));
+    rrect->setRectRadii(SkRect::MakeLTRB(SkScalar(left), SkScalar(top), SkScalar(right), SkScalar(bottom)),
+                        corners);
+    *direction = area >= 0 ? SkPathDirection::kCW : SkPathDirection::kCCW;
+    return true;
+}
+
 template<typename Map>
 SkPath PathAccess::convert(const Path& path, Map map)
 {
     SkPathBuilder builder;
     builder.setFillType(path.m_fillRule == Path::FillRule::EvenOdd ? SkPathFillType::kEvenOdd
                                                                    : SkPathFillType::kWinding);
+
+    // Skia clips and fills a path it knows to be a rounded rectangle
+    // analytically; any other curved clip costs a mask per draw.
+    SkRRect rrect;
+    SkPathDirection direction;
+    unsigned start;
+    if (roundedRect(path, map, &rrect, &direction, &start)) {
+        builder.addRRect(rrect, direction, start);
+        return builder.detach();
+    }
+
     const auto point = [&map](PointF p) {
         const PointF mapped = map(p);
         return SkPoint::Make(SkScalar(mapped.x), SkScalar(mapped.y));
@@ -99,7 +264,7 @@ Path PathAccess::fromSkPath(const SkPath& source)
             path.quadTo(at(points[1]), at(points[2]));
             break;
         case SkPath::kConic_Verb: {
-            // Path ops and strokes only make conics for round joins and caps.
+            // Rounded rectangles, round joins and round caps arrive as conics.
             SkPoint quads[1 + 2 * 4];
             const int count = SkPath::ConvertConicToQuads(points[0], points[1], points[2],
                                                           iterator.conicWeight(), quads, 2);
