@@ -101,12 +101,15 @@ static SkIRect clipBounds(const View* view, PointF position, double scale)
 static SkMatrix layerMatrix(const View* view, PointF position, double scale)
 {
     const Transform& transform = view->transform();
-    // Whole device pixels, so a texture at rest lands on the pixels it was drawn for.
-    const double dx = std::round(transform.translation.x * scale);
-    const double dy = std::round(transform.translation.y * scale);
     // Exact, where going through the centre in floats could land a hair short.
+    // Whole device pixels, so a texture at rest lands on the pixels it was
+    // drawn for.
     if (transform.scale == 1)
-        return SkMatrix::Translate(SkScalar(dx), SkScalar(dy));
+        return SkMatrix::Translate(SkScalar(std::round(transform.translation.x * scale)),
+                                   SkScalar(std::round(transform.translation.y * scale)));
+    // A scaled texture is filtered anyway: it moves by fractions of a pixel too.
+    const double dx = transform.translation.x * scale;
+    const double dy = transform.translation.y * scale;
     const RectF& geometry = view->geometry();
     const double centreX = (position.x + geometry.width / 2) * scale;
     const double centreY = (position.y + geometry.height / 2) * scale;

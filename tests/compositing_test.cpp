@@ -416,6 +416,59 @@ TEST(CompositingTest, TransformsMoveTexturesWithoutRepainting)
     }
 }
 
+// The horizontal centre of what is drawn in `image`, by coverage.
+static double inkCentreX(const Image& image)
+{
+    double sum = 0;
+    double weight = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const double ink = 255 - image.pixel(x, y).r;
+            sum += ink * (x + 0.5);
+            weight += ink;
+        }
+    }
+    return weight > 0 ? sum / weight : 0;
+}
+
+TEST(CompositingTest, AScaledTextureMovesByFractionsOfAPixel)
+{
+    for (const double scale : {1.0, 1.75}) {
+        Window window;
+        window.setBackgroundColor(Color::rgb(0xFFFFFF));
+        auto root = std::make_unique<View>();
+        Shapes* moved = root->addChild<Shapes>();
+        moved->color = Color::rgb(0);
+        moved->setGeometry({20, 20, 60, 40});
+        window.resize({200, 100});
+        window.setContentView(std::move(root));
+        window.setScale(scale);
+        window.show();
+
+        // A quarter of a device pixel a step: the ink moves every step, not in
+        // whole pixels now and then, and a pixel over the four.
+        uint64_t now = 1000000000;
+        double first = 0;
+        double previous = 0;
+        for (int step = 0; step <= 4; ++step) {
+            moved->setTransform({{step * 0.25 / scale, 0}, 0.8});
+            const double centre = inkCentreX(TestInput::presentFrame(window, now += kFrameNs));
+            if (step == 0)
+                first = centre;
+            else
+                EXPECT_NEAR(0.25, centre - previous, 0.12) << scale << " " << step;
+            previous = centre;
+        }
+        EXPECT_NEAR(1, previous - first, 0.05) << scale;
+
+        // Unscaled, it still lands on whole device pixels.
+        moved->setTransform({{0.4 / scale, 0}, 1});
+        const Image nearly = TestInput::presentFrame(window, now += kFrameNs);
+        moved->setTransform({});
+        EXPECT_EQ(0, maxDifference(nearly, TestInput::presentFrame(window, now += kFrameNs))) << scale;
+    }
+}
+
 TEST(CompositingTest, MovedLayersKeepTheirTextures)
 {
     for (const double scale : {1.0, 1.5}) {
