@@ -69,6 +69,7 @@ public:
     void setPopupPlacement(const PopupPlacement& placement, int width, int height) override;
     void startMove() override;
     void setCursorShape(CursorShape shape) override;
+    void setCursorImage(const Bitmap& image, int scale, double hotX, double hotY);
     void setBlur(const RectF& rect, double radius) override;
     void setBlurShape(const Path& path) override;
     void setSubsurfaceBlur(const RectF& rect, double radius) override;

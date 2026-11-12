@@ -208,6 +208,8 @@ enum class CursorShape {
     ResizeNorthWestSouthEast,
     ZoomIn,
     ZoomOut,
+    // The window's own picture (Window::setCursorImage).
+    Image,
 };
 
 } // namespace cutefish::ui

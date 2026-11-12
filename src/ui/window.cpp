@@ -21,6 +21,7 @@
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/bitmap.h"
 #include "ui/drag.h"
 #include "ui/embedded_platform_window.h"
 #include "ui/embedded_window.h"
@@ -39,6 +40,21 @@
 #include "wayland/wayland_window.h"
 
 namespace cutefish::ui {
+
+// Each window's cursor picture, kept outside the class, which keeps its
+// layout.
+struct CursorImage
+{
+    Bitmap image;
+    int scale = 1;
+    PointF hotSpot;
+};
+
+static std::unordered_map<const Window*, CursorImage>& cursorImages()
+{
+    static std::unordered_map<const Window*, CursorImage> images;
+    return images;
+}
 
 static constexpr uint64_t kDoubleClickNs = 400000000;
 static constexpr auto kToolTipDelay = std::chrono::milliseconds(700);
@@ -227,6 +243,7 @@ Window::~Window()
     if (m_configureTimer)
         Application::instance()->loop().stopTimer(m_configureTimer);
     std::erase(Application::instance()->m_windows, this);
+    cursorImages().erase(this);
     for (Window* window : Application::instance()->m_windows) {
         if (window->m_transientParent == this) {
             window->m_transientParent = nullptr;
@@ -1633,6 +1650,15 @@ void Window::hideToolTip()
     }
 }
 
+void Window::setCursorImage(const Bitmap& image, int scale, const PointF& hotSpot)
+{
+    cursorImages()[this] = {image, scale, hotSpot};
+    if (m_cursorShape == int(CursorShape::Image)) {
+        m_cursorShape = -1;
+        updateCursor();
+    }
+}
+
 void Window::updateCursor()
 {
     // The view holding the pointer keeps its cursor until the release.
@@ -1648,7 +1674,13 @@ void Window::updateCursor()
     if (int(shape) == m_cursorShape)
         return;
     m_cursorShape = int(shape);
-    m_platform->setCursorShape(shape);
+    const auto image = cursorImages().find(this);
+    auto* platform = dynamic_cast<wayland::WaylandWindow*>(m_platform.get());
+    if (shape == CursorShape::Image && image != cursorImages().end() && platform)
+        platform->setCursorImage(image->second.image, image->second.scale, image->second.hotSpot.x,
+                                 image->second.hotSpot.y);
+    else
+        m_platform->setCursorShape(shape == CursorShape::Image ? CursorShape::Default : shape);
 }
 
 void Window::scheduleRender()

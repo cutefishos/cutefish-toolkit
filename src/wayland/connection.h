@@ -30,6 +30,7 @@ struct wl_pointer;
 struct wl_touch;
 struct wl_registry;
 struct wl_seat;
+struct wl_buffer;
 struct wl_surface;
 struct wp_cursor_shape_device_v1;
 struct wp_cursor_shape_manager_v1;
@@ -55,6 +56,7 @@ class EventLoop;
 }
 
 namespace cutefish::ui {
+class Bitmap;
 class Menu;
 }
 
@@ -151,6 +153,9 @@ public:
 
     // Applies while the pointer is over the window's surface.
     void setCursorShape(ShellSurface* shell, CursorShape shape);
+    // A picture of `scale` device pixels per point as the pointer, its hot
+    // spot in points.
+    void setCursorImage(ShellSurface* shell, const Bitmap& image, int scale, double hotX, double hotY);
     // A window going away loses pointer and keyboard focus.
     void forget(ShellSurface* shell);
 
@@ -271,6 +276,8 @@ private:
     // The surface each touch point went down on; up and motion do not name it.
     std::vector<std::pair<int32_t, ShellSurface*>> m_touchFocus;
     uint32_t m_enterSerial = 0;
+    wl_surface* m_cursorSurface = nullptr;
+    wl_buffer* m_cursorBuffer = nullptr;
     uint32_t m_buttonSerial = 0;
     uint32_t m_inputSerial = 0;
     // Axis events gather until the pointer frame that ends them.

@@ -344,6 +344,12 @@ void WaylandWindow::setCursorShape(CursorShape shape)
         m_shell->connection().setCursorShape(m_shell.get(), shape);
 }
 
+void WaylandWindow::setCursorImage(const Bitmap& image, int scale, double hotX, double hotY)
+{
+    if (m_shell)
+        m_shell->connection().setCursorImage(m_shell.get(), image, scale, hotX, hotY);
+}
+
 void WaylandWindow::setTextInput(const TextInputState* state)
 {
     if (!m_shell)

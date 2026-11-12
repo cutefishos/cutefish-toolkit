@@ -299,6 +299,10 @@ public:
     // The window's own main menu, else its transient parent's, else the
     // application's; null for a popup.
     Menu* mainMenu() const;
+    // The picture the pointer shows over views asking for
+    // CursorShape::Image: `image` in device pixels at `scale` per point,
+    // the hot spot in points from its top left.
+    void setCursorImage(const Bitmap& image, int scale, const PointF& hotSpot);
     // Above ordinary windows.
     void setAlwaysOnTop(bool onTop);
     // The header's colour mode for the window buttons, whatever the theme,

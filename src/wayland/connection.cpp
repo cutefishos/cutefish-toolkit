@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
 #include <sys/epoll.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <utility>
 #include <wayland-client.h>
 
@@ -34,6 +36,7 @@
 #include <xdg-toplevel-drag-v1-client-protocol.h>
 
 #include "base/event_loop.h"
+#include "ui/bitmap.h"
 #include "wayland/data_device.h"
 #include "wayland/keyboard.h"
 #include "wayland/main_menu.h"
@@ -672,6 +675,10 @@ Connection::~Connection()
         zwp_pointer_gestures_v1_destroy(m_pointerGestures);
     if (m_cursorShapeDevice)
         wp_cursor_shape_device_v1_destroy(m_cursorShapeDevice);
+    if (m_cursorBuffer)
+        wl_buffer_destroy(m_cursorBuffer);
+    if (m_cursorSurface)
+        wl_surface_destroy(m_cursorSurface);
     if (m_pointer)
         wl_pointer_release(m_pointer);
     if (m_touch)
@@ -906,8 +913,52 @@ void Connection::setCursorShape(ShellSurface* shell, CursorShape shape)
     case CursorShape::ZoomOut:
         wire = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ZOOM_OUT;
         break;
+    case CursorShape::Image:
+        return;
     }
     wp_cursor_shape_device_v1_set_shape(m_cursorShapeDevice, m_enterSerial, wire);
+}
+
+void Connection::setCursorImage(ShellSurface* shell, const Bitmap& image, int scale, double hotX, double hotY)
+{
+    if (shell != m_pointerFocus || !m_pointer || !m_shm || image.isNull())
+        return;
+    const Bitmap pixels = image.converted(Bitmap::Format::Argb32Premultiplied);
+    const int width = pixels.width();
+    const int height = pixels.height();
+    const size_t stride = size_t(width) * 4;
+    const size_t size = stride * size_t(height);
+    const int fd = memfd_create("cutefish-cursor", MFD_CLOEXEC);
+    if (fd < 0)
+        return;
+    if (ftruncate(fd, off_t(size)) < 0) {
+        close(fd);
+        return;
+    }
+    void* memory = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (memory == MAP_FAILED) {
+        close(fd);
+        return;
+    }
+    for (int y = 0; y < height; ++y)
+        std::memcpy(static_cast<uint8_t*>(memory) + size_t(y) * stride, pixels.constScanLine(y), stride);
+    munmap(memory, size);
+    wl_shm_pool* pool = wl_shm_create_pool(m_shm, fd, int32_t(size));
+    wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, int32_t(stride), WL_SHM_FORMAT_ARGB8888);
+    wl_shm_pool_destroy(pool);
+    close(fd);
+    if (!m_cursorSurface)
+        m_cursorSurface = wl_compositor_create_surface(m_compositor);
+    wl_surface_set_buffer_scale(m_cursorSurface, std::max(scale, 1));
+    wl_surface_attach(m_cursorSurface, buffer, 0, 0);
+    wl_surface_damage_buffer(m_cursorSurface, 0, 0, width, height);
+    wl_surface_commit(m_cursorSurface);
+    // The surface keeps its buffer until the next one is attached.
+    if (m_cursorBuffer)
+        wl_buffer_destroy(m_cursorBuffer);
+    m_cursorBuffer = buffer;
+    wl_pointer_set_cursor(m_pointer, m_enterSerial, m_cursorSurface, int32_t(std::lround(hotX)),
+                          int32_t(std::lround(hotY)));
 }
 
 static void syncDone(void* data, wl_callback* callback, uint32_t)
