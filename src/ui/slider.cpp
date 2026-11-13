@@ -10,6 +10,7 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkSurface.h"
 
+#include "ui/animation.h"
 #include "ui/keys.h"
 #include "ui/painter.h"
 #include "ui/smooth_rectangle.h"
@@ -23,8 +24,13 @@ static constexpr double kHandle = 22;
 static constexpr double kShadowSigma = 5;
 static constexpr double kShadowRadius = 10;
 static constexpr double kShadowOffset = 4;
+// A handle held at a value refused shakes a little, as a refused password does.
+static constexpr double kShake = 2;
+static constexpr std::chrono::milliseconds kShakeDuration(240);
 
 Slider::Slider() = default;
+
+Slider::~Slider() = default;
 
 void Slider::setRange(double from, double to)
 {
@@ -66,8 +72,20 @@ void Slider::setValue(double value)
     if (value == m_value)
         return;
     m_value = value;
+    // Refused while held: the handle stays at the value taken.
+    if (m_pressed && m_requested && value != *m_requested)
+        m_dragPosition = position();
     requestPaint();
     updateValueToolTip();
+}
+
+double Slider::shakeOffset() const
+{
+    if (!m_shake || !m_shake->isRunning())
+        return 0;
+    // Toward the refused side, twice side to side, dying away.
+    const double t = m_shakeProgress;
+    return m_heldSide * kShake * std::sin(t * 4 * 3.14159265358979) * (1 - t);
 }
 
 void Slider::setValueToolTip(std::function<std::string(double value)> text)
@@ -131,7 +149,7 @@ RectF Slider::handleRect() const
 {
     const RectF bounds = localRect();
     const double travel = std::max(0.0, bounds.width - kHandle);
-    return {travel * visualPosition(), (bounds.height - kHandle) / 2, kHandle, kHandle};
+    return {travel * visualPosition() + shakeOffset(), (bounds.height - kHandle) / 2, kHandle, kHandle};
 }
 
 void Slider::paint(Painter& painter)
@@ -244,6 +262,9 @@ void Slider::pointerPress(const PointerEvent& event)
     if (onPressedChanged)
         onPressedChanged();
     m_dragPosition = position();
+    m_requested.reset();
+    m_heldSide = 0;
+    m_pastSide = 0;
     // Grabbing the handle keeps it where it was taken; elsewhere it jumps there.
     m_grabOffset = handle.contains(event.position) ? event.position.x - (handle.x + kHandle / 2) : 0;
     pointerMove(event);
@@ -256,12 +277,40 @@ void Slider::pointerMove(const PointerEvent& event)
     const double travel = geometry().width - kHandle;
     if (travel <= 0)
         return;
-    double fraction = std::clamp((event.position.x - m_grabOffset - kHandle / 2) / travel, 0.0, 1.0);
+    const double unclamped = (event.position.x - m_grabOffset - kHandle / 2) / travel;
+    double fraction = std::clamp(unclamped, 0.0, 1.0);
     if (snapMode() == SnapMode::SnapAlways)
         fraction = snapPosition(fraction);
     m_dragPosition = fraction;
+    m_requested = valueAt(fraction);
     requestPaint();
-    moveTo(valueAt(fraction));
+    // Past an end by half a handle, told before the move, so a state beyond
+    // the values that it sets is the one the move meets.
+    const double past = unclamped < 0 ? -unclamped * travel : (unclamped - 1) * travel;
+    const int pastSide = past > kHandle / 2 ? (unclamped < 0 ? -1 : 1) : 0;
+    if (pastSide != 0 && pastSide != m_pastSide && onPushedPastEnd)
+        onPushedPastEnd(pastSide);
+    m_pastSide = pastSide;
+    moveTo(*m_requested);
+    // onMoved refusing the value holds the handle at the one taken (setValue);
+    // it shakes as it gets there and stops as soon as it leaves.
+    const int held = m_value == *m_requested ? 0 : (*m_requested < m_value) == (m_from < m_to) ? -1 : 1;
+    if (held != m_heldSide) {
+        m_heldSide = held;
+        if (held && window()) {
+            if (!m_shake) {
+                m_shake = std::make_unique<Animation>(window());
+                m_shake->setDuration(kShakeDuration);
+                m_shake->onUpdate = [this](double progress) {
+                    m_shakeProgress = progress;
+                    requestPaint();
+                };
+            }
+            m_shake->start();
+        } else if (m_shake) {
+            m_shake->stop();
+        }
+    }
     updateValueToolTip();
 }
 
