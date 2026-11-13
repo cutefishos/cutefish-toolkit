@@ -22,6 +22,7 @@
 #include "ui/switch.h"
 #include "ui/test_input.h"
 #include "ui/text_field.h"
+#include "ui/sidebar_divider.h"
 #include "ui/theme.h"
 #include "ui/window.h"
 
@@ -513,4 +514,59 @@ TEST(ControlsTest, ThemeIconsFollowTheInheritChain)
     // An unknown name falls back along its dashes.
     ThemeIcon fallback("folder-some-unknown-kind", 16);
     EXPECT_EQ(fallback.path(), path);
+}
+
+namespace {
+
+struct DividerHost
+{
+    DividerHost()
+    {
+        window.resize({600, 300});
+        auto root = std::make_unique<View>();
+        divider = root->addChild<SidebarDivider>(140, 400, 190);
+        divider->setGeometry({190 - SidebarDivider::kWidth / 2, 0, SidebarDivider::kWidth, 300});
+        window.setContentView(std::move(root));
+        window.show();
+        window.grab();
+        divider->onResized = [this](double width) { resized.push_back(width); };
+        divider->onFinished = [this](double width) { finished.push_back(width); };
+    }
+
+    Window window;
+    SidebarDivider* divider;
+    std::vector<double> resized;
+    std::vector<double> finished;
+};
+
+} // namespace
+
+// A drag moves the edge in whole pixels within the range, from the width
+// laid out.
+TEST(ControlsTest, SidebarDividerResizesWithinItsRange)
+{
+    DividerHost host;
+    EXPECT_EQ(host.divider->cursorShape(), CursorShape::ResizeHorizontal);
+    EXPECT_EQ(host.divider->sidebarWidth(), 190);
+    host.divider->setSidebarWidth(300);
+    TestInput::press(host.window, {190, 100});
+    TestInput::movePointer(host.window, {250.4, 100});
+    TestInput::movePointer(host.window, {900, 100});
+    TestInput::movePointer(host.window, {-400, 100});
+    TestInput::release(host.window, {-400, 100});
+    ASSERT_GE(host.resized.size(), 3u);
+    EXPECT_EQ(std::vector<double>(host.resized.begin(), host.resized.begin() + 3),
+              (std::vector<double> {360, 400, 140}));
+    EXPECT_EQ(host.finished, (std::vector<double> {140}));
+}
+
+// A double click puts back the default width.
+TEST(ControlsTest, SidebarDividerDoubleClickRestoresTheDefault)
+{
+    DividerHost host;
+    host.divider->setSidebarWidth(300);
+    TestInput::click(host.window, {190, 100});
+    TestInput::click(host.window, {190, 100});
+    ASSERT_FALSE(host.finished.empty());
+    EXPECT_EQ(host.finished.back(), 190);
 }
