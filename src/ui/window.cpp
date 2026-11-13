@@ -257,6 +257,8 @@ Window::~Window()
     }
     for (Window* popup : m_popups)
         popup->m_parent = nullptr;
+    // A frame of this window under way holds the pointer and sees it gone.
+    *m_self = nullptr;
     m_self.reset();
     for (FrameClient* client : m_frameClients)
         client->m_window = nullptr;
@@ -1719,7 +1721,7 @@ void Window::postRender()
         return;
     m_renderPosted = true;
     Application::instance()->loop().post([self = std::weak_ptr<Window*>(m_self)] {
-        if (const auto window = self.lock())
+        if (const auto window = self.lock(); window && *window)
             (*window)->render();
     });
 }
@@ -1785,20 +1787,23 @@ uint64_t Window::frameTime(uint64_t now)
 
 bool Window::prepareFrame(uint64_t frameTimeNs)
 {
+    // Being destroyed: its surface may already be gone.
+    if (!m_self)
+        return false;
     // A client may stop, or go away, from its own tick, and so may the
     // window: a program closes windows from its animation callbacks.
-    const std::weak_ptr<Window*> self = m_self;
+    const std::shared_ptr<Window*> self = m_self;
     const std::vector<FrameClient*> clients = m_frameClients;
     for (FrameClient* client : clients) {
         if (std::find(m_frameClients.begin(), m_frameClients.end(), client) != m_frameClients.end()
             && client->m_ticking)
             client->tick(frameTimeNs);
-        if (self.expired())
+        if (!*self)
             return false;
     }
     if (m_platform->onPrepareFrame) {
         m_platform->onPrepareFrame();
-        if (self.expired())
+        if (!*self)
             return false;
     }
 
