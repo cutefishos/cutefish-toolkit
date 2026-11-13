@@ -235,6 +235,9 @@ public:
     // blurred: a Gaussian of `radius` (the canvas's units, as for shadows),
     // sampling what lies around the path too. A frosted panel's backdrop.
     void blurBackdrop(const Path& path, double radius);
+    // The same, with the blurred backdrop's saturation scaled by
+    // `saturation` (1 leaves it as the plain blur, above 1 deepens it).
+    void blurBackdrop(const Path& path, double radius, double saturation);
 
     // Drawing from here on is a group, composited as one at the matching
     // end with the global alpha, composite mode and shadow of the begin.

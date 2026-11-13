@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -116,6 +117,55 @@ TEST(Canvas2DTest, BlursTheBackdropInsideThePath)
     // Outside the path nothing changes.
     EXPECT_EQ(bitmap.pixel(12, 10), outside);
     EXPECT_EQ(bitmap.pixel(30, 10), 0xFF0000FFu);
+}
+
+static Bitmap blurredBackdrop(double saturation)
+{
+    Bitmap bitmap(40, 20, Format::Argb32Premultiplied);
+    Canvas2D canvas(bitmap);
+    canvas.setFillColor({0.4, 0.75, 0.3, 1});
+    canvas.fillRect({0, 0, 20, 20});
+    canvas.setFillColor({0.9, 0.5, 0.6, 1});
+    canvas.fillRect({20, 0, 20, 20});
+    Path path;
+    path.addRoundedRect({6, 2, 28, 16}, 6, 6);
+    if (saturation < 0)
+        canvas.blurBackdrop(path, 8);
+    else
+        canvas.blurBackdrop(path, 8, saturation);
+    return bitmap;
+}
+
+static uint64_t pixelSum(const Bitmap& bitmap)
+{
+    uint64_t sum = 0;
+    for (int y = 0; y < bitmap.height(); ++y) {
+        for (int x = 0; x < bitmap.width(); ++x)
+            sum = sum * 31 + bitmap.pixel(x, y);
+    }
+    return sum;
+}
+
+TEST(Canvas2DTest, BackdropBlurWithoutSaturationIsUnchanged)
+{
+    // The plain blur's pixels as they were before saturation existed.
+    const Bitmap plain = blurredBackdrop(-1);
+    EXPECT_EQ(pixelSum(plain), 1676948802072002144u);
+    EXPECT_EQ(pixelSum(blurredBackdrop(1)), pixelSum(plain));
+}
+
+TEST(Canvas2DTest, BackdropBlurSaturationDeepensColour)
+{
+    const Bitmap plain = blurredBackdrop(1), saturated = blurredBackdrop(2);
+    const auto chroma = [](uint32_t pixel) {
+        const int r = (pixel >> 16) & 0xFF, g = (pixel >> 8) & 0xFF, b = pixel & 0xFF;
+        return std::max({r, g, b}) - std::min({r, g, b});
+    };
+    EXPECT_GT(chroma(saturated.pixel(10, 10)), chroma(plain.pixel(10, 10)) + 20);
+    EXPECT_GT(chroma(saturated.pixel(30, 10)), chroma(plain.pixel(30, 10)) + 20);
+    // Outside the path nothing changes.
+    EXPECT_EQ(saturated.pixel(2, 10), plain.pixel(2, 10));
+    EXPECT_EQ(saturated.pixel(10, 0), plain.pixel(10, 0));
 }
 
 TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)

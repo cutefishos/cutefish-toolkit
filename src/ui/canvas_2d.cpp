@@ -13,6 +13,7 @@
 #include "include/core/SkBlendMode.h"
 #include "include/core/SkBlurTypes.h"
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColorFilter.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkMaskFilter.h"
 #include "include/core/SkPaint.h"
@@ -21,6 +22,7 @@
 #include "include/core/SkPixelRef.h"
 #include "include/core/SkShader.h"
 #include "include/core/SkSurface.h"
+#include "include/effects/SkColorMatrix.h"
 #include "include/effects/SkDashPathEffect.h"
 #include "include/effects/SkGradient.h"
 #include "include/effects/SkImageFilters.h"
@@ -577,6 +579,11 @@ void Canvas2D::clipToImage(SkImage* image, const RectF& rect, bool mirrored)
 
 void Canvas2D::blurBackdrop(const Path& path, double radius)
 {
+    blurBackdrop(path, radius, 1);
+}
+
+void Canvas2D::blurBackdrop(const Path& path, double radius, double saturation)
+{
     if (!m_canvas || radius <= 0 || path.isEmpty())
         return;
     // The radius is in the canvas's own units; the filter works in the
@@ -590,7 +597,12 @@ void Canvas2D::blurBackdrop(const Path& path, double radius)
     m_canvas->clipPath(PathAccess::toSkPath(path), m_state.antialias);
     SkPaint replace;
     replace.setBlendMode(SkBlendMode::kSrc);
-    const sk_sp<SkImageFilter> blur = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
+    sk_sp<SkImageFilter> blur = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
+    if (saturation != 1) {
+        SkColorMatrix matrix;
+        matrix.setSaturation(SkScalar(std::max(saturation, 0.0)));
+        blur = SkImageFilters::ColorFilter(SkColorFilters::Matrix(matrix), std::move(blur));
+    }
     m_canvas->saveLayer(SkCanvas::SaveLayerRec(nullptr, &replace, blur.get(), 0));
     m_canvas->restore();
     m_canvas->restore();
