@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace cutefish::ui {
 
@@ -21,6 +22,9 @@ struct ImageInfo
     bool vector = false;
 };
 
+// The types readImageInfo() takes, those the toolkit decodes, by their
+// canonical names.
+const std::vector<std::string>& imageMimeTypes();
 ImageInfo readImageInfo(const std::string& path, const std::string& mimeType);
 
 } // namespace cutefish::ui

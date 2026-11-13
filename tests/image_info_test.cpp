@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -67,4 +68,12 @@ TEST_F(ImageInfoTest, OtherFilesAreNotReadable)
 {
     EXPECT_FALSE(readImageInfo(write("a.txt", "plain text"), "image/png").readable);
     EXPECT_FALSE(readImageInfo(write("b.txt", "plain text"), "text/plain").readable);
+}
+
+TEST_F(ImageInfoTest, TypesWithoutAHeaderReaderAreReadableWithoutASize)
+{
+    const ImageInfo info = readImageInfo(write("a.tif", std::string("II*\0", 4)), "image/tiff");
+    EXPECT_TRUE(info.readable);
+    EXPECT_EQ(info.width, 0);
+    EXPECT_NE(std::ranges::find(imageMimeTypes(), "image/heif"), imageMimeTypes().end());
 }

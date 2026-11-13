@@ -253,6 +253,32 @@ static void readSvg(const std::string& path, ImageInfo& info)
     info.height = int(height + 0.5);
 }
 
+const std::vector<std::string>& imageMimeTypes()
+{
+    static const std::vector<std::string> types = {
+        "image/png",
+        "image/apng",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "image/svg+xml",
+        "image/svg+xml-compressed",
+        "image/tiff",
+        "image/heif",
+        "image/avif",
+        "image/jxl",
+        "image/vnd.microsoft.icon",
+        "image/x-tga",
+        "image/x-portable-pixmap",
+        "image/x-portable-graymap",
+        "image/x-portable-bitmap",
+        "image/x-xbitmap",
+        "image/x-icns",
+    };
+    return types;
+}
+
 ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
 {
     ImageInfo info;
@@ -278,11 +304,7 @@ ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
         readWebp(head, info);
     else if (mimeType == "image/bmp")
         readBmp(head, info);
-    else if (mimeType == "image/tiff" || mimeType == "image/heif" || mimeType == "image/avif"
-             || mimeType == "image/jxl" || mimeType == "image/vnd.microsoft.icon" || mimeType == "image/x-tga"
-             || mimeType == "image/x-portable-pixmap" || mimeType == "image/x-portable-graymap"
-             || mimeType == "image/x-portable-bitmap" || mimeType == "image/x-xbitmap"
-             || mimeType == "image/x-icns")
+    else if (std::ranges::find(imageMimeTypes(), mimeType) != imageMimeTypes().end())
         // Decodable, without a header reader here: shown at the default size.
         info.readable = true;
     return info;
