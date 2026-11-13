@@ -195,3 +195,23 @@ TEST_F(ImageInfoTest, AFileDecodesToAnImageThatEncodesAsPng)
     EXPECT_EQ(info.height, 4);
     EXPECT_TRUE(Image::fromFile(write("d.png", "not an image")).isNull());
 }
+
+TEST_F(ImageInfoTest, ImpossibleHeadersGiveNoSize)
+{
+    // An entry whose image starts near 4 GiB, past any file.
+    std::string ico = std::string("\0\0\1\0\1\0", 6);
+    ico += std::string("\x20\x20\0\0\1\0\x20\0", 8) + std::string("\0\0\0\0", 4) + std::string("\xf0\xff\xff\xff", 4);
+    const ImageInfo icon = readImageInfo(write("far.ico", ico), "image/vnd.microsoft.icon");
+    EXPECT_TRUE(icon.readable);
+    EXPECT_EQ(icon.width, 32);
+
+    // A BMP of negative width, and a PNG of 2^31 - 1 pixels a side.
+    std::string bmp = "BM" + std::string(16, '\0') + std::string("\xf6\xff\xff\xff\x10\0\0\0", 8);
+    EXPECT_EQ(readImageInfo(write("negative.bmp", bmp), "image/bmp").width, 0);
+    const std::string png = std::string("\x89PNG\r\n\x1a\n", 8) + std::string("\0\0\0\x0dIHDR", 8)
+            + std::string("\x7f\xff\xff\xff\x7f\xff\xff\xff\x08\x06\0\0\0", 13) + std::string(4, '\0');
+    const ImageInfo huge = readImageInfo(write("huge.png", png), "image/png");
+    EXPECT_TRUE(huge.readable);
+    EXPECT_EQ(huge.width, 0);
+    EXPECT_EQ(huge.height, 0);
+}

@@ -340,7 +340,7 @@ void ZoomableImageView::setZoom(double zoom)
 // The full-resolution decode, the first time the image is zoomed past fit.
 void ZoomableImageView::startDetail()
 {
-    // A turned image keeps its fitted layer: the file may hold the turn by now.
+    // A turned image shows its fitted layer until setImage().
     if (!m_canvas->detail->source().empty() || m_info.animated || m_quarterTurns)
         return;
     if (!m_info.vector && m_info.width > 0 && m_info.height > 0) {
@@ -379,6 +379,17 @@ void ZoomableImageView::zoomTo(double target, PointF at, bool animate)
     } else {
         setZoom(target);
     }
+}
+
+void ZoomableImageView::setZoomAndPosition(double zoom, PointF position)
+{
+    if (m_animation)
+        m_animation->stop();
+    zoom = std::clamp(zoom, fitZoom(), maxZoom());
+    m_fitted = zoom <= fitZoom() + 0.0001;
+    m_anchored = false;
+    setZoom(zoom);
+    setPan(position.x, position.y);
 }
 
 // Steps compound on an animation's target, so quick wheel clicks add up.

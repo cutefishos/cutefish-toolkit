@@ -285,6 +285,7 @@ static std::string gunzipHead(const std::string& data, size_t limit)
 static void readTiff(const std::string& path, ImageInfo& info)
 {
     TIFFSetWarningHandler(nullptr);
+    TIFFSetErrorHandler(nullptr);
     std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(path.c_str(), "r"), TIFFClose);
     if (!tiff)
         return;
@@ -341,12 +342,12 @@ static void readIco(const std::string& data, ImageInfo& info)
     const auto* p = reinterpret_cast<const unsigned char*>(data.data());
     if (data.size() < 6 || le16(p) != 0 || le16(p + 2) != 1)
         return;
-    const uint32_t count = le16(p + 4);
-    for (uint32_t i = 0; i < count && 6 + (i + 1) * 16 <= data.size(); ++i) {
+    const size_t count = le16(p + 4);
+    for (size_t i = 0; i < count && 6 + (i + 1) * 16 <= data.size(); ++i) {
         const unsigned char* entry = p + 6 + i * 16;
         int width = entry[0] ? entry[0] : 256;
         int height = entry[1] ? entry[1] : 256;
-        const uint32_t offset = le32(entry + 12);
+        const size_t offset = le32(entry + 12);
         if (offset + 24 <= data.size() && data.compare(offset, 8, "\x89PNG\r\n\x1a\n") == 0) {
             width = int(be32(p + offset + 16));
             height = int(be32(p + offset + 20));
@@ -445,7 +446,17 @@ const std::vector<std::string>& imageMimeTypes()
     return types;
 }
 
-ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
+// A size a header can give: positive, and no side over 2^20 pixels; any
+// other is no size.
+static ImageInfo saneSize(ImageInfo info)
+{
+    constexpr int kLargest = 1 << 20;
+    if (info.width <= 0 || info.height <= 0 || info.width > kLargest || info.height > kLargest)
+        info.width = info.height = 0;
+    return info;
+}
+
+static ImageInfo readHeader(const std::string& path, const std::string& mimeType)
 {
     ImageInfo info;
     if (mimeType == "image/jpeg") {
@@ -491,6 +502,11 @@ ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
     else if (mimeType == "image/x-xbitmap")
         readXbm(head, info);
     return info;
+}
+
+ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
+{
+    return saneSize(readHeader(path, mimeType));
 }
 
 } // namespace cutefish::ui

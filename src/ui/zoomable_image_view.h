@@ -44,10 +44,14 @@ public:
     // The point of the image, in its pixels, under a point of the view.
     PointF imagePoint(PointF at) const;
     // Turns the image as shown this many quarters clockwise, fitted again,
-    // without decoding it again; setImage() turns it back.
+    // without decoding it again; it then shows its fitted layer alone, zoomed
+    // or not, until setImage() turns it back.
     void setQuarterTurns(int turns);
     int quarterTurns() const { return m_quarterTurns; }
 
+    // Shows the image at this zoom with the content at this scroll position,
+    // as the user left another view of the same picture.
+    void setZoomAndPosition(double zoom, PointF position);
     void zoomBy(double factor, PointF at, bool animate);
     void zoomTo(double target, PointF at, bool animate);
     void zoomToFit() { zoomTo(fitZoom(), center(), true); }

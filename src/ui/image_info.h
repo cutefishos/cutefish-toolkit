@@ -15,7 +15,7 @@ struct ImageInfo
 {
     // The file is an image the toolkit decodes.
     bool readable = false;
-    // 0 when the header does not say.
+    // 0 when the header does not say, or says something impossible.
     int width = 0;
     int height = 0;
     bool animated = false;
