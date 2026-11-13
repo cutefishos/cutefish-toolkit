@@ -12,6 +12,7 @@
 #include "ui/icon.h"
 #include "ui/layout.h"
 #include "ui/painter.h"
+#include "ui/raster_image.h"
 #include "ui/view.h"
 #include "ui/window.h"
 
@@ -270,4 +271,21 @@ TEST(PainterTest, DrawsSvgFilesAndAppGlyphs)
     const Image image = window.grab();
     const RectF geometry = icon->geometry();
     EXPECT_TRUE(near(image.pixel(int(geometry.x + 8), int(geometry.y + 8)), kBlue));
+}
+
+TEST(PainterTest, RasterImagesDrawTheirPixelsScaled)
+{
+    // Red on the left half, blue on the right, 4 x 2.
+    std::vector<uint32_t> pixels;
+    for (int y = 0; y < 2; ++y)
+        for (int x = 0; x < 4; ++x)
+            pixels.push_back(x < 2 ? 0xffff0000u : 0xff0000ffu);
+    const RasterImage image(4, 2, std::move(pixels), true);
+    ASSERT_FALSE(image.isNull());
+    EXPECT_EQ(image.width(), 4);
+    EXPECT_EQ(image.sizeInBytes(), 32u);
+    const Image drawn = render([&image](Painter& painter) { painter.drawImage(image.skImage(), {10, 10, 40, 20}); }, 2);
+    EXPECT_TRUE(near(drawn.pixel(30, 40), kRed));
+    EXPECT_TRUE(near(drawn.pixel(90, 40), kBlue));
+    EXPECT_TRUE(RasterImage(4, 2, std::vector<uint32_t>(3), true).isNull());
 }

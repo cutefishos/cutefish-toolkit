@@ -106,6 +106,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/path.h
     ui/popup_glass.h
     ui/progress_bar.h
+    ui/raster_image.h
     ui/cell_layout.h
     ui/round_image_button.h
     ui/scroll_bar.h
@@ -190,6 +191,7 @@ add_library(cutefish-toolkit SHARED
     ui/menu.cpp
     ui/multi_effect_blur.cpp
     ui/painter.cpp
+    ui/raster_image.cpp
     ui/path.cpp
     ui/bitmap.cpp
     ui/bitmap_painter.cpp
