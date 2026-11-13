@@ -4,13 +4,18 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <unistd.h>
 
+#include "base/application_registry.h"
+#include "base/event_loop.h"
 #include "base/file.h"
 #include "base/mime_apps.h"
 #include "base/mime_database.h"
 #include "base/paths.h"
+#include "base/timer.h"
 
 using namespace cutefish::base;
 namespace fs = std::filesystem;
@@ -169,4 +174,38 @@ TEST(MimeTest, DetectsTypesOfFiles)
     EXPECT_EQ(mime::typeForFileName("a.ts"), "text/vnd.trolltech.linguist");
     EXPECT_TRUE(mime::inherits("text/x-csrc", "text/plain"));
     EXPECT_FALSE(mime::inherits("text/plain", "text/x-csrc"));
+}
+
+// A link opens in what the lists choose for its scheme, which the MIME
+// database does not know as a type; a scheme nothing takes opens nothing.
+TEST_F(MimeAppsTest, OpensAUriWithWhatTakesItsScheme)
+{
+    EventLoop loop;
+    fs::create_directories(path("applications"));
+    const std::string out = path("opened");
+    const std::string script = path("handler.sh");
+    std::ofstream(script) << "#!/bin/sh\nprintf '%s' \"$1\" > " << out << ".part && mv " << out << ".part " << out << "\n";
+    fs::permissions(script, fs::perms::owner_all);
+    std::ofstream(path("applications/handler.desktop"))
+            << "[Desktop Entry]\nType=Application\nName=Handler\nExec=" << script << " %u\n";
+    std::ofstream(path("mimeapps.list")) << "[Default Applications]\nx-scheme-handler/https=handler.desktop\n";
+    ApplicationRegistry::setInstance(loop, ApplicationRegistry::create(loop, {path("applications")}));
+
+    std::vector<bool> results;
+    const auto opened = [&](bool started) {
+        results.push_back(started);
+        loop.quit();
+    };
+    Timer timeout(&loop);
+    timeout.setSingleShot(true);
+    timeout.onTimeout = [&loop] { loop.quit(); };
+    mimeapps::openUri("HTTPS://cutefish.org/a b", opened, {path("mimeapps.list")});
+    timeout.start(std::chrono::seconds(5));
+    loop.run();
+    mimeapps::openUri("gopher://cutefish.org", opened, {path("mimeapps.list")});
+    mimeapps::openUri("not a uri", opened, {path("mimeapps.list")});
+    ASSERT_EQ(results, (std::vector<bool> {true, false, false}));
+    for (int i = 0; i < 500 && !fs::exists(out); ++i)
+        usleep(10000);
+    EXPECT_EQ(file::read(out), "HTTPS://cutefish.org/a b");
 }

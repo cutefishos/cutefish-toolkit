@@ -34,6 +34,8 @@ public:
     // A registry of other applications directories, for tests.
     static std::unique_ptr<ApplicationRegistry> create(EventLoop& loop, std::vector<std::string> directories,
                                                        std::vector<std::string> bundleDirectories = {});
+    // Makes a created registry the loop's instance(), for tests.
+    static void setInstance(EventLoop& loop, std::unique_ptr<ApplicationRegistry> registry);
 
     ApplicationRegistry(const ApplicationRegistry&) = delete;
     ApplicationRegistry& operator=(const ApplicationRegistry&) = delete;

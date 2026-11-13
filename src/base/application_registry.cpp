@@ -151,19 +151,31 @@ static std::vector<DesktopEntry> scan(const std::vector<std::string>& directorie
     return results;
 }
 
+// One per loop, on the loop's thread.
+static std::map<EventLoop*, std::unique_ptr<ApplicationRegistry>>& instances()
+{
+    static thread_local std::map<EventLoop*, std::unique_ptr<ApplicationRegistry>> s_instances;
+    return s_instances;
+}
+
 ApplicationRegistry& ApplicationRegistry::instance(EventLoop* loop)
 {
-    // One per loop, on the loop's thread.
-    static thread_local std::map<EventLoop*, std::unique_ptr<ApplicationRegistry>> s_instances;
-
     if (!loop)
         loop = EventLoop::current();
-    auto& registry = s_instances[loop];
+    auto& registry = instances()[loop];
     if (!registry) {
         registry.reset(new ApplicationRegistry(*loop, desktopPaths(), bundle::applicationsDirectories()));
-        loop->addDestroyHook([loop] { s_instances.erase(loop); });
+        loop->addDestroyHook([loop] { instances().erase(loop); });
     }
     return *registry;
+}
+
+void ApplicationRegistry::setInstance(EventLoop& loop, std::unique_ptr<ApplicationRegistry> registry)
+{
+    auto& kept = instances()[&loop];
+    if (!kept)
+        loop.addDestroyHook([loop = &loop] { instances().erase(loop); });
+    kept = std::move(registry);
 }
 
 std::unique_ptr<ApplicationRegistry> ApplicationRegistry::create(EventLoop& loop, std::vector<std::string> directories,

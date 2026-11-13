@@ -21,6 +21,8 @@
 #include "base/file.h"
 #include "base/mime_database.h"
 #include "base/paths.h"
+#include "base/process.h"
+#include "base/signal.h"
 
 namespace cutefish::base::mimeapps {
 
@@ -349,12 +351,23 @@ static int64_t birthTime(const std::string& path)
     return int64_t(info.stx_btime.tv_sec) * 1000000000 + info.stx_btime.tv_nsec;
 }
 
+// URI scheme types are not in the MIME database; the lists name them all the same.
+static std::string listedType(const std::string& mimeType)
+{
+    static constexpr std::string_view kSchemeHandler = "x-scheme-handler/";
+    if (!mimeType.starts_with(kSchemeHandler))
+        return mime::canonicalName(mimeType);
+    std::string type = mimeType;
+    std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+    return type;
+}
+
 std::vector<std::string> applications(const std::string& mimeType, const std::vector<std::string>& paths)
 {
     const std::vector<std::shared_ptr<const DesktopEntry>>& entries = ApplicationRegistry::instance().entries();
     std::vector<std::string> types;
     std::vector<std::string> apps;
-    const std::string type = mime::canonicalName(mimeType);
+    const std::string type = listedType(mimeType);
     if (!type.empty())
         types.push_back(type);
 
@@ -423,7 +436,7 @@ std::vector<std::string> applications(const std::string& mimeType, const std::ve
 
 std::string chosenApplication(const std::vector<std::string>& paths, const std::string& mimeType)
 {
-    const std::string type = mime::canonicalName(mimeType);
+    const std::string type = listedType(mimeType);
     if (type.empty())
         return {};
     std::vector<std::string> removed;
@@ -488,6 +501,47 @@ bool setDefaultTerminal(const std::string& path, const std::string& desktopId)
                 lines.end());
     lines.insert(lines.begin(), desktopId);
     return writeLines(path, lines);
+}
+
+static void startHandler(const std::string& uri, const std::string& type, const std::vector<std::string>& paths,
+                         const std::function<void(bool started)>& done)
+{
+    const std::shared_ptr<const DesktopEntry> entry =
+            ApplicationRegistry::instance().byPath(defaultApplication(paths, type));
+    const std::vector<std::string> command = entry ? entry->commandForArguments({uri}) : std::vector<std::string>();
+    const bool started = !command.empty()
+            && Process::startDetached(command.front(), {command.begin() + 1, command.end()}, entry->workingDirectory) > 0;
+    if (done)
+        done(started);
+}
+
+void openUri(const std::string& uri, std::function<void(bool started)> done, const std::vector<std::string>& paths)
+{
+    const size_t colon = uri.find(':');
+    const std::string scheme = colon == std::string::npos ? std::string() : uri.substr(0, colon);
+    const bool valid = !scheme.empty() && std::isalpha(static_cast<unsigned char>(scheme.front()))
+            && std::all_of(scheme.begin(), scheme.end(), [](unsigned char c) {
+                   return std::isalnum(c) || c == '+' || c == '-' || c == '.';
+               });
+    if (!valid) {
+        if (done)
+            done(false);
+        return;
+    }
+    const std::string type = listedType("x-scheme-handler/" + scheme);
+    ApplicationRegistry& registry = ApplicationRegistry::instance();
+    if (!registry.isLoading()) {
+        startHandler(uri, type, paths, done);
+        return;
+    }
+    // Once the installed applications are read.
+    auto waiting = std::make_shared<Subscription>();
+    *waiting = registry.changed.connect([uri, type, paths, done, waiting] {
+        if (ApplicationRegistry::instance().isLoading())
+            return;
+        startHandler(uri, type, paths, done);
+        waiting->reset();
+    });
 }
 
 } // namespace cutefish::base::mimeapps
