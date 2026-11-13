@@ -81,6 +81,9 @@ public:
     // The window controls, the close one alone enabled; hidden for dialogs
     // whose own Cancel or Close button closes them.
     void setCloseVisible(bool visible);
+    // The whole window's height, the content taking what the header and the
+    // padding leave; 0, the default, takes the content's own height.
+    void setHeight(double height);
 
     void show();
     // Goes once the event being handled is over.

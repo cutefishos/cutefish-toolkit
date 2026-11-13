@@ -225,6 +225,11 @@ public:
         requestLayout();
     }
     View* content() const { return m_content; }
+    void setHeight(double height)
+    {
+        m_height = height;
+        requestLayout();
+    }
 
     void setContent(std::unique_ptr<View> view)
     {
@@ -236,6 +241,8 @@ public:
 
     double heightForWidth(double width) const override
     {
+        if (m_height > 0)
+            return m_height;
         const double content = m_content ? m_content->heightForWidth(width - 2 * kContentPadding) : 0;
         return contentTop() + content + kContentPadding;
     }
@@ -288,6 +295,7 @@ private:
     Label* m_title;
     View* m_content = nullptr;
     bool m_controlsVisible = true;
+    double m_height = 0;
 };
 
 DialogWindow::DialogWindow(Window* parent, std::string title, double width)
@@ -324,6 +332,11 @@ void DialogWindow::setBackVisible(bool visible)
 void DialogWindow::setCloseVisible(bool visible)
 {
     m_root->setControlsVisible(visible);
+}
+
+void DialogWindow::setHeight(double height)
+{
+    m_root->setHeight(height);
 }
 
 void DialogWindow::show()

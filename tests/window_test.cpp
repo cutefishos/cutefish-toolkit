@@ -423,6 +423,32 @@ TEST(WindowTest, DialogWithoutControlsKeepsTheTallerHeader)
     EXPECT_EQ(dialog.window()->size().height, 44 + 100 + 16);
 }
 
+TEST(WindowTest, DialogOfAFixedHeightGivesTheRestToItsContent)
+{
+    Window parent;
+    parent.resize({400, 300});
+    parent.setContentView(std::make_unique<View>());
+    parent.show();
+
+    DialogWindow dialog(&parent, "Details", 320);
+    auto column = std::make_unique<Column>();
+    View* content = column.get();
+    column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
+    dialog.setContentView(std::move(column));
+    dialog.setHeight(400);
+    dialog.show();
+    dialog.window()->grab();
+    EXPECT_EQ(dialog.window()->size().height, 400);
+    EXPECT_EQ(content->geometry().y, 32 + 4);
+    EXPECT_EQ(content->geometry().height, 400 - 32 - 4 - 16);
+
+    dialog.setCloseVisible(false);
+    dialog.window()->grab();
+    EXPECT_EQ(dialog.window()->size().height, 400);
+    EXPECT_EQ(content->geometry().y, 44);
+    EXPECT_EQ(content->geometry().height, 400 - 44 - 16);
+}
+
 TEST(WindowTest, ThemeChangesReachLabels)
 {
     Window window;
