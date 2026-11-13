@@ -62,6 +62,32 @@ TEST(WindowTest, UnconstrainedConfigureWithoutSizeRestoresTheNormalSize)
     }
 }
 
+// A size suggestion sent before the compositor saw the window's new limits
+// (an activation right after the window resized itself) keeps the limits.
+TEST(WindowTest, FloatingConfigureKeepsTheWindowsLimits)
+{
+    Window window;
+    window.setContentView(std::make_unique<View>());
+    window.resize({179, 254});
+    window.setMinimumSize({179, 254});
+    window.setMaximumSize({179, 254});
+    window.show();
+    TestInput::configure(window, 179, 254, {});
+    window.resize({179, 309});
+    window.setMinimumSize({179, 309});
+    window.setMaximumSize({179, 309});
+    TestInput::configure(window, 179, 254, {.activated = true});
+    EXPECT_EQ(window.size().width, 179);
+    EXPECT_EQ(window.size().height, 309);
+
+    // Without limits the suggestion still sizes the window.
+    window.setMinimumSize({});
+    window.setMaximumSize({16777215, 16777215});
+    TestInput::configure(window, 200, 260, {.activated = true});
+    EXPECT_EQ(window.size().width, 200);
+    EXPECT_EQ(window.size().height, 260);
+}
+
 // The headless platform answers maximize and full screen with a configure
 // leaving the size to the window: the state holds, and the size comes back.
 TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)

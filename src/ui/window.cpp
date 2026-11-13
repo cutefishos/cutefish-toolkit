@@ -861,6 +861,14 @@ void Window::handleConfigure(int width, int height, const WindowStates& states)
         width = int(m_normalSize.width);
         height = int(m_normalSize.height);
     }
+    // A floating window's size suggestion may predate limits the window set
+    // since and the compositor has not seen yet; the limits win.
+    if (width > 0 && height > 0 && !constrained) {
+        width = std::clamp(width, int(std::ceil(m_minimumSize.width)),
+                           std::max(int(std::ceil(m_minimumSize.width)), int(std::floor(m_maximumSize.width))));
+        height = std::clamp(height, int(std::ceil(m_minimumSize.height)),
+                            std::max(int(std::ceil(m_minimumSize.height)), int(std::floor(m_maximumSize.height))));
+    }
     if (width > 0 && height > 0 && (width != m_size.width || height != m_size.height)) {
         m_size = {double(width), double(height)};
         m_layoutNeeded = true;
