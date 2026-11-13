@@ -39,6 +39,10 @@ public:
     bool hasFailed() const;
     // Past the fitted zoom.
     bool isZoomed() const { return m_zoom > fitZoom() + 0.0001; }
+    // Device pixels per image pixel: 1 is the actual size.
+    double zoom() const { return m_zoom; }
+    // The point of the image, in its pixels, under a point of the view.
+    PointF imagePoint(PointF at) const;
 
     void zoomBy(double factor, PointF at, bool animate);
     void zoomTo(double target, PointF at, bool animate);

@@ -54,6 +54,11 @@ void TestInput::scroll(Window& window, PointF position, const ScrollEvent& event
     window.handlePointerScroll(event);
 }
 
+void TestInput::gesture(Window& window, const GestureEvent& event)
+{
+    window.handleGesture(event);
+}
+
 void TestInput::hold(Window& window)
 {
     window.handleHold();

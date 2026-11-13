@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "ui/image.h"
+#include "ui/test_input.h"
 #include "ui/window.h"
 #include "ui/zoomable_image_view.h"
 
@@ -84,4 +85,32 @@ TEST_F(ZoomableImageViewTest, SmallImagesAreNotEnlargedToFit)
     EXPECT_FALSE(view->isZoomed());
     view->zoomTo(2, view->center(), false);
     EXPECT_TRUE(view->isZoomed());
+}
+
+TEST_F(ZoomableImageViewTest, APinchZoomsAboutThePointer)
+{
+    show(writePng("pinch.png", 400, 400));
+    const PointF pointer {30, 70};
+    TestInput::movePointer(*window, pointer);
+    const PointF before = view->imagePoint(pointer);
+    GestureEvent event;
+    event.type = GestureEvent::Type::PinchBegin;
+    TestInput::gesture(*window, event);
+    event.type = GestureEvent::Type::PinchUpdate;
+    event.scale = 3;
+    TestInput::gesture(*window, event);
+    event.type = GestureEvent::Type::PinchEnd;
+    TestInput::gesture(*window, event);
+    EXPECT_DOUBLE_EQ(view->zoom(), 0.75);
+    const PointF after = view->imagePoint(pointer);
+    EXPECT_NEAR(after.x, before.x, 0.5);
+    EXPECT_NEAR(after.y, before.y, 0.5);
+
+    // Not below the fit.
+    event.type = GestureEvent::Type::PinchBegin;
+    TestInput::gesture(*window, event);
+    event.type = GestureEvent::Type::PinchUpdate;
+    event.scale = 0.1;
+    TestInput::gesture(*window, event);
+    EXPECT_DOUBLE_EQ(view->zoom(), 0.25);
 }

@@ -34,6 +34,8 @@ public:
     static void scroll(Window& window, PointF position, const ScrollEvent& event);
     // Fingers coming to rest on the touchpad.
     static void hold(Window& window);
+    // A touchpad swipe, pinch or hold event, where the pointer is.
+    static void gesture(Window& window, const GestureEvent& event);
     // A configure from the compositor; a zero size leaves the choice to the window.
     static void configure(Window& window, int width, int height, const WindowStates& states);
     static void configureBounds(Window& window, int width, int height);

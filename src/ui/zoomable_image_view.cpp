@@ -234,6 +234,12 @@ bool ZoomableImageView::hasFailed() const
     return m_canvas->fit->status() == ImageView::Status::Error;
 }
 
+PointF ZoomableImageView::imagePoint(PointF at) const
+{
+    const PointF pan = scrollPosition();
+    return {(at.x + pan.x - frameX(m_zoom)) / m_zoom * m_ratio, (at.y + pan.y - frameY(m_zoom)) / m_zoom * m_ratio};
+}
+
 double ZoomableImageView::naturalWidth() const
 {
     return m_info.width > 0 && m_info.height > 0 ? m_info.width / m_ratio : std::max(1.0, geometry().width);
