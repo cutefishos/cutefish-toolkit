@@ -46,6 +46,8 @@ public:
     PointF center() const { return {geometry().width / 2, geometry().height / 2}; }
 
     std::function<void()> onStatusChanged;
+    // A right press, at its position in the window, instead of a pan.
+    std::function<void(PointF windowPosition)> onContextMenuRequested;
 
 protected:
     void layout() override;

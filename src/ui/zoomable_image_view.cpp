@@ -93,6 +93,10 @@ protected:
 
     void pointerPress(const PointerEvent& event) override
     {
+        if (event.button == MouseButton::Right && m_view->onContextMenuRequested) {
+            m_view->onContextMenuRequested(mapToWindow(event.position));
+            return;
+        }
         if (event.clickCount == 2) {
             m_view->toggleActualSize(viewPoint(event.position));
             return;
