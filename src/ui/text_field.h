@@ -104,6 +104,9 @@ public:
     void undo();
     void redo();
 
+    // Where the text's baseline lies from the field's top, at its height.
+    double baseline() const;
+
     SizeF sizeHint() const override;
     RectF visualRect() const override;
     bool acceptsPointer() const override { return true; }

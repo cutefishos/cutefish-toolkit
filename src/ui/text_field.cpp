@@ -414,6 +414,17 @@ double TextField::contentWidth() const
     return std::max(0.0, geometry().width - d->left() - d->right());
 }
 
+double TextField::baseline() const
+{
+    textlayout::Paragraph* text = d->layout(isEnabled());
+    const TextContext& context = Application::instance()->text();
+    const TextLayoutMode mode = textLayoutMode();
+    const TextLineBox line =
+        textLineBoxes(text, context.typeface(d->weight, d->family).get(), d->pixelSize(), mode.scale, mode.hinted)
+            .front();
+    return (geometry().height - line.height) / 2 + line.ascent;
+}
+
 void TextField::setFrameVisible(bool visible)
 {
     d->frameVisible = visible;
