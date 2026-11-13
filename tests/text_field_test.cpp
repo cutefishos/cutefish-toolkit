@@ -82,6 +82,18 @@ TEST(TextFieldTest, MovesAndDeletesByWord)
     EXPECT_EQ(f.field->text(), "open the ");
 }
 
+// Words of text written without spaces: ICU's, at their UTF-8 offsets.
+TEST(TextFieldTest, MovesByWordInChinese)
+{
+    Fixture f("我喜欢中文");
+    f.key(key::Home);
+    f.key(key::Right, ShiftModifier | ControlModifier);
+    EXPECT_EQ(f.field->selectedText(), "我");
+    f.key(key::Right);
+    f.key(key::Right, ShiftModifier | ControlModifier);
+    EXPECT_EQ(f.field->selectedText(), "喜欢");
+}
+
 TEST(TextFieldTest, SelectsAndReplaces)
 {
     Fixture f("hello world");

@@ -80,6 +80,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/dialog_window.h
     ui/drag.h
     ui/drop_down_popup.h
+    ui/editable_text.h
     ui/file_drop_area.h
     ui/embedded_gpu.h
     ui/embedded_host.h

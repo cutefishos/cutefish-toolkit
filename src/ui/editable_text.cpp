@@ -265,7 +265,7 @@ void EditableText::updateBoundaries()
             m_graphemeStarts[i] = m_graphemeStarts[i] || (flags[int(i)] & SkUnicode::kGraphemeStart);
     }
     std::vector<SkUnicode::Position> words;
-    if (unicode->getWords(m_text.data(), int(size), nullptr, &words)) {
+    if (unicode->getUtf8Words(m_text.data(), int(size), nullptr, &words)) {
         for (SkUnicode::Position position : words) {
             if (position <= size)
                 m_wordBoundaries[position] = true;
