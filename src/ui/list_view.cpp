@@ -56,8 +56,15 @@ void ListView::setRowHeight(double height)
 {
     if (height == m_rowHeight)
         return;
+    // The row at the top stays there, as far into it as before.
+    const double pitch = m_rowHeight + m_spacing;
+    const double top = pitch > 0 ? std::max(0.0, scrollPosition().y - m_margins.top) / pitch : 0;
     m_rowHeight = height;
     m_rows->requestLayout();
+    // The content's new height, before the position is set within it.
+    ScrollView::layout();
+    if (top > 0)
+        setScrollPosition({scrollPosition().x, m_margins.top + top * (m_rowHeight + m_spacing)});
 }
 
 void ListView::setSpacing(double spacing)

@@ -295,6 +295,31 @@ TEST_F(ScrollTest, ListViewMakesOnlyRowsInSight)
     EXPECT_EQ(listView->scrollPosition().y, 20000 - 100);
 }
 
+// Taller rows keep the row at the top where it was, as far into it.
+TEST_F(ScrollTest, ListViewKeepsTheTopRowWhenRowsChangeHeight)
+{
+    Window window;
+    auto list = std::make_unique<ListView>();
+    list->createItem = [] { return std::make_unique<Label>(); };
+    list->bindItem = [](View*, size_t) {};
+    list->setRowHeight(20);
+    list->setSpacing(2);
+    list->setMargins({0, 6, 0, 0});
+    list->setRowCount(1000);
+    ListView* listView = list.get();
+    window.resize({200, 100});
+    window.setContentView(std::move(list));
+    window.show();
+    window.grab(1);
+    // Row 30, 5 into it.
+    listView->setScrollPosition({0, 6 + 30 * 22 + 5});
+    listView->setRowHeight(40);
+    EXPECT_DOUBLE_EQ(listView->scrollPosition().y, 6 + (30 + 5.0 / 22) * 42);
+    window.grab(2);
+    EXPECT_NE(listView->itemForRow(30), nullptr);
+    EXPECT_EQ(listView->itemForRow(29), nullptr);
+}
+
 namespace {
 
 // A row that tracks hover and counts everything it hears of the pointer.

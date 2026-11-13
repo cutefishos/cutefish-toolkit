@@ -27,6 +27,7 @@ public:
 
     void setRowCount(size_t count);
     size_t rowCount() const { return m_rowCount; }
+    // Keeps the row at the top where it is.
     void setRowHeight(double height);
     double rowHeight() const { return m_rowHeight; }
     void setSpacing(double spacing);
