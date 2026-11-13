@@ -198,6 +198,26 @@ static bool near(uint32_t a, uint32_t b, int tolerance)
     return true;
 }
 
+TEST(Canvas2DTest, BackdropBlurSaturationKeepsNeutralColours)
+{
+    // White and greys have no colour to deepen: saturation leaves them as
+    // the plain blur does.
+    for (const double grey : {1.0, 0.93, 0.5}) {
+        Bitmap plain(40, 20, Format::Argb32Premultiplied), saturated(40, 20, Format::Argb32Premultiplied);
+        Canvas2D plainCanvas(plain), saturatedCanvas(saturated);
+        for (Canvas2D* canvas : {&plainCanvas, &saturatedCanvas}) {
+            canvas->setFillColor({grey, grey, grey, 1});
+            canvas->fillRect({0, 0, 40, 20});
+        }
+        Path path;
+        path.addRect({10, 0, 20, 20});
+        plainCanvas.blurBackdrop(path, 8);
+        saturatedCanvas.blurBackdrop(path, 8, 1.8);
+        for (int x : {12, 20, 28})
+            EXPECT_TRUE(near(saturated.pixel(x, 10), plain.pixel(x, 10), 1)) << grey << " " << x;
+    }
+}
+
 TEST(Canvas2DTest, BackdropBelowGroupsOutsideAGroupIsThePlainBlur)
 {
     Bitmap plain(40, 20, Format::Argb32Premultiplied), below(40, 20, Format::Argb32Premultiplied);
