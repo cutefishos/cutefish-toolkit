@@ -252,6 +252,11 @@ void PlatformWindow::notifyHold()
     m_window->handleHold();
 }
 
+void PlatformWindow::notifyGesture(const GestureEvent& event)
+{
+    m_window->handleGesture(event);
+}
+
 void PlatformWindow::notifyTouchDown(int32_t id, double x, double y)
 {
     m_window->handleTouchDown(id, x, y);

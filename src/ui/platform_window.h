@@ -184,6 +184,7 @@ protected:
     void notifyKeyboardLeave();
     void notifyKey(const KeyEvent& event, bool pressed);
     void notifyHold();
+    void notifyGesture(const GestureEvent& event);
     void notifyTouchDown(int32_t id, double x, double y);
     void notifyTouchMotion(int32_t id, double x, double y);
     void notifyTouchUp(int32_t id);

@@ -25,6 +25,7 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include "fractional-scale-v1-server-protocol.h"
+#include "pointer-gestures-unstable-v1-server-protocol.h"
 #include "viewporter-server-protocol.h"
 #include "xdg-shell-server-protocol.h"
 
@@ -58,6 +59,7 @@ public:
         global(&wp_fractional_scale_manager_v1_interface, 1);
         global(&wl_seat_interface, 7);
         global(&wl_data_device_manager_interface, 3);
+        global(&zwp_pointer_gestures_v1_interface, 3);
         m_client = wl_client_create(m_display, fds[0]);
         m_thread = std::thread([this] {
             wl_event_loop* loop = wl_display_get_event_loop(m_display);
@@ -185,6 +187,7 @@ public:
     void pointerButton(MouseButton, bool, uint32_t) override {}
     void pointerScroll(const ScrollEvent&) override {}
     void pointerHold() override {}
+    void pointerGesture(const GestureEvent& event) override { gestures.push_back(event); }
     void touchDown(int32_t, double, double) override { ++touchesDown; }
     void touchCancel() override { ++touchesCancelled; }
     void keyboardEnter() override { ++keyboardEntered; }
@@ -203,6 +206,7 @@ public:
     int keyboardEntered = 0;
     int keyboardLeft = 0;
     int keysPressed = 0;
+    std::vector<GestureEvent> gestures;
 };
 
 // Waits until the compositor ran what was posted and the client read what
@@ -269,6 +273,45 @@ TEST(SeatTest, LosingADeviceEndsItsFocus)
     EXPECT_EQ(target.pointerLeft, 1);
     EXPECT_EQ(target.keyboardLeft, 1);
     EXPECT_EQ(target.touchesCancelled, 1);
+}
+
+// A touchpad pinch reaches the window under the pointer, begin to end.
+TEST(SeatTest, APinchReachesTheWindow)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+
+    InputTarget target;
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    compositor.post([](FakeCompositor& self) {
+        wl_seat_send_capabilities(self.last(wl_seat_interface), WL_SEAT_CAPABILITY_POINTER);
+    });
+    connection->flush();
+    settle(compositor, connection->display());
+
+    compositor.post([](FakeCompositor& self) {
+        wl_resource* surface = self.last(wl_surface_interface);
+        wl_resource* pointer = self.last(wl_pointer_interface);
+        wl_resource* pinch = self.last(zwp_pointer_gesture_pinch_v1_interface);
+        if (!surface || !pointer || !pinch)
+            return;
+        wl_pointer_send_enter(pointer, 1, surface, wl_fixed_from_int(10), wl_fixed_from_int(10));
+        zwp_pointer_gesture_pinch_v1_send_begin(pinch, 2, 100, surface, 2);
+        zwp_pointer_gesture_pinch_v1_send_update(pinch, 110, wl_fixed_from_int(1), 0, wl_fixed_from_double(1.5),
+                                                 wl_fixed_from_int(0));
+        zwp_pointer_gesture_pinch_v1_send_end(pinch, 3, 120, 0);
+    });
+    settle(compositor, connection->display());
+    ASSERT_EQ(target.gestures.size(), 3u);
+    EXPECT_EQ(target.gestures[0].type, GestureEvent::Type::PinchBegin);
+    EXPECT_EQ(target.gestures[0].fingers, 2u);
+    EXPECT_EQ(target.gestures[1].type, GestureEvent::Type::PinchUpdate);
+    EXPECT_DOUBLE_EQ(target.gestures[1].scale, 1.5);
+    EXPECT_DOUBLE_EQ(target.gestures[1].delta.x, 1);
+    EXPECT_EQ(target.gestures[2].type, GestureEvent::Type::PinchEnd);
+    EXPECT_FALSE(target.gestures[2].cancelled);
 }
 
 // A repeat rate of zero stops the repeat of a key held down.

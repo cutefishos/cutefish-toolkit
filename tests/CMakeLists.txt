@@ -115,6 +115,7 @@ foreach(xml
         stable/xdg-shell/xdg-shell.xml
         stable/viewporter/viewporter.xml
         staging/fractional-scale/fractional-scale-v1.xml
+        unstable/pointer-gestures/pointer-gestures-unstable-v1.xml
         unstable/xdg-output/xdg-output-unstable-v1.xml)
     get_filename_component(name ${xml} NAME_WE)
     set(code ${TEST_PROTOCOL_DIR}/${name}-protocol.c)

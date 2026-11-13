@@ -275,11 +275,18 @@ struct ConnectionListeners
                 self->m_hold = zwp_pointer_gestures_v1_get_hold_gesture(self->m_pointerGestures,
                                                                         self->m_pointer);
                 zwp_pointer_gesture_hold_v1_add_listener(self->m_hold, &hold, self);
+                self->m_pinch = zwp_pointer_gestures_v1_get_pinch_gesture(self->m_pointerGestures,
+                                                                          self->m_pointer);
+                zwp_pointer_gesture_pinch_v1_add_listener(self->m_pinch, &pinch, self);
             }
         } else if (!hasPointer && self->m_pointer) {
             if (self->m_hold) {
                 zwp_pointer_gesture_hold_v1_destroy(self->m_hold);
                 self->m_hold = nullptr;
+            }
+            if (self->m_pinch) {
+                zwp_pointer_gesture_pinch_v1_destroy(self->m_pinch);
+                self->m_pinch = nullptr;
             }
             if (self->m_cursorShapeDevice) {
                 wp_cursor_shape_device_v1_destroy(self->m_cursorShapeDevice);
@@ -516,11 +523,50 @@ struct ConnectionListeners
     {
     }
 
+    // Updates and the end name no surface: they go where the pointer is,
+    // which is where the pinch began.
+    static void pinchGesture(Connection* self, GestureEvent event, uint32_t time)
+    {
+        event.time = time;
+        event.modifiers = self->m_keyboard ? self->m_keyboard->modifiers() : NoModifier;
+        if (self->m_pointerFocus)
+            self->m_pointerFocus->delegate()->pointerGesture(event);
+    }
+
+    static void pinchBegin(void* data, zwp_pointer_gesture_pinch_v1*, uint32_t, uint32_t time, wl_surface*,
+                           uint32_t fingers)
+    {
+        GestureEvent event;
+        event.type = GestureEvent::Type::PinchBegin;
+        event.fingers = fingers;
+        pinchGesture(static_cast<Connection*>(data), event, time);
+    }
+
+    static void pinchUpdate(void* data, zwp_pointer_gesture_pinch_v1*, uint32_t time, wl_fixed_t dx, wl_fixed_t dy,
+                            wl_fixed_t scale, wl_fixed_t rotation)
+    {
+        GestureEvent event;
+        event.type = GestureEvent::Type::PinchUpdate;
+        event.delta = {wl_fixed_to_double(dx), wl_fixed_to_double(dy)};
+        event.scale = wl_fixed_to_double(scale);
+        event.rotation = wl_fixed_to_double(rotation);
+        pinchGesture(static_cast<Connection*>(data), event, time);
+    }
+
+    static void pinchEnd(void* data, zwp_pointer_gesture_pinch_v1*, uint32_t, uint32_t time, int32_t cancelled)
+    {
+        GestureEvent event;
+        event.type = GestureEvent::Type::PinchEnd;
+        event.cancelled = cancelled != 0;
+        pinchGesture(static_cast<Connection*>(data), event, time);
+    }
+
     static constexpr wl_registry_listener registry = {global, globalRemove};
     static constexpr wl_output_listener outputListener = {outputGeometry, outputMode, outputDone, outputScale};
     static constexpr zxdg_output_v1_listener xdgOutput = {xdgOutputPosition, xdgOutputSize, xdgOutputDone,
                                                           xdgOutputName, xdgOutputDescription};
     static constexpr zwp_pointer_gesture_hold_v1_listener hold = {holdBegin, holdEnd};
+    static constexpr zwp_pointer_gesture_pinch_v1_listener pinch = {pinchBegin, pinchUpdate, pinchEnd};
     static constexpr xdg_wm_base_listener wmBase = {ping};
     static constexpr cutefish_window_hints_v1_listener windowHints = {interactiveResize, workArea, fullscreenReveal};
     static constexpr cutefish_window_placement_v1_listener windowPlacement = {windowPosition};
@@ -671,6 +717,8 @@ Connection::~Connection()
     m_keyboard.reset();
     if (m_hold)
         zwp_pointer_gesture_hold_v1_destroy(m_hold);
+    if (m_pinch)
+        zwp_pointer_gesture_pinch_v1_destroy(m_pinch);
     if (m_pointerGestures)
         zwp_pointer_gestures_v1_destroy(m_pointerGestures);
     if (m_cursorShapeDevice)

@@ -126,6 +126,7 @@ private:
     void keyboardLeave() override;
     void key(const KeyEvent& event, bool pressed) override;
     void pointerHold() override;
+    void pointerGesture(const GestureEvent& event) override;
     void touchDown(int32_t id, double x, double y) override;
     void touchMotion(int32_t id, double x, double y) override;
     void touchUp(int32_t id) override;

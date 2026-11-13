@@ -45,6 +45,7 @@ struct zxdg_exporter_v2;
 struct zxdg_importer_v2;
 struct xdg_wm_dialog_v1;
 struct zwp_pointer_gesture_hold_v1;
+struct zwp_pointer_gesture_pinch_v1;
 struct zwp_pointer_gestures_v1;
 struct zwp_text_input_manager_v3;
 struct zwp_primary_selection_device_manager_v1;
@@ -264,6 +265,7 @@ private:
     wp_cursor_shape_device_v1* m_cursorShapeDevice = nullptr;
     zwp_pointer_gestures_v1* m_pointerGestures = nullptr;
     zwp_pointer_gesture_hold_v1* m_hold = nullptr;
+    zwp_pointer_gesture_pinch_v1* m_pinch = nullptr;
     wl_touch* m_touch = nullptr;
     std::unique_ptr<Keyboard> m_keyboard;
     wl_data_device_manager* m_dataDeviceManager = nullptr;

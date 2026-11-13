@@ -647,6 +647,11 @@ void WaylandWindow::pointerHold()
     notifyHold();
 }
 
+void WaylandWindow::pointerGesture(const GestureEvent& event)
+{
+    notifyGesture(event);
+}
+
 void WaylandWindow::touchDown(int32_t id, double x, double y)
 {
     notifyTouchDown(id, x, y);

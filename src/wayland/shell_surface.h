@@ -63,6 +63,8 @@ public:
         virtual void pointerScroll(const ScrollEvent& event) = 0;
         // Fingers came to rest on the touchpad.
         virtual void pointerHold() = 0;
+        // A touchpad pinch, from its begin to its end.
+        virtual void pointerGesture(const GestureEvent&) {}
 
         // Touch points in surface-local logical pixels.
         virtual void touchDown(int32_t, double, double) {}
