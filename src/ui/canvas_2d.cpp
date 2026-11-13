@@ -608,6 +608,49 @@ void Canvas2D::blurBackdrop(const Path& path, double radius, double saturation)
     m_canvas->restore();
 }
 
+void Canvas2D::blurBackdropBelowGroups(const Path& path, double radius, double saturation)
+{
+    bool grouped = m_state.groups > 0;
+    for (const State& saved : m_saved)
+        grouped = grouped || saved.groups > 0;
+    if (!grouped) {
+        blurBackdrop(path, radius, saturation);
+        return;
+    }
+    if (!m_canvas || radius <= 0 || path.isEmpty())
+        return;
+    // Groups are layers in the surface's own device space; the surface
+    // holds what was drawn before the outermost one began.
+    const SkVector device = m_owned->base.mapVector(SkScalar(radius), 0);
+    const SkScalar sigma = device.length() / 2;
+    const SkPath skPath = PathAccess::toSkPath(path);
+    SkRect bounds = m_canvas->getTotalMatrix().mapRect(skPath.getBounds());
+    if (!bounds.intersect(SkRect::Make(m_canvas->getDeviceClipBounds())))
+        return;
+    SkIRect area = bounds.roundOut().makeOutset(int(std::ceil(sigma * 3)), int(std::ceil(sigma * 3)));
+    if (!area.intersect(SkIRect::MakeSize(m_canvas->getBaseLayerSize())))
+        return;
+    SkBitmap under;
+    if (!under.tryAllocPixels(SkImageInfo::MakeN32Premul(area.width(), area.height()))
+        || !m_canvas->readPixels(under, area.x(), area.y()))
+        return;
+    under.setImmutable();
+    sk_sp<SkImageFilter> blur = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
+    if (saturation != 1) {
+        SkColorMatrix matrix;
+        matrix.setSaturation(SkScalar(std::max(saturation, 0.0)));
+        blur = SkImageFilters::ColorFilter(SkColorFilters::Matrix(matrix), std::move(blur));
+    }
+    m_canvas->save();
+    m_canvas->clipPath(skPath, m_state.antialias);
+    m_canvas->resetMatrix();
+    SkPaint replace;
+    replace.setBlendMode(SkBlendMode::kSrc);
+    replace.setImageFilter(std::move(blur));
+    m_canvas->drawImage(under.asImage(), SkScalar(area.x()), SkScalar(area.y()), SkSamplingOptions(), &replace);
+    m_canvas->restore();
+}
+
 void Canvas2D::beginGroup()
 {
     if (!m_canvas)

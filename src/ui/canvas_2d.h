@@ -238,6 +238,10 @@ public:
     // The same, with the blurred backdrop's saturation scaled by
     // `saturation` (1 leaves it as the plain blur, above 1 deepens it).
     void blurBackdrop(const Path& path, double radius, double saturation);
+    // The same, except that inside a group it blurs what lies under the
+    // whole group stack (the canvas's own surface) instead of the group's
+    // layer, as a material sees what is behind it through any groups.
+    void blurBackdropBelowGroups(const Path& path, double radius, double saturation);
 
     // Drawing from here on is a group, composited as one at the matching
     // end with the global alpha, composite mode and shadow of the begin.

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -166,6 +167,108 @@ TEST(Canvas2DTest, BackdropBlurSaturationDeepensColour)
     // Outside the path nothing changes.
     EXPECT_EQ(saturated.pixel(2, 10), plain.pixel(2, 10));
     EXPECT_EQ(saturated.pixel(10, 0), plain.pixel(10, 0));
+}
+
+static void fillBackdrop(Canvas2D& canvas, double leftAlpha)
+{
+    canvas.setFillColor({0.9, 0.1, 0.1, leftAlpha});
+    canvas.fillRect({0, 0, 20, 20});
+    canvas.setFillColor({0.1, 0.2, 0.9, 1});
+    canvas.fillRect({20, 0, 20, 20});
+}
+
+static uint32_t over(uint32_t source, uint32_t destination)
+{
+    // Premultiplied source over destination, per channel.
+    const unsigned keep = 255 - (source >> 24);
+    uint32_t out = 0;
+    for (int shift = 0; shift < 32; shift += 8) {
+        const unsigned s = (source >> shift) & 0xFF, d = (destination >> shift) & 0xFF;
+        out |= std::min(255u, s + (d * keep + 127) / 255) << shift;
+    }
+    return out;
+}
+
+static bool near(uint32_t a, uint32_t b, int tolerance)
+{
+    for (int shift = 0; shift < 32; shift += 8) {
+        if (std::abs(int((a >> shift) & 0xFF) - int((b >> shift) & 0xFF)) > tolerance)
+            return false;
+    }
+    return true;
+}
+
+TEST(Canvas2DTest, BackdropBelowGroupsOutsideAGroupIsThePlainBlur)
+{
+    Bitmap plain(40, 20, Format::Argb32Premultiplied), below(40, 20, Format::Argb32Premultiplied);
+    Canvas2D plainCanvas(plain), belowCanvas(below);
+    fillBackdrop(plainCanvas, 1);
+    fillBackdrop(belowCanvas, 1);
+    Path path;
+    path.addRoundedRect({6, 2, 28, 16}, 6, 6);
+    plainCanvas.blurBackdrop(path, 8, 1.5);
+    belowCanvas.blurBackdropBelowGroups(path, 8, 1.5);
+    EXPECT_EQ(pixelSum(below), pixelSum(plain));
+}
+
+TEST(Canvas2DTest, BackdropBelowGroupsSeesThroughAGroup)
+{
+    Path path;
+    path.addRect({10, 0, 20, 20});
+    Bitmap reference(40, 20, Format::Argb32Premultiplied);
+    Canvas2D referenceCanvas(reference);
+    fillBackdrop(referenceCanvas, 1);
+    referenceCanvas.blurBackdrop(path, 8);
+
+    // A plain blur inside a group sees only the group's empty layer, so
+    // what is under it shows unblurred.
+    Bitmap inGroup(40, 20, Format::Argb32Premultiplied);
+    Canvas2D inGroupCanvas(inGroup);
+    fillBackdrop(inGroupCanvas, 1);
+    const uint32_t under = inGroup.pixel(18, 10);
+    inGroupCanvas.beginGroup();
+    inGroupCanvas.blurBackdrop(path, 8);
+    inGroupCanvas.endGroup();
+    EXPECT_EQ(inGroup.pixel(18, 10), under);
+
+    Bitmap below(40, 20, Format::Argb32Premultiplied);
+    Canvas2D belowCanvas(below);
+    fillBackdrop(belowCanvas, 1);
+    belowCanvas.beginGroup();
+    belowCanvas.blurBackdropBelowGroups(path, 8, 1);
+    belowCanvas.endGroup();
+    for (int x : {12, 18, 21, 27})
+        EXPECT_TRUE(near(below.pixel(x, 10), reference.pixel(x, 10), 1)) << x;
+    // Outside the path nothing changes.
+    EXPECT_EQ(below.pixel(5, 10), reference.pixel(5, 10));
+    EXPECT_EQ(below.pixel(35, 10), reference.pixel(35, 10));
+}
+
+TEST(Canvas2DTest, BackdropBelowGroupsOverATranslucentSurface)
+{
+    // The blurred backdrop is the group's content, composited once over
+    // what is under the group, also where that is translucent.
+    Path path;
+    path.addRect({10, 0, 20, 20});
+    Bitmap blurred(40, 20, Format::Argb32Premultiplied);
+    Canvas2D blurredCanvas(blurred);
+    fillBackdrop(blurredCanvas, 0.5);
+    blurredCanvas.blurBackdrop(path, 8);
+
+    Bitmap below(40, 20, Format::Argb32Premultiplied);
+    Canvas2D belowCanvas(below);
+    fillBackdrop(belowCanvas, 0.5);
+    std::vector<uint32_t> under;
+    for (int x : {12, 18, 21, 27})
+        under.push_back(below.pixel(x, 10));
+    belowCanvas.beginGroup();
+    belowCanvas.blurBackdropBelowGroups(path, 8, 1);
+    belowCanvas.endGroup();
+    int i = 0;
+    for (int x : {12, 18, 21, 27}) {
+        EXPECT_TRUE(near(below.pixel(x, 10), over(blurred.pixel(x, 10), under[i]), 2)) << x;
+        ++i;
+    }
 }
 
 TEST(Canvas2DTest, RetainedBitmapsDrawAsTheirBitmap)
