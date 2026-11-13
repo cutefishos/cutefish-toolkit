@@ -203,6 +203,21 @@
       <arg name="height" type="int"/>
       <arg name="push" type="uint"/>
     </request>
+
+    <request name="set_movable">
+      <description summary="keep a window where the compositor puts it">
+        A value of 0 makes a normal window one the user cannot move: the
+        compositor centres it in the work area of its output when it maps
+        and again whenever that work area changes, and refuses every way of
+        moving it, such as xdg_toplevel.move, snapping, moving it to another
+        output and dragging it in the overview. Its size stays the client's.
+        A value of 1 is the default and gives the window back to the user
+        where it is. Applies at once and persists until replaced; a value
+        other than 0 or 1 is an invalid_value error.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="movable" type="uint"/>
+    </request>
     <event name="interactive_resize">
       <description summary="an interactive resize started or ended">
         Sent with active 1 when the user starts resizing one of the client's

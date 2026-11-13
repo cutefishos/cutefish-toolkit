@@ -305,6 +305,9 @@ public:
     void setCursorImage(const Bitmap& image, int scale, const PointF& hotSpot);
     // Above ordinary windows.
     void setAlwaysOnTop(bool onTop);
+    // Off, the compositor keeps the window centred in its work area and
+    // moves it no more, by the user's hand or its own.
+    void setMovable(bool movable);
     // The header's colour mode for the window buttons, whatever the theme,
     // unset follows the theme.
     void setHeaderDarkMode(std::optional<bool> dark);
