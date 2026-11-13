@@ -809,7 +809,8 @@ Image Window::grab(uint64_t frameTimeNs)
 {
     if (!m_contentView)
         return {};
-    prepareFrame(frameTimeNs ? frameTimeNs : monotonicNs());
+    if (!prepareFrame(frameTimeNs ? frameTimeNs : monotonicNs()))
+        return {};
 
     Image image(int(std::lround(m_size.width * m_scale)), int(std::lround(m_size.height * m_scale)));
     // The background is opaque, so premultiplied pixels are the unpremultiplied ones.
@@ -1734,8 +1735,9 @@ void Window::render()
 bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
 {
     m_rendering = true;
-    if (!prepared)
-        prepareFrame(frameTimeNs);
+    // Nothing of the window is left to touch when it went away in the ticks.
+    if (!prepared && !prepareFrame(frameTimeNs))
+        return false;
     // Whatever asked for a paint until here is drawn by this frame.
     m_needsFrame = false;
     const Color background = backgroundColor();
@@ -1781,17 +1783,24 @@ uint64_t Window::frameTime(uint64_t now)
     return m_frameTimeNs;
 }
 
-void Window::prepareFrame(uint64_t frameTimeNs)
+bool Window::prepareFrame(uint64_t frameTimeNs)
 {
-    // A client may stop, or go away, from its own tick.
+    // A client may stop, or go away, from its own tick, and so may the
+    // window: a program closes windows from its animation callbacks.
+    const std::weak_ptr<Window*> self = m_self;
     const std::vector<FrameClient*> clients = m_frameClients;
     for (FrameClient* client : clients) {
         if (std::find(m_frameClients.begin(), m_frameClients.end(), client) != m_frameClients.end()
             && client->m_ticking)
             client->tick(frameTimeNs);
+        if (self.expired())
+            return false;
     }
-    if (m_platform->onPrepareFrame)
+    if (m_platform->onPrepareFrame) {
         m_platform->onPrepareFrame();
+        if (self.expired())
+            return false;
+    }
 
     const bool laidOut = layoutIfNeeded();
     if (std::exchange(m_hoverDeferred, false)) {
@@ -1808,6 +1817,7 @@ void Window::prepareFrame(uint64_t frameTimeNs)
         collectDamage(m_overlay.get(), {});
     if (m_toolTip)
         collectDamage(m_toolTip.get(), {});
+    return true;
 }
 
 bool Window::layoutIfNeeded()

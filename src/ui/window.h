@@ -502,7 +502,8 @@ private:
     void scheduleRender();
     void postRender();
     void render();
-    void prepareFrame(uint64_t frameTimeNs);
+    // False when the window was destroyed by a frame client's tick.
+    bool prepareFrame(uint64_t frameTimeNs);
     // Lays the views out when something asked for it; false when nothing did.
     bool layoutIfNeeded();
     // Lays everything out again and reports the views whose geometry the

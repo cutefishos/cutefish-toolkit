@@ -90,3 +90,31 @@ TEST(AnimationTest, FinishesAtItsEnd)
     EXPECT_FALSE(animation.isRunning());
     EXPECT_DOUBLE_EQ(value, 1);
 }
+
+TEST(AnimationTest, WindowMayCloseFromATick)
+{
+    auto window = std::make_unique<Window>();
+    window->resize({10, 10});
+    window->setContentView(std::make_unique<View>());
+    window->show();
+
+    Animation closing(window.get());
+    closing.setDuration(100ms);
+    closing.onUpdate = [&window](double v) {
+        if (v > 0)
+            window.reset();
+    };
+    closing.start();
+    Animation after(window.get());
+    after.setDuration(100ms);
+    int updates = 0;
+    after.onUpdate = [&updates](double) { ++updates; };
+    after.start();
+
+    Window* raw = window.get();
+    raw->grab(at(0ms));
+    EXPECT_EQ(updates, 1);
+    EXPECT_TRUE(raw->grab(at(50ms)).isNull());
+    EXPECT_EQ(window, nullptr);
+    EXPECT_EQ(updates, 1);
+}
