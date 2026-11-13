@@ -180,7 +180,7 @@ ZoomableImageView::ZoomableImageView()
     m_vectorTimer.setInterval(std::chrono::milliseconds(150));
     m_vectorTimer.onTimeout = [this] {
         if (isZoomed()) {
-            const SizeF frame = m_canvas->frameSize();
+            const SizeF frame = upright(m_canvas->frameSize());
             const SizeF size = cappedSize(std::ceil(frame.width * m_ratio), std::ceil(frame.height * m_ratio));
             m_canvas->detail->setSourceSize({size.width / m_ratio, size.height / m_ratio});
         }
@@ -192,7 +192,7 @@ ZoomableImageView::ZoomableImageView()
     m_refitTimer.onTimeout = [this] {
         if (!m_fitted)
             return;
-        const SizeF frame = m_canvas->frameSize();
+        const SizeF frame = upright(m_canvas->frameSize());
         if (std::ceil(frame.width * m_ratio) > std::ceil(m_fitSource.width * m_ratio)
             || std::ceil(frame.height * m_ratio) > std::ceil(m_fitSource.height * m_ratio)) {
             m_fitSource = frame;
@@ -208,6 +208,9 @@ void ZoomableImageView::setImage(const std::string& path, const ImageInfo& info,
     m_path = path;
     m_info = info;
     m_ratio = ratio > 0 ? ratio : 1;
+    m_quarterTurns = 0;
+    m_canvas->fit->setQuarterTurns(0);
+    m_canvas->detail->setQuarterTurns(0);
     m_canvas->detail->setSource({});
     resetZoom();
     // The size first, so the new source is decoded once.
@@ -242,12 +245,33 @@ PointF ZoomableImageView::imagePoint(PointF at) const
 
 double ZoomableImageView::naturalWidth() const
 {
-    return m_info.width > 0 && m_info.height > 0 ? m_info.width / m_ratio : std::max(1.0, geometry().width);
+    if (m_info.width <= 0 || m_info.height <= 0)
+        return std::max(1.0, geometry().width);
+    return (m_quarterTurns % 2 ? m_info.height : m_info.width) / m_ratio;
 }
 
 double ZoomableImageView::naturalHeight() const
 {
-    return m_info.width > 0 && m_info.height > 0 ? m_info.height / m_ratio : std::max(1.0, geometry().height);
+    if (m_info.width <= 0 || m_info.height <= 0)
+        return std::max(1.0, geometry().height);
+    return (m_quarterTurns % 2 ? m_info.width : m_info.height) / m_ratio;
+}
+
+void ZoomableImageView::setQuarterTurns(int turns)
+{
+    turns = ((turns % 4) + 4) % 4;
+    if (turns == m_quarterTurns)
+        return;
+    m_quarterTurns = turns;
+    m_canvas->fit->setQuarterTurns(turns);
+    m_canvas->detail->setQuarterTurns(turns);
+    resetZoom();
+}
+
+// The upright size of a frame of the image as shown.
+SizeF ZoomableImageView::upright(SizeF frame) const
+{
+    return m_quarterTurns % 2 ? SizeF {frame.height, frame.width} : frame;
 }
 
 double ZoomableImageView::fitZoom() const
@@ -316,7 +340,8 @@ void ZoomableImageView::setZoom(double zoom)
 // The full-resolution decode, the first time the image is zoomed past fit.
 void ZoomableImageView::startDetail()
 {
-    if (!m_canvas->detail->source().empty() || m_info.animated)
+    // A turned image keeps its fitted layer: the file may hold the turn by now.
+    if (!m_canvas->detail->source().empty() || m_info.animated || m_quarterTurns)
         return;
     if (!m_info.vector && m_info.width > 0 && m_info.height > 0) {
         const SizeF size = cappedSize(m_info.width, m_info.height);

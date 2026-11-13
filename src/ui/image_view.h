@@ -73,6 +73,10 @@ public:
     // Trilinear filtering when shrinking; used by MaskedLayer, which
     // otherwise filters bilinearly.
     void setMipmap(bool mipmap);
+    // Turns the picture this many quarters clockwise as it is drawn, without
+    // decoding it again; the view's rect holds the turned picture. Direct
+    // rendering only.
+    void setQuarterTurns(int turns);
 
     enum class Rendering {
         // On device pixels, cut to the corner radius with antialiasing.
@@ -118,6 +122,8 @@ private:
     Corners m_corners = Corners::Circular;
     bool m_smooth = true;
     bool m_mipmap = false;
+    // A byte, in the padding before m_rendering: the class keeps its size.
+    uint8_t m_quarterTurns = 0;
     Rendering m_rendering = Rendering::Direct;
     Status m_status = Status::Null;
     std::shared_ptr<const Picture> m_picture;

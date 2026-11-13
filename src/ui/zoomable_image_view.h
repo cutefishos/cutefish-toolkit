@@ -43,6 +43,10 @@ public:
     double zoom() const { return m_zoom; }
     // The point of the image, in its pixels, under a point of the view.
     PointF imagePoint(PointF at) const;
+    // Turns the image as shown this many quarters clockwise, fitted again,
+    // without decoding it again; setImage() turns it back.
+    void setQuarterTurns(int turns);
+    int quarterTurns() const { return m_quarterTurns; }
 
     void zoomBy(double factor, PointF at, bool animate);
     void zoomTo(double target, PointF at, bool animate);
@@ -69,6 +73,7 @@ private:
     double maxZoom() const { return std::max(fitZoom(), 8.0); }
     double frameX(double zoom) const;
     double frameY(double zoom) const;
+    SizeF upright(SizeF frame) const;
     double snap(double value) const;
     void setZoom(double zoom);
     void setPan(double x, double y);
@@ -80,6 +85,7 @@ private:
     std::string m_path;
     ImageInfo m_info;
     double m_ratio = 1;
+    int m_quarterTurns = 0;
     double m_zoom = 1;
     bool m_fitted = true;
     bool m_anchored = false;

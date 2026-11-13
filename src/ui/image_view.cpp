@@ -294,6 +294,16 @@ void ImageView::setSourceSize(SizeF size)
     requestLayout();
 }
 
+void ImageView::setQuarterTurns(int turns)
+{
+    turns = ((turns % 4) + 4) % 4;
+    if (turns == m_quarterTurns)
+        return;
+    m_quarterTurns = uint8_t(turns);
+    requestLayout();
+    requestPaint();
+}
+
 void ImageView::setAutoTransform(bool autoTransform)
 {
     if (autoTransform == m_autoTransform)
@@ -366,7 +376,9 @@ void ImageView::load(double scale)
     int height = 0;
     ImageScaling scaling = ImageScaling::Fit;
     if (m_fillMode != FillMode::Pad) {
-        const SizeF size = m_sourceSize.width > 0 && m_sourceSize.height > 0 ? m_sourceSize : geometry().size();
+        SizeF size = m_sourceSize.width > 0 && m_sourceSize.height > 0 ? m_sourceSize : geometry().size();
+        if (m_quarterTurns % 2 && !(m_sourceSize.width > 0 && m_sourceSize.height > 0))
+            size = {size.height, size.width};
         width = int(std::lround(size.width * scale));
         height = int(std::lround(size.height * scale));
         if (width <= 0 || height <= 0)
@@ -463,9 +475,15 @@ void ImageView::paint(Painter& painter)
         return;
     }
     const SkImage* image = m_picture->image.get();
-    const Rect box = painter.deviceRect(localRect());
-    if (box.width <= 0 || box.height <= 0)
+    const Rect rect = painter.deviceRect(localRect());
+    if (rect.width <= 0 || rect.height <= 0)
         return;
+    // A picture turned a quarter is drawn upright into the rect turned
+    // about its centre, then turned with the canvas.
+    Rect box = rect;
+    if (m_quarterTurns % 2)
+        box = {rect.x + (rect.width - rect.height) / 2, rect.y + (rect.height - rect.width) / 2, rect.height,
+               rect.width};
 
     // The picture's aspect, from its own size: a decoded copy may be rounded.
     const double aspectWidth = m_picture->width > 0 ? m_picture->width : image->width();
@@ -499,6 +517,9 @@ void ImageView::paint(Painter& painter)
         painter.clipRoundedRect(localRect(), m_radius, m_corners);
     else
         painter.clip(localRect());
+    if (m_quarterTurns)
+        painter.canvas()->rotate(SkScalar(90 * m_quarterTurns), SkScalar(rect.x + rect.width / 2.0),
+                                 SkScalar(rect.y + rect.height / 2.0));
     SkPaint paint;
     paint.setAlphaf(float(painter.opacity()));
     const bool shrinks = width < image->width() || height < image->height();

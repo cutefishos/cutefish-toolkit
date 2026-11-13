@@ -3,11 +3,15 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <unistd.h>
 
+#include "base/event_loop.h"
+#include "base/timer.h"
+#include "ui/application.h"
 #include "ui/image.h"
 #include "ui/test_input.h"
 #include "ui/window.h"
@@ -113,4 +117,38 @@ TEST_F(ZoomableImageViewTest, APinchZoomsAboutThePointer)
     event.scale = 0.1;
     TestInput::gesture(*window, event);
     EXPECT_DOUBLE_EQ(view->zoom(), 0.25);
+}
+
+TEST_F(ZoomableImageViewTest, AQuarterTurnTurnsThePictureWithoutDecodingAgain)
+{
+    // Red on the left half, blue on the right.
+    Image image(200, 100);
+    for (int y = 0; y < 100; ++y)
+        for (int x = 0; x < 200; ++x)
+            image.setPixel(x, y, Color::rgb(x < 100 ? 0xFF0000 : 0x0000FF));
+    const std::string path = (kDirectory / "halves.png").string();
+    fs::create_directories(kDirectory);
+    ASSERT_TRUE(image.savePng(path));
+    show(path);
+    // Until the fitted decode is in.
+    auto& loop = Application::instance()->loop();
+    cutefish::base::Timer poll(&loop);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    poll.onTimeout = [&] {
+        if (!view->isLoading() || std::chrono::steady_clock::now() > deadline)
+            loop.quit();
+    };
+    poll.start(std::chrono::milliseconds(5));
+    loop.run();
+
+    view->setQuarterTurns(1);
+    Image shown = window->grab();
+    // Turned clockwise: the left half is on top, in a 50 x 100 frame.
+    EXPECT_EQ(shown.pixel(50, 25), Color::rgb(0xFF0000));
+    EXPECT_EQ(shown.pixel(50, 75), Color::rgb(0x0000FF));
+    EXPECT_EQ(view->imagePoint({50, 0}).y, 0);
+    EXPECT_FALSE(view->isLoading());
+
+    show(path);
+    EXPECT_EQ(view->quarterTurns(), 0);
 }
