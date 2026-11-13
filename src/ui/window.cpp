@@ -867,12 +867,16 @@ void Window::handleConfigure(int width, int height, const WindowStates& states)
         height = int(m_normalSize.height);
     }
     // A floating window's size suggestion may predate limits the window set
-    // since and the compositor has not seen yet; the limits win.
+    // since and the compositor has not seen yet; the limits win, and a
+    // maximum of 0 on an axis is no limit there, as it is to the compositor.
     if (width > 0 && height > 0 && !constrained) {
-        width = std::clamp(width, int(std::ceil(m_minimumSize.width)),
-                           std::max(int(std::ceil(m_minimumSize.width)), int(std::floor(m_maximumSize.width))));
-        height = std::clamp(height, int(std::ceil(m_minimumSize.height)),
-                            std::max(int(std::ceil(m_minimumSize.height)), int(std::floor(m_maximumSize.height))));
+        const auto limit = [](int size, double minimum, double maximum) {
+            const int least = int(std::ceil(minimum));
+            const int most = int(std::floor(maximum));
+            return most > 0 ? std::clamp(size, least, std::max(least, most)) : std::max(size, least);
+        };
+        width = limit(width, m_minimumSize.width, m_maximumSize.width);
+        height = limit(height, m_minimumSize.height, m_maximumSize.height);
     }
     if (width > 0 && height > 0 && (width != m_size.width || height != m_size.height)) {
         m_size = {double(width), double(height)};

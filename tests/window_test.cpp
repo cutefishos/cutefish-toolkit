@@ -88,6 +88,29 @@ TEST(WindowTest, FloatingConfigureKeepsTheWindowsLimits)
     EXPECT_EQ(window.size().height, 260);
 }
 
+// A maximum of 0 on an axis is no limit, as it is to the compositor.
+TEST(WindowTest, FloatingConfigureTreatsAZeroMaximumAsNoLimit)
+{
+    Window window;
+    window.setContentView(std::make_unique<View>());
+    window.resize({300, 200});
+    window.setMinimumSize({300, 200});
+    window.setMaximumSize({0, 0});
+    window.show();
+    TestInput::configure(window, 900, 600, {});
+    EXPECT_EQ(window.size().width, 900);
+    EXPECT_EQ(window.size().height, 600);
+
+    window.setMaximumSize({500, 0});
+    TestInput::configure(window, 800, 700, {.activated = true});
+    EXPECT_EQ(window.size().width, 500);
+    EXPECT_EQ(window.size().height, 700);
+
+    TestInput::configure(window, 100, 100, {.activated = true});
+    EXPECT_EQ(window.size().width, 300);
+    EXPECT_EQ(window.size().height, 200);
+}
+
 // The headless platform answers maximize and full screen with a configure
 // leaving the size to the window: the state holds, and the size comes back.
 TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)
