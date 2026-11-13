@@ -1,0 +1,61 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: cutefish-toolkit\n"
+"Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
+"POT-Creation-Date: 2026-10-19 22:12+0800\n"
+"PO-Revision-Date: 2026-11-13 12:00+0800\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: src/ui/dialog_window.cpp
+msgid "Confirm"
+msgstr "Confirmar"
+
+#: src/ui/dialog_window.cpp
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: src/ui/file_chooser.cpp
+msgid "Save File"
+msgstr "Salvar arquivo"
+
+#: src/ui/file_chooser.cpp
+msgid "Open Folder"
+msgstr "Abrir pasta"
+
+#: src/ui/file_chooser.cpp
+msgid "Open File"
+msgstr "Abrir arquivo"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Undo"
+msgstr "Desfazer"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Redo"
+msgstr "Refazer"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Cut"
+msgstr "Recortar"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Copy"
+msgstr "Copiar"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Paste"
+msgstr "Colar"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Delete"
+msgstr "Excluir"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Select All"
+msgstr "Selecionar tudo"
