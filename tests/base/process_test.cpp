@@ -365,3 +365,48 @@ TEST(ProcessTest, DetachedStartsReportFailures)
     EXPECT_EQ(Process::startDetached("cutefish-no-such-program"), -1);
     EXPECT_EQ(Process::startDetached("true", {}, "/nonexistent/directory"), -1);
 }
+
+// "SigBlk:" or "SigIgn:" of /proc/self/status, as a mask.
+static unsigned long long statusMask(const std::string& status, const std::string& field)
+{
+    const size_t at = status.find(field + ":");
+    return at == std::string::npos ? ~0ULL : std::stoull(status.substr(at + field.size() + 1), nullptr, 16);
+}
+
+// A process that blocks or ignores signals for itself, as one reading them
+// from a signalfd does, starts programs that can be ended with them.
+TEST(ProcessTest, ProgramsStartWithNoSignalBlockedOrIgnored)
+{
+    sigset_t blocked;
+    sigemptyset(&blocked);
+    sigaddset(&blocked, SIGTERM);
+    sigaddset(&blocked, SIGHUP);
+    sigset_t previous;
+    pthread_sigmask(SIG_BLOCK, &blocked, &previous);
+    struct sigaction ignore = {};
+    ignore.sa_handler = SIG_IGN;
+    struct sigaction old = {};
+    sigaction(SIGINT, &ignore, &old);
+
+    const unsigned long long term = 1ULL << (SIGTERM - 1);
+    const unsigned long long hup = 1ULL << (SIGHUP - 1);
+    const unsigned long long interrupt = 1ULL << (SIGINT - 1);
+    EventLoop loop;
+    Process process(&loop);
+    ASSERT_TRUE(process.start("cat", {"/proc/self/status"}));
+    ASSERT_TRUE(runUntilFinished(loop, process));
+    EXPECT_EQ(statusMask(process.standardOutput(), "SigBlk") & (term | hup), 0u);
+    EXPECT_EQ(statusMask(process.standardOutput(), "SigIgn") & interrupt, 0u);
+
+    const std::string path = std::filesystem::temp_directory_path() / ("process-test-" + std::to_string(getpid()));
+    ASSERT_GT(Process::startDetached("sh", {"-c", "cat /proc/self/status > " + path + ".part && mv " + path + ".part " + path}), 0);
+    for (int i = 0; i < 500 && !std::filesystem::exists(path); ++i)
+        usleep(10000);
+    const std::string detached = file::read(path).value_or(std::string());
+    std::filesystem::remove(path);
+    EXPECT_EQ(statusMask(detached, "SigBlk") & (term | hup), 0u);
+    EXPECT_EQ(statusMask(detached, "SigIgn") & interrupt, 0u);
+
+    sigaction(SIGINT, &old, nullptr);
+    pthread_sigmask(SIG_SETMASK, &previous, nullptr);
+}
