@@ -78,6 +78,7 @@ add_executable(cutefish-toolkit-tests
     window_restore_test.cpp
     zoomable_image_view_test.cpp
     compositing_test.cpp
+    backdrop_test.cpp
     test_views.h
 )
 

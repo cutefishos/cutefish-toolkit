@@ -4,12 +4,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColorFilter.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkMatrix.h"
+#include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
+#include "include/effects/SkColorMatrix.h"
+#include "include/effects/SkImageFilters.h"
 
 #include "ui/application.h"
 #include "ui/bitmap.h"
@@ -234,6 +239,118 @@ static SkRect untransformedDeviceRect(const View* view, const RectF& rect, doubl
     const PointF position = untransformedPosition(view);
     return SkRect::MakeXYWH(SkScalar((position.x + rect.x) * scale), SkScalar((position.y + rect.y) * scale),
                             SkScalar(rect.width * scale), SkScalar(rect.height * scale));
+}
+
+// Layered views' backdrops, kept apart from the views.
+struct Backdrop
+{
+    std::vector<View::BackdropArea> areas;
+    double blur = 0;
+    double saturation = 1;
+};
+
+static std::unordered_map<const View*, Backdrop>& backdrops()
+{
+    static std::unordered_map<const View*, Backdrop> table;
+    return table;
+}
+
+static const Backdrop* backdropOf(const View* view)
+{
+    const auto& table = backdrops();
+    if (table.empty())
+        return nullptr;
+    const auto found = table.find(view);
+    return found == table.end() ? nullptr : &found->second;
+}
+
+void View::setBackdrop(const std::vector<BackdropArea>& areas, double blur, double saturation)
+{
+    auto& table = backdrops();
+    const auto found = table.find(this);
+    if (areas.empty() || blur <= 0) {
+        if (found == table.end())
+            return;
+        table.erase(found);
+    } else {
+        if (found != table.end() && found->second.areas == areas && found->second.blur == blur
+            && found->second.saturation == saturation)
+            return;
+        table[this] = {areas, blur, saturation};
+    }
+    invalidateComposite();
+}
+
+void View::forgetBackdrop(const View* view)
+{
+    auto& table = backdrops();
+    if (!table.empty())
+        table.erase(view);
+}
+
+// How far, in device pixels, the blur of a backdrop reaches past its area.
+static int backdropReach(const Backdrop& backdrop, double scale)
+{
+    return int(std::ceil(3 * backdrop.blur * scale / 2)) + 1;
+}
+
+static bool shownInWindow(const View* view, const Window* window)
+{
+    for (const View* ancestor = view; ancestor; ancestor = ancestor->parent()) {
+        if (!ancestor->isVisible() || ancestor->opacity() <= 0)
+            return false;
+    }
+    return view->window() == window;
+}
+
+// What a change in the region does to the backdrops over it: each one it
+// reaches is blurred again whole, from what lies around it as far as its
+// blur reaches, which is painted again too.
+static void growForBackdrops(SkRegion& region, const Window* window, double scale)
+{
+    if (region.isEmpty())
+        return;
+    for (const auto& [view, backdrop] : backdrops()) {
+        if (!view->isLayered() || !shownInWindow(view, window))
+            continue;
+        const int reach = backdropReach(backdrop, scale);
+        for (const View::BackdropArea& area : backdrop.areas) {
+            const SkIRect around = untransformedDeviceRect(view, area.rect, scale).roundOut().makeOutset(reach, reach);
+            if (region.intersects(around))
+                region.op(around, SkRegion::kUnion_Op);
+        }
+    }
+}
+
+// Blurs what the canvas holds under the view's backdrop areas, the view at
+// `position` (logical) and composited through `matrix`.
+static void paintBackdrop(SkCanvas* canvas, const Backdrop& backdrop, const SkMatrix& matrix, PointF position,
+                          double scale, float opacity)
+{
+    const SkScalar sigma = SkScalar(backdrop.blur * scale / 2);
+    sk_sp<SkImageFilter> filter = SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr);
+    if (backdrop.saturation != 1) {
+        SkColorMatrix saturate;
+        saturate.setSaturation(SkScalar(std::max(backdrop.saturation, 0.0)));
+        filter = SkImageFilters::ColorFilter(SkColorFilters::Matrix(saturate), std::move(filter));
+    }
+    SkPaint replace;
+    // Shown in part as the view fades.
+    if (opacity < 1)
+        replace.setAlphaf(opacity);
+    else
+        replace.setBlendMode(SkBlendMode::kSrc);
+    for (const View::BackdropArea& area : backdrop.areas) {
+        const SkRect rect = matrix.mapRect(SkRect::MakeXYWH(
+            SkScalar((position.x + area.rect.x) * scale), SkScalar((position.y + area.rect.y) * scale),
+            SkScalar(area.rect.width * scale), SkScalar(area.rect.height * scale)));
+        const SkScalar radius = SkScalar(area.radius * scale);
+        canvas->save();
+        canvas->clipRRect(SkRRect::MakeRectXY(rect, radius, radius), true);
+        canvas->saveLayer(SkCanvas::SaveLayerRec(nullptr, &replace, filter.get(), 0));
+        canvas->restore();
+        canvas->restore();
+    }
 }
 
 void Window::damageLayer(View* view, const RectF& rect)
@@ -550,6 +667,8 @@ void View::paintTree(Painter& painter, const SkRegion* region)
     SkCanvas* canvas = painter.canvas();
     SkPaint paint;
     paint.setAlphaf(float(painter.opacity() * m_opacity));
+    if (const Backdrop* backdrop = backdropOf(this))
+        paintBackdrop(canvas, *backdrop, matrix, position, scale, float(painter.opacity() * m_opacity));
     canvas->save();
     canvas->concat(matrix);
     // At rest the texture lands pixel for pixel; scaled, it filters.
@@ -632,6 +751,8 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
     const SkIRect window = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
     if (damage.full)
         damage.pending.setRect(window);
+    growForBackdrops(damage.pending, this, m_scale);
+    damage.pending.op(window, SkRegion::kIntersect_Op);
     if (damage.pending.computeRegionComplexity() > kMaximumDamageRects)
         damage.pending.setRect(damage.pending.getBounds());
 

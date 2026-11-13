@@ -156,6 +156,20 @@ public:
     // waiting to be painted there, moved with it. A view without a layer, or
     // a move that is not whole device pixels, paints the rect again.
     void scrollPainted(const RectF& rect, double dx, double dy);
+    // A layered view's backdrop: in each rounded rect, in the view's
+    // coordinates, what the window composites under the view is blurred by
+    // `blur` logical pixels and its saturation multiplied before the view's
+    // texture goes over it, as a material that shows what lies under it
+    // while that changes. No areas, the default, composite the texture
+    // alone.
+    struct BackdropArea
+    {
+        RectF rect;
+        double radius = 0;
+
+        bool operator==(const BackdropArea&) const = default;
+    };
+    void setBackdrop(const std::vector<BackdropArea>& areas, double blur, double saturation = 1);
 
     // Everything the view paints, in its own coordinates: its rect, and more
     // where shadows or focus rings reach out.
@@ -295,6 +309,8 @@ private:
 
     // Every view's measurements, in every window.
     static void invalidateMeasurements();
+    // The backdrop a layered view had, kept apart from it, goes with it.
+    static void forgetBackdrop(const View* view);
     // The view and every view under it lay out again, and measure again too
     // unless told otherwise.
     void invalidateSubtree(bool remeasure = true);
