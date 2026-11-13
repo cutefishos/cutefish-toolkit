@@ -29,7 +29,13 @@ public:
     uint32_t* bits() { return m_pixels.data(); }
     const uint32_t* bits() const { return m_pixels.data(); }
 
+    // A picture file at its own size, turned as its EXIF orientation says;
+    // null when it cannot be read. On any thread.
+    static Image fromFile(const std::string& path);
+
     bool savePng(const std::string& path) const;
+    // The PNG file's bytes; empty for a null image.
+    std::string encodePng() const;
 
 private:
     int m_width = 0;

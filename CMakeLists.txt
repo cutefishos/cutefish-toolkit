@@ -30,7 +30,7 @@ pkg_check_modules(Systemd REQUIRED IMPORTED_TARGET libsystemd)
 pkg_check_modules(Icu REQUIRED IMPORTED_TARGET icu-uc icu-i18n)
 # Decoders for the image formats Skia leaves out.
 pkg_check_modules(ImageCodecs REQUIRED IMPORTED_TARGET
-    libpng libwebp libwebpdemux libtiff-4 libheif)
+    libpng libwebp libwebpdemux libtiff-4 libheif zlib)
 # JPEG XL is opened on first use (src/ui/jxl_library.cpp), by the names the
 # libraries give themselves.
 pkg_check_modules(Jxl REQUIRED libjxl libjxl_threads)

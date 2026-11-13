@@ -3,14 +3,25 @@
 
 #include "ui/image_info.h"
 
-#include <cstdint>
 #include <algorithm>
+#include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
+#include <memory>
+#include <optional>
 #include <regex>
 #include <string_view>
+
+#include <jxl/decode.h>
+#include <libheif/heif.h>
+#include <tiffio.h>
+#include <zlib.h>
+
+#include "base/file.h"
+#include "ui/image_formats.h"
 
 namespace cutefish::ui {
 
@@ -206,9 +217,8 @@ static void readBmp(const std::string& data, ImageInfo& info)
 
 // An SVG's size: width and height in user units
 // (pixels), else the view box's.
-static void readSvg(const std::string& path, ImageInfo& info)
+static void readSvg(const std::string& data, ImageInfo& info)
 {
-    const std::string data = readHead(path, 64 * 1024);
     const size_t start = data.find("<svg");
     if (start == std::string::npos)
         return;
@@ -253,6 +263,162 @@ static void readSvg(const std::string& path, ImageInfo& info)
     info.height = int(height + 0.5);
 }
 
+// The start of a gzip stream's contents, up to limit bytes.
+static std::string gunzipHead(const std::string& data, size_t limit)
+{
+    z_stream stream = {};
+    // 16 more window bits read the gzip wrapper.
+    if (inflateInit2(&stream, 16 + MAX_WBITS) != Z_OK)
+        return {};
+    std::string out(limit, '\0');
+    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(data.data()));
+    stream.avail_in = uInt(data.size());
+    stream.next_out = reinterpret_cast<Bytef*>(out.data());
+    stream.avail_out = uInt(out.size());
+    inflate(&stream, Z_SYNC_FLUSH);
+    out.resize(limit - stream.avail_out);
+    inflateEnd(&stream);
+    return out;
+}
+
+// The first directory's size, as libtiff reads it without the strips.
+static void readTiff(const std::string& path, ImageInfo& info)
+{
+    TIFFSetWarningHandler(nullptr);
+    std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(path.c_str(), "r"), TIFFClose);
+    if (!tiff)
+        return;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    TIFFGetField(tiff.get(), TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tiff.get(), TIFFTAG_IMAGELENGTH, &height);
+    info.readable = true;
+    info.width = int(width);
+    info.height = int(height);
+}
+
+// HEIF and AVIF: the primary image's size with its rotation applied, from
+// the boxes alone.
+static void readHeif(const std::string& path, ImageInfo& info)
+{
+    std::unique_ptr<heif_context, decltype(&heif_context_free)> context(heif_context_alloc(), heif_context_free);
+    if (!context || heif_context_read_from_file(context.get(), path.c_str(), nullptr).code != heif_error_Ok)
+        return;
+    heif_image_handle* raw = nullptr;
+    if (heif_context_get_primary_image_handle(context.get(), &raw).code != heif_error_Ok || !raw)
+        return;
+    std::unique_ptr<heif_image_handle, decltype(&heif_image_handle_release)> handle(raw, heif_image_handle_release);
+    info.readable = true;
+    info.width = heif_image_handle_get_width(handle.get());
+    info.height = heif_image_handle_get_height(handle.get());
+}
+
+// The basic info at the start of the codestream; orientations 5 to 8 turn
+// the image a quarter.
+static void readJxl(const std::string& data, ImageInfo& info)
+{
+    std::unique_ptr<JxlDecoder, decltype(&JxlDecoderDestroy)> decoder(JxlDecoderCreate(nullptr), JxlDecoderDestroy);
+    if (!decoder || JxlDecoderSubscribeEvents(decoder.get(), JXL_DEC_BASIC_INFO) != JXL_DEC_SUCCESS)
+        return;
+    JxlDecoderSetInput(decoder.get(), reinterpret_cast<const uint8_t*>(data.data()), data.size());
+    JxlDecoderCloseInput(decoder.get());
+    if (JxlDecoderProcessInput(decoder.get()) != JXL_DEC_BASIC_INFO)
+        return;
+    JxlBasicInfo basic;
+    if (JxlDecoderGetBasicInfo(decoder.get(), &basic) != JXL_DEC_SUCCESS)
+        return;
+    info.readable = true;
+    info.width = int(basic.xsize);
+    info.height = int(basic.ysize);
+    if (basic.orientation >= JXL_ORIENT_TRANSPOSE)
+        std::swap(info.width, info.height);
+}
+
+// The largest icon of the directory, which is the one decoded; 0 in an
+// entry means 256, or a PNG that gives its own size.
+static void readIco(const std::string& data, ImageInfo& info)
+{
+    const auto* p = reinterpret_cast<const unsigned char*>(data.data());
+    if (data.size() < 6 || le16(p) != 0 || le16(p + 2) != 1)
+        return;
+    const uint32_t count = le16(p + 4);
+    for (uint32_t i = 0; i < count && 6 + (i + 1) * 16 <= data.size(); ++i) {
+        const unsigned char* entry = p + 6 + i * 16;
+        int width = entry[0] ? entry[0] : 256;
+        int height = entry[1] ? entry[1] : 256;
+        const uint32_t offset = le32(entry + 12);
+        if (offset + 24 <= data.size() && data.compare(offset, 8, "\x89PNG\r\n\x1a\n") == 0) {
+            width = int(be32(p + offset + 16));
+            height = int(be32(p + offset + 20));
+        }
+        if (width * int64_t(height) > info.width * int64_t(info.height)) {
+            info.width = width;
+            info.height = height;
+        }
+    }
+    info.readable = count > 0;
+}
+
+static void readTga(const std::string& data, ImageInfo& info)
+{
+    const auto* p = reinterpret_cast<const unsigned char*>(data.data());
+    if (data.size() < 18)
+        return;
+    info.readable = true;
+    info.width = int(le16(p + 12));
+    info.height = int(le16(p + 14));
+}
+
+// Netpbm: "P1" to "P6", then the width and the height, comments skipped.
+static void readPnm(const std::string& data, ImageInfo& info)
+{
+    if (data.size() < 3 || data[0] != 'P' || data[1] < '1' || data[1] > '6')
+        return;
+    size_t position = 2;
+    auto number = [&]() -> int {
+        while (position < data.size()) {
+            if (data[position] == '#') {
+                while (position < data.size() && data[position] != '\n')
+                    ++position;
+            } else if (std::isspace(static_cast<unsigned char>(data[position]))) {
+                ++position;
+            } else {
+                break;
+            }
+        }
+        int value = 0;
+        while (position < data.size() && std::isdigit(static_cast<unsigned char>(data[position])) && value < (1 << 24))
+            value = value * 10 + (data[position++] - '0');
+        return value;
+    };
+    info.readable = true;
+    info.width = number();
+    info.height = number();
+}
+
+static void readXbm(const std::string& data, ImageInfo& info)
+{
+    std::smatch match;
+    const std::string head = data.substr(0, 1024);
+    if (std::regex_search(head, match, std::regex("#define\\s+\\S*width\\s+(\\d+)")))
+        info.width = std::atoi(match[1].str().c_str());
+    if (std::regex_search(head, match, std::regex("#define\\s+\\S*height\\s+(\\d+)")))
+        info.height = std::atoi(match[1].str().c_str());
+    info.readable = info.width > 0 && info.height > 0;
+}
+
+// The PNG an ICNS file is decoded from, its largest.
+static void readIcns(const std::string& path, ImageInfo& info)
+{
+    const std::optional<std::string> data = base::file::read(path);
+    if (!data)
+        return;
+    const std::string_view png = image_formats::icnsPng(*data);
+    if (png.empty())
+        return;
+    readPng(std::string(png.substr(0, 64)), info);
+}
+
 const std::vector<std::string>& imageMimeTypes()
 {
     static const std::vector<std::string> types = {
@@ -282,19 +448,24 @@ const std::vector<std::string>& imageMimeTypes()
 ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
 {
     ImageInfo info;
-    if (mimeType == "image/svg+xml" || mimeType == "image/svg+xml-compressed") {
-        if (mimeType == "image/svg+xml")
-            readSvg(path, info);
-        else
-            info.readable = info.vector = true;
-        return info;
-    }
     if (mimeType == "image/jpeg") {
         readJpeg(path, info);
         return info;
     }
     if (mimeType == "image/gif") {
         readGif(path, info);
+        return info;
+    }
+    if (mimeType == "image/tiff") {
+        readTiff(path, info);
+        return info;
+    }
+    if (mimeType == "image/heif" || mimeType == "image/avif") {
+        readHeif(path, info);
+        return info;
+    }
+    if (mimeType == "image/x-icns") {
+        readIcns(path, info);
         return info;
     }
     const std::string head = readHead(path, 64 * 1024);
@@ -304,9 +475,21 @@ ImageInfo readImageInfo(const std::string& path, const std::string& mimeType)
         readWebp(head, info);
     else if (mimeType == "image/bmp")
         readBmp(head, info);
-    else if (std::ranges::find(imageMimeTypes(), mimeType) != imageMimeTypes().end())
-        // Decodable, without a header reader here: shown at the default size.
-        info.readable = true;
+    else if (mimeType == "image/svg+xml")
+        readSvg(head, info);
+    else if (mimeType == "image/svg+xml-compressed")
+        readSvg(gunzipHead(head, 64 * 1024), info);
+    else if (mimeType == "image/jxl")
+        readJxl(head, info);
+    else if (mimeType == "image/vnd.microsoft.icon")
+        readIco(head, info);
+    else if (mimeType == "image/x-tga")
+        readTga(head, info);
+    else if (mimeType == "image/x-portable-pixmap" || mimeType == "image/x-portable-graymap"
+             || mimeType == "image/x-portable-bitmap")
+        readPnm(head, info);
+    else if (mimeType == "image/x-xbitmap")
+        readXbm(head, info);
     return info;
 }
 

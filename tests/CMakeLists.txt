@@ -82,7 +82,7 @@ add_executable(cutefish-toolkit-tests
 )
 
 # The image tests write their files with the codecs' own encoders.
-pkg_check_modules(ImageTestEncoders REQUIRED IMPORTED_TARGET libjpeg libpng libwebp libtiff-4 libjxl libheif)
+pkg_check_modules(ImageTestEncoders REQUIRED IMPORTED_TARGET libjpeg libpng libwebp libtiff-4 libjxl libheif zlib)
 target_link_libraries(cutefish-toolkit-tests PRIVATE cutefish-toolkit GTest::gtest PkgConfig::ImageTestEncoders)
 target_compile_definitions(cutefish-toolkit-tests
     PRIVATE CUTEFISH_TOOLKIT_PROTOCOL_DIR="${PROJECT_SOURCE_DIR}/protocols"
