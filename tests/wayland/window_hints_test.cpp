@@ -424,26 +424,6 @@ TEST(WindowHintsProtocolTest, OpacityAndScreenPositionAreSent)
     EXPECT_EQ(target.positions[0], (PointF{30, 40}));
 }
 
-TEST(WindowHintsProtocolTest, MovableIsSent)
-{
-    FakeCompositor compositor;
-    base::EventLoop loop;
-    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
-    ASSERT_TRUE(connection);
-    Target target;
-    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
-    shell->setMovable(false);
-    shell->setMovable(true);
-    connection->flush();
-    settle(compositor, connection->display());
-
-    std::vector<FakeCompositor::Request> requests = compositor.hints();
-    std::erase_if(requests, [](const FakeCompositor::Request& request) { return request.name != "set_movable"; });
-    ASSERT_EQ(requests.size(), 2u);
-    EXPECT_EQ(requests[0].arguments, (std::vector<int64_t>{0}));
-    EXPECT_EQ(requests[1].arguments, (std::vector<int64_t>{1}));
-}
-
 // A frame that changes nothing commits without a buffer or damage, only while
 // that answers everything: a configure, a new size or a new opaque region
 // waits for a frame with a buffer.

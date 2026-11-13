@@ -277,12 +277,6 @@ void WaylandWindow::setAlwaysOnTop(bool onTop)
         m_shell->setAlwaysOnTop(onTop);
 }
 
-void WaylandWindow::setMovable(bool movable)
-{
-    if (m_shell)
-        m_shell->setMovable(movable);
-}
-
 void WaylandWindow::setRestoreId(const std::string& id)
 {
     if (m_shell)

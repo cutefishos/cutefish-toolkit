@@ -559,11 +559,6 @@ void Window::setAlwaysOnTop(bool onTop)
     m_platform->setAlwaysOnTop(onTop);
 }
 
-void Window::setMovable(bool movable)
-{
-    m_platform->setMovable(movable);
-}
-
 void Window::setRestoreId(const std::string& id)
 {
     m_platform->setRestoreId(id);

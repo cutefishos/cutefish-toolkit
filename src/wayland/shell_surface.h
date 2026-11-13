@@ -170,7 +170,6 @@ public:
     void setResizeAroundCenter(bool aroundCenter);
     void setSkipTaskbar(bool skip);
     void setAlwaysOnTop(bool onTop);
-    void setMovable(bool movable);
     void hideApplication();
     void setRestoreId(const std::string& id);
     void setPlacementAnchor(const std::optional<PlacementAnchor>& anchor);

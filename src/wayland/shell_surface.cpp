@@ -691,12 +691,6 @@ void ShellSurface::setAlwaysOnTop(bool onTop)
         cutefish_window_hints_v1_set_always_on_top(m_connection.windowHints(), m_surface, onTop ? 1 : 0);
 }
 
-void ShellSurface::setMovable(bool movable)
-{
-    if (m_connection.windowHints())
-        cutefish_window_hints_v1_set_movable(m_connection.windowHints(), m_surface, movable ? 1 : 0);
-}
-
 void ShellSurface::hideApplication()
 {
     if (m_connection.windowHints())
