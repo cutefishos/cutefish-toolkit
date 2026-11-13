@@ -1,0 +1,90 @@
+// SPDX-FileCopyrightText: 2026 Reion Wong <reionwong@gmail.com>
+// SPDX-License-Identifier: BSD-3-Clause
+
+#pragma once
+
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <string>
+
+#include "base/timer.h"
+#include "ui/image_info.h"
+#include "ui/scroll_view.h"
+
+namespace cutefish::ui {
+
+class Animation;
+
+// An image fitted to the view, never enlarged past its own pixels until the
+// user zooms. Zoom 1 is one image pixel per device pixel. Ctrl+wheel and
+// pinch zoom about the pointer, a double click toggles fit and actual size,
+// and a zoomed image pans by dragging and scrolling. The fitted decode is
+// joined by a full-resolution one from the first zoom past fit; an SVG is
+// drawn again at the zoom it comes to rest at, and an animated image plays.
+class ZoomableImageView : public ScrollView
+{
+public:
+    ZoomableImageView();
+    ~ZoomableImageView() override;
+
+    // The file and what its header says; an empty path shows nothing.
+    // `prepared` is the size in device pixels that an ImageView fitting the
+    // file with its EXIF orientation applied decoded it at, so it comes from
+    // the image cache; empty decodes at the view's size. `ratio` is the
+    // device pixels per logical pixel the image is shown at.
+    void setImage(const std::string& path, const ImageInfo& info, SizeF prepared, double ratio);
+    bool isLoading() const;
+    bool hasFailed() const;
+    // Past the fitted zoom.
+    bool isZoomed() const { return m_zoom > fitZoom() + 0.0001; }
+
+    void zoomBy(double factor, PointF at, bool animate);
+    void zoomTo(double target, PointF at, bool animate);
+    void zoomToFit() { zoomTo(fitZoom(), center(), true); }
+    void zoomToActualSize() { zoomTo(1, center(), true); }
+    PointF center() const { return {geometry().width / 2, geometry().height / 2}; }
+
+    std::function<void()> onStatusChanged;
+
+protected:
+    void layout() override;
+    bool scroll(const ScrollEvent& event) override;
+    bool gesture(const GestureEvent& event) override;
+    void hoverMove(const PointerEvent& event) override;
+
+private:
+    class Canvas;
+
+    double naturalWidth() const;
+    double naturalHeight() const;
+    double fitZoom() const;
+    double maxZoom() const { return std::max(fitZoom(), 8.0); }
+    double frameX(double zoom) const;
+    double frameY(double zoom) const;
+    double snap(double value) const;
+    void setZoom(double zoom);
+    void setPan(double x, double y);
+    void resetZoom();
+    void toggleActualSize(PointF at);
+    void startDetail();
+
+    Canvas* m_canvas;
+    std::string m_path;
+    ImageInfo m_info;
+    double m_ratio = 1;
+    double m_zoom = 1;
+    bool m_fitted = true;
+    bool m_anchored = false;
+    PointF m_anchorView;
+    PointF m_anchorImage;
+    PointF m_pointer;
+    double m_animationFrom = 1;
+    double m_animationTo = 1;
+    std::unique_ptr<Animation> m_animation;
+    base::Timer m_vectorTimer;
+    SizeF m_lastSize;
+    double m_pinchScale = 1;
+};
+
+} // namespace cutefish::ui

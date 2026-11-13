@@ -52,6 +52,7 @@ add_executable(cutefish-toolkit-tests
     header_backdrop_test.cpp
     glyph_run_test.cpp
     image_formats_test.cpp
+    image_info_test.cpp
     image_view_test.cpp
     input_test.cpp
     label_test.cpp
@@ -75,6 +76,7 @@ add_executable(cutefish-toolkit-tests
     window_tab_bar_test.cpp
     window_hints_test.cpp
     window_restore_test.cpp
+    zoomable_image_view_test.cpp
     compositing_test.cpp
     test_views.h
 )
