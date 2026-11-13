@@ -113,6 +113,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/scroller.h
     ui/search_field.h
     ui/segmented_control.h
+    ui/shortcut_convention.h
     ui/slider.h
     ui/status_item.h
     ui/styled_label.h
@@ -210,6 +211,7 @@ add_library(cutefish-toolkit SHARED
     ui/scroller.cpp
     ui/search_field.cpp
     ui/segmented_control.cpp
+    ui/shortcut_convention.cpp
     ui/slider.cpp
     ui/status_item.cpp
     ui/styled_label.cpp
