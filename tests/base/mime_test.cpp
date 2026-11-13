@@ -7,9 +7,11 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <unistd.h>
 
 #include "base/application_registry.h"
+#include "base/dbus.h"
 #include "base/event_loop.h"
 #include "base/file.h"
 #include "base/mime_apps.h"
@@ -178,6 +180,7 @@ TEST(MimeTest, DetectsTypesOfFiles)
 
 // A link opens in what the lists choose for its scheme, which the MIME
 // database does not know as a type; a scheme nothing takes opens nothing.
+// Without the application runtime the command starts here.
 TEST_F(MimeAppsTest, OpensAUriWithWhatTakesItsScheme)
 {
     EventLoop loop;
@@ -199,13 +202,58 @@ TEST_F(MimeAppsTest, OpensAUriWithWhatTakesItsScheme)
     Timer timeout(&loop);
     timeout.setSingleShot(true);
     timeout.onTimeout = [&loop] { loop.quit(); };
-    mimeapps::openUri("HTTPS://cutefish.org/a b", opened, {path("mimeapps.list")});
+    mimeapps::openUri("HTTPS://cutefish.org/a b", {}, opened, {path("mimeapps.list")});
     timeout.start(std::chrono::seconds(5));
     loop.run();
-    mimeapps::openUri("gopher://cutefish.org", opened, {path("mimeapps.list")});
-    mimeapps::openUri("not a uri", opened, {path("mimeapps.list")});
+    mimeapps::openUri("gopher://cutefish.org", {}, opened, {path("mimeapps.list")});
+    mimeapps::openUri("not a uri", {}, opened, {path("mimeapps.list")});
     ASSERT_EQ(results, (std::vector<bool> {true, false, false}));
     for (int i = 0; i < 500 && !fs::exists(out); ++i)
         usleep(10000);
     EXPECT_EQ(file::read(out), "HTTPS://cutefish.org/a b");
+}
+
+// With the application runtime on the bus, it starts the handler, given the
+// entry, the URI and the activation token.
+TEST_F(MimeAppsTest, OpensAUriThroughTheApplicationRuntime)
+{
+    EventLoop loop;
+    std::unique_ptr<dbus::Connection> runtimeBus = dbus::Connection::open(dbus::Connection::Bus::Session, &loop);
+    ASSERT_TRUE(runtimeBus);
+    std::string appId;
+    std::vector<std::string> arguments;
+    std::string token;
+    dbus::Object runtime(runtimeBus.get(), "/AppRuntime", "org.cutefish.AppRuntime");
+    runtime.addMethod(
+            "launchApplication",
+            [&](const std::string& id, const std::vector<std::string>& args, const std::string& activationToken) {
+                appId = id;
+                arguments = args;
+                token = activationToken;
+                return uint32_t(4242);
+            },
+            dbus::ArgumentNames {{"appId", "arguments", "activationToken"}, {"pid"}});
+    runtime.publish();
+    ASSERT_TRUE(runtimeBus->requestName("org.cutefish.AppRuntime"));
+
+    fs::create_directories(path("applications"));
+    std::ofstream(path("applications/handler.desktop"))
+            << "[Desktop Entry]\nType=Application\nName=Handler\nExec=" << path("never-run") << " %u\n";
+    std::ofstream(path("mimeapps.list")) << "[Default Applications]\nx-scheme-handler/https=handler.desktop\n";
+    ApplicationRegistry::setInstance(loop, ApplicationRegistry::create(loop, {path("applications")}));
+
+    std::optional<bool> started;
+    Timer timeout(&loop);
+    timeout.setSingleShot(true);
+    timeout.onTimeout = [&loop] { loop.quit(); };
+    mimeapps::openUri("https://cutefish.org/", "token-1", [&](bool ok) {
+        started = ok;
+        loop.quit();
+    }, {path("mimeapps.list")});
+    timeout.start(std::chrono::seconds(5));
+    loop.run();
+    EXPECT_EQ(started, true);
+    EXPECT_EQ(appId, path("applications/handler.desktop"));
+    EXPECT_EQ(arguments, std::vector<std::string> {"https://cutefish.org/"});
+    EXPECT_EQ(token, "token-1");
 }

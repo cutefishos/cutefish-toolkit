@@ -46,9 +46,11 @@ std::string defaultApplication(const std::vector<std::string>& paths, const std:
 
 // Starts what opens the URI's scheme (its x-scheme-handler type, as the
 // lists and the entries' MimeType give it) with the URI, once the installed
-// applications are read; done(false) when nothing does.
-void openUri(const std::string& uri, std::function<void(bool started)> done = {},
-             const std::vector<std::string>& paths = listPaths());
+// applications are read, through org.cutefish.AppRuntime with the activation
+// token, or itself when the runtime is not on the bus; done(false) when
+// nothing does.
+void openUri(const std::string& uri, const std::string& activationToken = {},
+             std::function<void(bool started)> done = {}, const std::vector<std::string>& paths = listPaths());
 
 // xdg-terminals.list of the xdg-terminal-exec spec: desktop entry IDs, most
 // preferred first.

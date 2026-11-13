@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <chrono>
 #include <csignal>
 #include <ctime>
 #include <fcntl.h>
@@ -17,7 +18,9 @@
 
 #include "base/application_bundle.h"
 #include "base/application_registry.h"
+#include "base/dbus.h"
 #include "base/desktop_entry.h"
+#include "base/event_loop.h"
 #include "base/file.h"
 #include "base/mime_database.h"
 #include "base/paths.h"
@@ -503,19 +506,56 @@ bool setDefaultTerminal(const std::string& path, const std::string& desktopId)
     return writeLines(path, lines);
 }
 
-static void startHandler(const std::string& uri, const std::string& type, const std::vector<std::string>& paths,
-                         const std::function<void(bool started)>& done)
+static constexpr char kRuntime[] = "org.cutefish.AppRuntime";
+static constexpr char kRuntimePath[] = "/AppRuntime";
+
+// Without the runtime: the entry's command, here.
+static bool startCommand(const DesktopEntry& entry, const std::string& uri, const std::string& activationToken)
+{
+    const std::vector<std::string> command = entry.commandForArguments({uri});
+    if (command.empty())
+        return false;
+    std::vector<std::string> environment;
+    if (!activationToken.empty())
+        environment.push_back("XDG_ACTIVATION_TOKEN=" + activationToken);
+    return Process::startDetached(command.front(), {command.begin() + 1, command.end()}, entry.workingDirectory,
+                                  environment)
+            > 0;
+}
+
+// As the desktop starts applications: through the application runtime, which
+// gives the program the applications' environment, a scope of its own and the
+// activation token.
+static void startHandler(const std::string& uri, const std::string& type, const std::string& activationToken,
+                         const std::vector<std::string>& paths, const std::function<void(bool started)>& done)
 {
     const std::shared_ptr<const DesktopEntry> entry =
             ApplicationRegistry::instance().byPath(defaultApplication(paths, type));
-    const std::vector<std::string> command = entry ? entry->commandForArguments({uri}) : std::vector<std::string>();
-    const bool started = !command.empty()
-            && Process::startDetached(command.front(), {command.begin() + 1, command.end()}, entry->workingDirectory) > 0;
-    if (done)
-        done(started);
+    dbus::Connection* bus = entry ? dbus::Connection::session() : nullptr;
+    if (!bus) {
+        const bool started = entry && startCommand(*entry, uri, activationToken);
+        if (done)
+            done(started);
+        return;
+    }
+    dbus::Proxy runtime(bus, kRuntime, kRuntimePath, kRuntime);
+    runtime.setTimeout(std::chrono::seconds(5));
+    auto pending = std::make_shared<dbus::PendingCall>();
+    *pending = runtime.callAsync(
+            "launchApplication",
+            [entry, uri, activationToken, done, pending](const dbus::Reply& reply) {
+                const bool started = reply.isError() ? startCommand(*entry, uri, activationToken)
+                                                     : reply.value<uint32_t>().value_or(0) != 0;
+                if (done)
+                    done(started);
+                // The call's slot goes once its callback has returned.
+                EventLoop::current()->post([pending] {});
+            },
+            entry->path, std::vector<std::string> {uri}, activationToken);
 }
 
-void openUri(const std::string& uri, std::function<void(bool started)> done, const std::vector<std::string>& paths)
+void openUri(const std::string& uri, const std::string& activationToken, std::function<void(bool started)> done,
+             const std::vector<std::string>& paths)
 {
     const size_t colon = uri.find(':');
     const std::string scheme = colon == std::string::npos ? std::string() : uri.substr(0, colon);
@@ -531,15 +571,15 @@ void openUri(const std::string& uri, std::function<void(bool started)> done, con
     const std::string type = listedType("x-scheme-handler/" + scheme);
     ApplicationRegistry& registry = ApplicationRegistry::instance();
     if (!registry.isLoading()) {
-        startHandler(uri, type, paths, done);
+        startHandler(uri, type, activationToken, paths, done);
         return;
     }
     // Once the installed applications are read.
     auto waiting = std::make_shared<Subscription>();
-    *waiting = registry.changed.connect([uri, type, paths, done, waiting] {
+    *waiting = registry.changed.connect([uri, type, activationToken, paths, done, waiting] {
         if (ApplicationRegistry::instance().isLoading())
             return;
-        startHandler(uri, type, paths, done);
+        startHandler(uri, type, activationToken, paths, done);
         waiting->reset();
     });
 }
