@@ -152,3 +152,26 @@ TEST_F(ZoomableImageViewTest, AQuarterTurnTurnsThePictureWithoutDecodingAgain)
     show(path);
     EXPECT_EQ(view->quarterTurns(), 0);
 }
+
+// Under a floating header 20 tall the image fits and centres below it, and
+// only a zoomed image pans under it.
+TEST_F(ZoomableImageViewTest, ATopInsetFitsBelowTheHeaderAndPansUnderIt)
+{
+    view->setTopInset(20);
+    show(writePng("tall.png", 100, 200));
+    window->grab();
+    // 80 tall below the header: a 40 x 80 frame, centred there.
+    EXPECT_DOUBLE_EQ(view->zoom(), 0.4);
+    EXPECT_EQ(view->center(), (PointF {50, 60}));
+    const PointF top = view->imagePoint({50, 20});
+    EXPECT_NEAR(top.y, 0, 1e-9);
+    EXPECT_DOUBLE_EQ(view->contentSize().height, 100);
+
+    view->zoomTo(1, view->center(), false);
+    // 200 tall from 20 down: 120 past the view's bottom at the most.
+    view->setScrollPosition({0, 1000});
+    EXPECT_DOUBLE_EQ(view->scrollPosition().y, 120);
+    EXPECT_NEAR(view->imagePoint({50, 99.5}).y, 199.5, 1e-9);
+    view->setScrollPosition({0, 0});
+    EXPECT_NEAR(view->imagePoint({50, 20}).y, 0, 1e-9);
+}

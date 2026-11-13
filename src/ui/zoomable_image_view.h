@@ -56,7 +56,13 @@ public:
     void zoomTo(double target, PointF at, bool animate);
     void zoomToFit() { zoomTo(fitZoom(), center(), true); }
     void zoomToActualSize() { zoomTo(1, center(), true); }
-    PointF center() const { return {geometry().width / 2, geometry().height / 2}; }
+    // The middle of the area below the top inset.
+    PointF center() const { return {geometry().width / 2, m_topInset + (geometry().height - m_topInset) / 2}; }
+
+    // The top this far down lies under a floating header: the image is
+    // fitted and centred below it, and a zoomed image pans under it.
+    void setTopInset(double inset);
+    double topInset() const { return m_topInset; }
 
     std::function<void()> onStatusChanged;
     // A right press, at its position in the window, instead of a pan.
@@ -105,6 +111,7 @@ private:
     base::Timer m_refitTimer;
     SizeF m_lastSize;
     double m_pinchScale = 1;
+    double m_topInset = 0;
 };
 
 } // namespace cutefish::ui

@@ -51,7 +51,7 @@ public:
     {
         const SizeF frame = frameSize();
         const RectF view = m_view->geometry();
-        return {std::max(view.width, frame.width), std::max(view.height, frame.height)};
+        return {std::max(view.width, frame.width), std::max(view.height, m_view->m_topInset + frame.height)};
     }
 
     bool acceptsPointer() const override { return true; }
@@ -257,6 +257,18 @@ double ZoomableImageView::naturalHeight() const
     return (m_quarterTurns % 2 ? m_info.width : m_info.height) / m_ratio;
 }
 
+void ZoomableImageView::setTopInset(double inset)
+{
+    if (inset == m_topInset)
+        return;
+    m_topInset = inset;
+    setVerticalBarPadding(inset, 0);
+    // A new viewport, as a resize is.
+    m_lastSize = {};
+    m_canvas->requestLayout();
+    requestLayout();
+}
+
 void ZoomableImageView::setQuarterTurns(int turns)
 {
     turns = ((turns % 4) + 4) % 4;
@@ -277,7 +289,7 @@ SizeF ZoomableImageView::upright(SizeF frame) const
 double ZoomableImageView::fitZoom() const
 {
     const double width = geometry().width;
-    const double height = geometry().height;
+    const double height = geometry().height - m_topInset;
     if (width <= 0 || height <= 0)
         return 1;
     return std::min({1.0, width / naturalWidth(), height / naturalHeight()});
@@ -291,7 +303,7 @@ double ZoomableImageView::frameX(double zoom) const
 
 double ZoomableImageView::frameY(double zoom) const
 {
-    return std::max(0.0, (geometry().height - naturalHeight() * zoom) / 2);
+    return m_topInset + std::max(0.0, (geometry().height - m_topInset - naturalHeight() * zoom) / 2);
 }
 
 double ZoomableImageView::snap(double value) const
@@ -302,7 +314,7 @@ double ZoomableImageView::snap(double value) const
 void ZoomableImageView::setPan(double x, double y)
 {
     const double maxX = std::max(0.0, naturalWidth() * m_zoom - geometry().width);
-    const double maxY = std::max(0.0, naturalHeight() * m_zoom - geometry().height);
+    const double maxY = std::max(0.0, m_topInset + naturalHeight() * m_zoom - geometry().height);
     setScrollPosition({std::clamp(x, 0.0, maxX), std::clamp(y, 0.0, maxY)});
 }
 
