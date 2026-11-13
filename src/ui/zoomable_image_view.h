@@ -20,8 +20,9 @@ class Animation;
 // user zooms. Zoom 1 is one image pixel per device pixel. Ctrl+wheel and
 // pinch zoom about the pointer, a double click toggles fit and actual size,
 // and a zoomed image pans by dragging and scrolling. The fitted decode is
-// joined by a full-resolution one from the first zoom past fit; an SVG is
-// drawn again at the zoom it comes to rest at, and an animated image plays.
+// joined by a full-resolution one from the first zoom past fit, and decoded
+// again when the view grows; an SVG is drawn again at the zoom it comes to
+// rest at, and an animated image plays.
 class ZoomableImageView : public ScrollView
 {
 public:
@@ -85,6 +86,9 @@ private:
     double m_animationTo = 1;
     std::unique_ptr<Animation> m_animation;
     base::Timer m_vectorTimer;
+    // The size the fitted layer decodes at.
+    SizeF m_fitSource;
+    base::Timer m_refitTimer;
     SizeF m_lastSize;
     double m_pinchScale = 1;
 };

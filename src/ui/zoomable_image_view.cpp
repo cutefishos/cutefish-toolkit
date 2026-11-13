@@ -185,6 +185,20 @@ ZoomableImageView::ZoomableImageView()
             m_canvas->detail->setSourceSize({size.width / m_ratio, size.height / m_ratio});
         }
     };
+
+    // The fitted decode grows with the view once a resize comes to rest.
+    m_refitTimer.setSingleShot(true);
+    m_refitTimer.setInterval(std::chrono::milliseconds(150));
+    m_refitTimer.onTimeout = [this] {
+        if (!m_fitted)
+            return;
+        const SizeF frame = m_canvas->frameSize();
+        if (std::ceil(frame.width * m_ratio) > std::ceil(m_fitSource.width * m_ratio)
+            || std::ceil(frame.height * m_ratio) > std::ceil(m_fitSource.height * m_ratio)) {
+            m_fitSource = frame;
+            m_canvas->fit->setSourceSize(frame);
+        }
+    };
 }
 
 ZoomableImageView::~ZoomableImageView() = default;
@@ -197,9 +211,9 @@ void ZoomableImageView::setImage(const std::string& path, const ImageInfo& info,
     m_canvas->detail->setSource({});
     resetZoom();
     // The size first, so the new source is decoded once.
-    SizeF fitSize = prepared.width > 0 ? SizeF {prepared.width / m_ratio, prepared.height / m_ratio}
-                                       : geometry().size();
-    m_canvas->fit->setSourceSize(fitSize);
+    m_fitSource = prepared.width > 0 ? SizeF {prepared.width / m_ratio, prepared.height / m_ratio}
+                                     : geometry().size();
+    m_canvas->fit->setSourceSize(m_fitSource);
     m_canvas->fit->setSource(info.animated ? std::string() : path);
     m_canvas->setAnimated(info.animated ? path : std::string());
     m_canvas->requestLayout();
@@ -359,6 +373,8 @@ void ZoomableImageView::layout()
         if (m_fitted) {
             m_zoom = fitZoom();
             m_canvas->requestLayout();
+            if (m_fitSource.width > 0 && m_fitSource.height > 0 && !m_info.animated)
+                m_refitTimer.start();
         }
     }
     ScrollView::layout();
