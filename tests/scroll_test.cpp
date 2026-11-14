@@ -570,6 +570,13 @@ TEST(ScrollViewTest, BarsBelowTheContentAndPadded)
     EXPECT_NEAR(view->scrollPosition().y, 450, 1);
 }
 
+TEST(ScrollViewTest, CornerPaddingKeepsTheHandleConcentric)
+{
+    EXPECT_DOUBLE_EQ(ScrollBar::cornerPadding(0), ScrollBar::inset);
+    EXPECT_DOUBLE_EQ(ScrollBar::cornerPadding(12), 9);
+    EXPECT_DOUBLE_EQ(ScrollBar::cornerPadding(14), 11);
+}
+
 // Invisible at rest, it fades in over 16 pixels of scrolling: a blur of
 // the content under the tint, here black stripes greyed under it.
 TEST(ScrollViewTest, HeaderBackdropFadesInOverScrolledContent)

@@ -123,6 +123,14 @@ void ScrollView::setCornerRadius(double radius)
     requestLayout();
 }
 
+void ScrollView::setBottomCornerRadius(double radius)
+{
+    if (radius == m_bottomCornerRadius)
+        return;
+    m_bottomCornerRadius = radius;
+    requestLayout();
+}
+
 void ScrollView::setVerticalBarPolicy(BarPolicy policy)
 {
     if (policy == m_verticalPolicy)
@@ -224,10 +232,10 @@ void ScrollView::layout()
                                   ScrollBar::thickness});
     m_verticalBar->setVisible(m_vertical && m_verticalPolicy != BarPolicy::AlwaysOff);
 
-    // Where a handle's rounded end keeps the inset to a rounded corner.
-    const double corner = std::max(ScrollBar::inset, m_cornerRadius - ScrollBar::thickness / 2 + ScrollBar::inset);
-    m_verticalBar->setPadding(std::max(m_verticalBarTop, corner), std::max(m_verticalBarBottom, corner));
-    m_horizontalBar->setPadding(corner, corner);
+    const double corner = ScrollBar::cornerPadding(m_cornerRadius);
+    const double bottomCorner = std::max(corner, ScrollBar::cornerPadding(m_bottomCornerRadius));
+    m_verticalBar->setPadding(std::max(m_verticalBarTop, corner), std::max(m_verticalBarBottom, bottomCorner));
+    m_horizontalBar->setPadding(bottomCorner, bottomCorner);
     m_horizontalBar->setVisible(m_horizontal);
 
     // A resize keeps the position inside the content, unless it is

@@ -52,6 +52,11 @@ void ScrollBar::setPadding(double start, double end)
     requestPaint();
 }
 
+double ScrollBar::cornerPadding(double radius)
+{
+    return std::max(inset, radius - thickness / 2 + inset);
+}
+
 void ScrollBar::setAlwaysShown(bool shown)
 {
     m_alwaysShown = shown;
