@@ -14,14 +14,21 @@ ThreadPool::ThreadPool(int maxThreads)
 
 ThreadPool::~ThreadPool()
 {
+    shutdown();
+}
+
+void ThreadPool::shutdown()
+{
     {
         std::lock_guard lock(m_mutex);
         m_stopping = true;
         m_queue.clear();
     }
     m_wake.notify_all();
-    for (std::thread& thread : m_threads)
-        thread.join();
+    for (std::thread& thread : m_threads) {
+        if (thread.joinable())
+            thread.join();
+    }
 }
 
 ThreadPool& ThreadPool::global()

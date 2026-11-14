@@ -77,6 +77,10 @@ public:
     // As many threads as cores.
     static ThreadPool& global();
 
+    // Waits for the work that has started; the rest, and work posted later,
+    // is dropped.
+    void shutdown();
+
     // Runs the work on a pool thread, and nothing after it.
     void post(std::function<void()> work);
 

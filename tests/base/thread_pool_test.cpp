@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -106,4 +107,25 @@ TEST(ThreadPoolTest, SingleThreadPoolKeepsOrder)
         }));
     loop.run();
     EXPECT_EQ(order, (std::vector<int>{0, 1, 2, 3, 4}));
+}
+
+TEST(ThreadPoolTest, ShutdownWaitsForStartedWorkAndDropsTheRest)
+{
+    ThreadPool pool(1);
+    std::atomic<bool> started = false;
+    std::atomic<bool> finished = false;
+    std::atomic<int> later = 0;
+    pool.post([&] {
+        started = true;
+        std::this_thread::sleep_for(30ms);
+        finished = true;
+    });
+    pool.post([&] { ++later; });
+    while (!started)
+        std::this_thread::sleep_for(1ms);
+    pool.shutdown();
+    EXPECT_TRUE(finished);
+    pool.post([&] { ++later; });
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(later, 0);
 }
