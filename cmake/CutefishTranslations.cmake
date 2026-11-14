@@ -62,17 +62,17 @@ function(cutefish_add_translations domain)
     set(desktop_po_directory ${CMAKE_CURRENT_BINARY_DIR}/desktop-po)
     string(REPLACE ";" "\n" linguas "${languages}")
     file(WRITE ${desktop_po_directory}/LINGUAS "${linguas}\n")
+    # Copied once here: a copy in each desktop file's rule races with the
+    # others under a parallel build.
+    foreach(po_file ${po_files})
+        configure_file(${po_file} ${desktop_po_directory}/ COPYONLY)
+    endforeach()
     set(desktop_outputs "")
     foreach(desktop_file ${arg_DESKTOP_FILES})
         get_filename_component(name ${desktop_file} NAME)
         get_filename_component(template ${desktop_file} ABSOLUTE)
         set(output ${CMAKE_CURRENT_BINARY_DIR}/${name})
-        set(copies "")
-        foreach(po_file ${po_files})
-            list(APPEND copies COMMAND ${CMAKE_COMMAND} -E copy ${po_file} ${desktop_po_directory}/)
-        endforeach()
         add_custom_command(OUTPUT ${output}
-            ${copies}
             COMMAND ${CUTEFISH_MSGFMT} --desktop --template=${template} -d ${desktop_po_directory} -o ${output}
             DEPENDS ${template} ${po_files}
             VERBATIM)
