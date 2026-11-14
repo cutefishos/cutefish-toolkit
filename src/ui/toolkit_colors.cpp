@@ -84,13 +84,16 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme)
 
     mixer[ColorId::HeaderButtonTint] = dark ? kWhite : Color::rgb(0x323238);
 
-    mixer[ColorId::DialogButtonBackground] = ColorId::AlternateBackground;
-    mixer[ColorId::DialogButtonBackgroundHovered] = dark ? lighter(ColorId::DialogButtonBackground, 1.05)
-                                                         : darker(ColorId::DialogButtonBackground, 1.04);
-    mixer[ColorId::DialogButtonBorder] = dark ? Color::rgb(0x545455) : Color::rgb(0xD9DADD);
-    mixer[ColorId::DialogButtonInnerEdge] = dark ? kTransparent : kWhite.withAlpha(0.08);
+    mixer[ColorId::AlertBackground] = dark ? ColorRecipe(Color::rgb(0x343434)) : ColorRecipe(ColorId::SecondBackground);
+    mixer[ColorId::AlertText] = (dark ? kWhite : kBlack).withAlpha(0.847);
+    // Flat fills with no edge: white in dark mode and black in light.
+    mixer[ColorId::DialogButtonBackground] = (dark ? kWhite : kBlack).withAlpha(0.0756);
+    mixer[ColorId::DialogButtonBackgroundPressed] = (dark ? kWhite : kBlack).withAlpha(0.165);
     mixer[ColorId::DialogButtonProminentText] = kWhite;
-    mixer[ColorId::DialogButtonProminentInnerEdge] = kWhite.withAlpha(0.2);
+    // A destructive button is its red text over a quarter of that red.
+    mixer[ColorId::DialogButtonDestructiveText] = dark ? Color::rgb(0xDC3929) : Color::rgb(0xEB4C46);
+    mixer[ColorId::DialogButtonDestructiveBackground] = dark ? Color::rgb(0xEC544C).withAlpha(0.25)
+                                                             : Color::rgb(0xEB4C46).withAlpha(0.25);
     mixer[ColorId::DialogButtonFocusRing] = withAlpha(ColorId::Highlight, 0.3);
 
     mixer[ColorId::MenuHighlight] = withAlpha(ColorId::Highlight, dark ? 0.82 : 0.9);

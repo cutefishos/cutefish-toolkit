@@ -334,7 +334,7 @@ TEST(WindowTest, ConfirmDialogAnswersOnce)
     Window* window = dialog.window();
     ASSERT_NE(window, nullptr);
     window->grab();
-    EXPECT_GE(window->size().width, 336);
+    EXPECT_EQ(window->size().width, AlertView::kWidth);
     // A destructive dialog starts on Cancel; Escape cancels too.
     TestInput::setKeyboardFocus(*window, true);
     TestInput::typeKey(*window, key::Escape);
@@ -384,12 +384,43 @@ TEST(WindowTest, ConfirmDialogTextChangesWhileShown)
     window->grab();
     EXPECT_GT(window->size().height, height);
     dialog.setTitle("Pairing with the keyboard");
-    const View* column = window->contentView()->children().front().get();
-    const View* texts = column->children().front().get();
-    EXPECT_EQ(static_cast<const Label*>(texts->children().front().get())->text(), "Pairing with the keyboard");
+    const auto* alert = static_cast<const AlertView*>(window->contentView()->children().front().get());
+    EXPECT_EQ(alert->title()->text(), "Pairing with the keyboard");
     dialog.setText({});
     window->grab();
     EXPECT_EQ(window->size().height, height);
+}
+
+// The alert's metrics: the title 19 from the top, the text 9 under the
+// title's two spare pixels, the buttons 14 under the text's and 16 from the
+// edges, side by side while both texts fit and stacked otherwise.
+TEST(WindowTest, AlertViewLaysOutAsAnAlert)
+{
+    Window window;
+    auto view = std::make_unique<AlertView>();
+    AlertView* alert = view.get();
+    window.setContentView(std::move(view));
+    alert->title()->setText("Quit?");
+    alert->setText("All sessions end.");
+    alert->cancel()->setText("Cancel");
+    alert->confirm()->setText("Quit");
+    window.resize({AlertView::kWidth, 0});
+    window.setFitsContentHeight(true);
+    window.show();
+    window.grab();
+    const double height = 19 + 16 + 2 + 9 + 16 + 2 + 14 + 28 + 16;
+    EXPECT_EQ(window.size().height, height);
+    EXPECT_EQ(alert->title()->geometry(), (RectF{22, 19, 216, 16}));
+    EXPECT_EQ(alert->text()->geometry(), (RectF{22, 46, 216, 16}));
+    EXPECT_EQ(alert->cancel()->geometry(), (RectF{16, 78, 110, 28}));
+    EXPECT_EQ(alert->confirm()->geometry(), (RectF{134, 78, 110, 28}));
+
+    alert->confirm()->setText("Close Every Window and Quit");
+    window.resize({AlertView::kWidth, 0});
+    window.grab();
+    EXPECT_EQ(window.size().height, height + 28 + 8);
+    EXPECT_EQ(alert->confirm()->geometry(), (RectF{16, 78, 228, 28}));
+    EXPECT_EQ(alert->cancel()->geometry(), (RectF{16, 114, 228, 28}));
 }
 
 TEST(WindowTest, DialogTakesTheHeightOfItsContent)
@@ -510,10 +541,10 @@ TEST(WindowTest, DialogKeepsItsMarginAtEveryScale)
     for (const double scale : {1.5, 1.0, 1.25}) {
         window->setScale(scale);
         window->grab();
-        const View* actions = window->contentView()->children().front()->children().back().get();
-        const double margin = window->size().height - actions->geometry().bottom();
-        EXPECT_GE(margin, 12) << scale;
-        EXPECT_LT(margin, 13) << scale;
+        const auto* alert = static_cast<const AlertView*>(window->contentView()->children().front().get());
+        const double margin = window->size().height - alert->confirm()->geometry().bottom();
+        EXPECT_GE(margin, 16) << scale;
+        EXPECT_LT(margin, 17) << scale;
     }
 }
 

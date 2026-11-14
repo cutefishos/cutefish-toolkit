@@ -16,8 +16,8 @@ namespace cutefish::ui {
 class Label;
 class Window;
 
-// A dialog button: a pill, in the accent colour when primary, in red
-// when it confirms something that cannot be undone.
+// A dialog button: a flat pill with no edge, in the accent colour when
+// primary, red tinted when it confirms something that cannot be undone.
 class DialogButton : public View
 {
 public:
@@ -28,6 +28,8 @@ public:
     void setDestructive(bool destructive);
 
     SizeF sizeHint() const override;
+    // The width of its text alone.
+    double textWidth() const;
     RectF visualRect() const override;
     bool acceptsPointer() const override { return true; }
     bool acceptsFocus() const override { return true; }
@@ -38,21 +40,56 @@ protected:
     void layout() override;
     void paint(Painter& painter) override;
     void enabledChanged() override;
-    void pointerEnter() override;
-    void pointerLeave() override;
     void pointerPress(const PointerEvent& event) override;
     void pointerRelease(const PointerEvent& event) override;
     bool keyPress(const KeyEvent& event) override;
     bool keyRelease(const KeyEvent& event) override;
 
 private:
-    Color actionColor() const;
+    void updateTextColor();
 
     Label* m_label;
     bool m_primary;
     bool m_destructive = false;
-    bool m_hovered = false;
     bool m_pressed = false;
+};
+
+// An alert's content, 260 wide: its title and text left aligned over a
+// cancel and a confirm button, side by side when both texts fit, else
+// stacked full width with the confirm one on top. The window gives it
+// AlertBackground.
+class AlertView : public View
+{
+public:
+    static constexpr double kWidth = 260;
+
+    AlertView();
+
+    Label* title() const { return m_title; }
+    // Hidden while empty.
+    Label* text() const { return m_text; }
+    DialogButton* cancel() const { return m_cancel; }
+    DialogButton* confirm() const { return m_confirm; }
+
+    void setText(std::string text);
+    void setCancelVisible(bool visible);
+    // Room left above the title, for window controls over it.
+    void setTopInset(double inset);
+
+    SizeF sizeHint() const override;
+    double heightForWidth(double width) const override;
+
+protected:
+    void layout() override;
+
+private:
+    bool buttonsSideBySide() const;
+
+    Label* m_title;
+    Label* m_text;
+    DialogButton* m_cancel;
+    DialogButton* m_confirm;
+    double m_topInset;
 };
 
 // A dialog: a modal window over its parent, its title on the line of
@@ -137,11 +174,7 @@ private:
     bool m_destructive = false;
     bool m_cancelVisible = true;
     std::unique_ptr<Window> m_window;
-    Label* m_titleLabel = nullptr;
-    Label* m_textLabel = nullptr;
-    View* m_actions = nullptr;
-    DialogButton* m_confirmButton = nullptr;
-    DialogButton* m_cancelButton = nullptr;
+    AlertView* m_alert = nullptr;
     bool m_defaultConfirm = true;
     bool m_defaultCancel = true;
     base::Subscription m_languageChanged;
