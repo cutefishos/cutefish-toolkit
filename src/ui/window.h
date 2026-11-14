@@ -291,7 +291,7 @@ public:
     void setUserResizable(bool resizable);
     // Kept out of the dock and the window switcher, as tool windows are.
     void setSkipTaskbar(bool skip);
-    // The main menu the status bar shows while this window is active, in
+    // The main menu the menu bar shows while this window is active, in
     // place of the transient parent's or the application's
     // (Application::setMainMenu); null goes back to those. Not owned; it
     // stays while the window shows it.
@@ -331,7 +331,7 @@ public:
     void setMaximized(bool maximized);
     void setFullScreen(bool fullScreen);
     void minimize();
-    // Hides every window of the application, as the status bar's Hide does.
+    // Hides every window of the application, as the menu bar's Hide does.
     void hideApplication();
     // Kept above the parent window and opened over it; a modal one blocks it.
     void setTransientParent(Window* parent, bool modal);

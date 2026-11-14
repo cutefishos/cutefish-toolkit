@@ -130,7 +130,7 @@ public:
     // false where the compositor places windows itself.
     virtual bool setScreenPosition(PointF) { return false; }
     virtual void setUserResizable(bool) {}
-    // Toplevels only: the main menu the status bar shows while the window is
+    // Toplevels only: the main menu the menu bar shows while the window is
     // active, null for none.
     virtual void setMainMenu(Menu*) {}
     // A status item's identifier and highlight request.

@@ -14,7 +14,7 @@ namespace cutefish::ui {
 
 class View;
 
-// An item the application draws in the status bar: a date, a short title,
+// An item the application draws in the menu bar: a date, a short title,
 // an icon, an icon and a text. Its window is as tall as the bar and as wide
 // as setWidth() makes it; its content view draws it and takes its input, so
 // the application decides what a press does, typically opening a popup on

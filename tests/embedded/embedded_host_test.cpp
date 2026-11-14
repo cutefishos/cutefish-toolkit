@@ -1148,7 +1148,7 @@ TEST(EmbeddedHostTest, SubpixelTextOverTranslucentWindows)
 }
 
 // Text with a style (a shadow) and text marked NoSubpixelAntialias stay
-// greyscale, as on the status bar.
+// greyscale, as on the menu bar.
 TEST(EmbeddedHostTest, StyledAndMarkedTextStaysGreyscale)
 {
     const auto fringes = [](View* label) {

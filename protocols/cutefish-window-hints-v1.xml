@@ -33,7 +33,7 @@
     <request name="set_skip_taskbar">
       <description summary="exclude a surface from application presentation">
         A value of 1 excludes the window from the dock and window switcher and
-        preserves the previous status bar application context when focused.
+        preserves the previous menu bar application context when focused.
         A value of 0 restores normal policy and is the default. Keyboard focus
         and input are unaffected. The compositor may also exclude windows by role.
       </description>
@@ -177,7 +177,7 @@
     <request name="hide_application">
       <description summary="hide every window of the surface's application">
         Hides the windows of the application the surface belongs to, the way
-        the status bar's hide item does: they leave the screen without being
+        the menu bar's hide item does: they leave the screen without being
         minimized, and the application's dock item or activation brings them
         back. Windows that skip the taskbar are unaffected.
       </description>
@@ -218,7 +218,7 @@
         An output, by its wl_output name, less what the desktop's panels and
         dock reserve, in the compositor's global logical coordinates, where
         xdg_output places the output itself. primary is 1 for the primary
-        output, the one with the status bar, and 0 for the others. Sent for
+        output, the one with the menu bar, and 0 for the others. Sent for
         every output when the manager is bound, and again for an output
         whose work area or primary flag changes; an output going away is
         announced by its wl_output global alone.

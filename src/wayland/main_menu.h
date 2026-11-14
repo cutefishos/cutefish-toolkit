@@ -20,7 +20,7 @@ struct MainMenuListeners;
 
 // One ui::Menu as a cutefish_menu_v1, its rows as items and their submenus
 // mirrored in turn. Rows follow the menu on the next loop turn after it
-// changes; before the status bar opens it, the menu's onAboutToShow runs
+// changes; before the menu bar opens it, the menu's onAboutToShow runs
 // and the rows follow at once. Every row is mirrored, hidden ones too, so
 // an item's place is its row's.
 class MainMenuMirror

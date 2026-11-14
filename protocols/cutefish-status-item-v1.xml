@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <protocol name="cutefish_status_item_v1">
   <interface name="cutefish_status_item_manager_v1" version="1">
-    <description summary="items an application draws in the status bar">
-      A status item is a surface of the client's that the status bar shows
+    <description summary="items an application draws in the menu bar">
+      A status item is a surface of the client's that the menu bar shows
       among its items, at the bar's height and any width the client draws:
       an icon, a short text, a date, or an icon and a text. Pointer and touch
       input reach the surface as they reach any other; the client decides
@@ -24,7 +24,7 @@
     <request name="get_status_item">
       <description summary="make a surface a status item">
         Gives the surface the status item role. The compositor answers with
-        appearance, highlight and configure events once the status bar can
+        appearance, highlight and configure events once the menu bar can
         show the item; until the client acknowledges the first configure and
         commits a buffer, the item has no place in the bar. A surface that
         already has a role is the role error.
@@ -35,7 +35,7 @@
   </interface>
 
   <interface name="cutefish_status_item_v1" version="1">
-    <description summary="one item in the status bar">
+    <description summary="one item in the menu bar">
       The item's width is the width of its surface's content, in surface
       coordinates, as wp_viewporter or the buffer scale give it; its height is
       the one the last configure asked for. The surface is drawn at the scale

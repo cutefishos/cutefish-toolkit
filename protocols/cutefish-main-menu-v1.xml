@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <protocol name="cutefish_main_menu_v1">
   <interface name="cutefish_main_menu_manager_v1" version="1">
-    <description summary="the menus an application shows in the status bar">
+    <description summary="the menus an application shows in the menu bar">
       An application's main menu is a menu whose items are the entries the
-      status bar shows after the application's name while one of its windows
+      menu bar shows after the application's name while one of its windows
       is active; each entry opens the item's submenu. The submenu with the
       application role opens from the application's name instead of an entry
       of its own.
@@ -33,7 +33,7 @@
     </request>
     <request name="set_main_menu">
       <description summary="the main menu a window shows">
-        The menu the status bar shows while the window is active; null for
+        The menu the menu bar shows while the window is active; null for
         none. The surface has the xdg_toplevel role, else this is the
         invalid_surface error. A window keeps the menu until it is set again
         or the menu is destroyed.

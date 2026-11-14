@@ -23,7 +23,7 @@ namespace wayland {
 class MainMenuMirror;
 }
 
-// What a submenu of a main menu is for: the status bar opens the
+// What a submenu of a main menu is for: the menu bar opens the
 // application's own menu from the application's name.
 enum class MenuRole
 {
@@ -48,7 +48,7 @@ enum class MenuItemState
 // popups of their own beside their rows; only the root menu grabs, and keys
 // go to the innermost open menu.
 //
-// A menu is also a main menu, the one the status bar shows for the
+// A menu is also a main menu, the one the menu bar shows for the
 // application (Application::setMainMenu): its rows are the bar's entries and
 // their submenus open from them, onAboutToShow before each opens.
 class Menu
