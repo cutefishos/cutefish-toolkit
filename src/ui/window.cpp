@@ -1590,7 +1590,7 @@ void Window::updateHover()
         owner = owner->parent();
     if (owner != m_toolTipDismissed)
         m_toolTipDismissed = nullptr;
-    if (owner != m_toolTipOwner && owner != m_toolTipDismissed)
+    if (owner != m_toolTipOwner && (!owner || owner != m_toolTipDismissed))
         scheduleToolTip(owner);
 }
 

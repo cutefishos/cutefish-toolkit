@@ -3,10 +3,13 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "base/event_loop.h"
+#include "ui/application.h"
 #include "ui/dialog_window.h"
 #include "ui/keys.h"
 #include "ui/label.h"
@@ -562,6 +565,28 @@ TEST(WindowTest, ToolTipCentresItsText)
             window.unpinToolTip(target);
         }
     }
+}
+
+// Moving off a view with a tool tip onto one without hides the tip at once,
+// as moving onto another view with one or out of the window does.
+TEST(WindowTest, ToolTipHidesWhenThePointerLeavesItsView)
+{
+    Window window;
+    window.resize({400, 200});
+    window.setContentView(std::make_unique<View>());
+    View* target = window.contentView()->addChild<View>();
+    target->setGeometry({180, 120, 40, 40});
+    target->setToolTip("Stop");
+    window.show();
+    window.grab();
+    TestInput::movePointer(window, {200, 140});
+    cutefish::base::EventLoop& loop = Application::instance()->loop();
+    loop.startTimer(std::chrono::milliseconds(800), false, [&loop] { loop.quit(); });
+    loop.run();
+    ASSERT_NE(TestInput::toolTip(window), nullptr);
+
+    TestInput::movePointer(window, {60, 60});
+    EXPECT_EQ(TestInput::toolTip(window), nullptr);
 }
 
 // A label in no window, given a window's text layout mode, measures as the
