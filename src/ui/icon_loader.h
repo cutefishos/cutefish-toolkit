@@ -40,7 +40,8 @@ public:
     // thread, then done.
     void preloadThemeIcons(const std::vector<std::string>& names, int size, double scale,
                            std::function<void()> done);
-    // The theme searched at size and the integer scale, rasterised at pixels.
+    // The theme searched at size and the integer scale, rasterised at pixels:
+    // from the drawing the theme fitted to that many pixels when it has one.
     sk_sp<SkImage> themeIcon(const std::string& name, int size, int iconScale, int pixels);
     // The theme's icon for a name, or the file at an absolute path,
     // as a pixmap `pixels` square at a device pixel ratio of 1: drawings at

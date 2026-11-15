@@ -1214,6 +1214,25 @@ sk_sp<SkImage> IconLoader::pixmap(const std::string& name, int pixels)
     return image;
 }
 
+// A theme may keep, beside a directory, the same drawings fitted to the pixel
+// grid of one raster size: "20@30px" beside "20" holds them for 30 pixels. A
+// drawing fitted to half the pixels, or a quarter, doubles onto the grid too.
+static std::string fittedDrawing(const std::string& path, int pixels)
+{
+    const std::filesystem::path file(path);
+    for (int fit = pixels; fit > 0; fit /= 2) {
+        std::filesystem::path fitted = file.parent_path();
+        fitted += "@" + std::to_string(fit) + "px";
+        fitted /= file.filename();
+        std::error_code error;
+        if (std::filesystem::is_regular_file(fitted, error))
+            return fitted.string();
+        if (fit % 2 != 0)
+            break;
+    }
+    return path;
+}
+
 sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, int iconScale, int pixels)
 {
     const std::string key = "theme:" + Theme::current().iconTheme + "/" + name + "@" + std::to_string(size) + "x"
@@ -1223,7 +1242,7 @@ sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, int icon
     const Resolved resolved = resolve(name, size, iconScale);
     if (resolved.path.empty())
         return nullptr;
-    sk_sp<SkImage> image = rasterise(resolved.path, pixels, nullptr, resolved.plate);
+    sk_sp<SkImage> image = rasterise(fittedDrawing(resolved.path, pixels), pixels, nullptr, resolved.plate);
     if (image)
         store(key, image);
     return image;

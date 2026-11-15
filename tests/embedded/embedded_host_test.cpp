@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <optional>
 #include <poll.h>
@@ -813,6 +815,47 @@ TEST(EmbeddedHostTest, ThemeIconsTintAsSilhouettes)
     for (size_t i = 0; i < size_t(plain.height) * plain.stride; i += 4)
         coloured += plain.pixels[i] + plain.pixels[i + 1] + plain.pixels[i + 2] > 0;
     EXPECT_GT(coloured, 100);
+}
+
+// A drawing fitted to the raster's pixels, kept beside the directory, is the
+// one drawn; a raster twice its size takes it as well.
+TEST(EmbeddedHostTest, ThemeSizeIconsPreferTheFittedDrawing)
+{
+    char pattern[] = "/tmp/cutefish-fitted-icon-XXXXXX";
+    const std::filesystem::path root = mkdtemp(pattern);
+    const auto write = [&root](const char* directory, int x) {
+        std::filesystem::create_directories(root / directory);
+        std::ofstream(root / directory / "mark.svg")
+                << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">"
+                << "<rect x=\"" << x << "\" width=\"10\" height=\"20\"/></svg>";
+    };
+    write("20", 0);
+    write("20@30px", 10);
+
+    EmbeddedWindow window;
+    auto content = std::make_unique<Free>();
+    ThemeIcon* icon = content->addChild<ThemeIcon>((root / "20" / "mark.svg").string(), 20);
+    icon->setThemeSize(20);
+    icon->setColor(Color{0, 0, 0, 255});
+    icon->setGeometry({0, 0, 20, 20});
+    window.setContentView(std::move(content));
+    window.setSize({20, 20});
+    const auto inked = [&window](double x) {
+        const EmbeddedWindow::Frame& frame = window.render();
+        const int column = int(frame.width * x);
+        return frame.pixels[size_t(frame.height / 2) * frame.stride + size_t(column) * 4 + 3] > 0;
+    };
+    EXPECT_TRUE(inked(0.25));
+    EXPECT_FALSE(inked(0.75));
+    for (double scale : {1.5, 3.0}) {
+        window.setScale(scale);
+        EXPECT_FALSE(inked(0.25)) << scale;
+        EXPECT_TRUE(inked(0.75)) << scale;
+    }
+    window.setScale(1.25);
+    EXPECT_TRUE(inked(0.25));
+    EXPECT_FALSE(inked(0.75));
+    std::filesystem::remove_all(root);
 }
 
 // A miss in the theme's icon-theme.cache must leave the cache usable: the
