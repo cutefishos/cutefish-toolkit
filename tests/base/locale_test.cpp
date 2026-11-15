@@ -392,6 +392,16 @@ TEST(LocaleTest, TerritoryName)
     EXPECT_EQ(Locale::territoryName("CI"), "Côte d’Ivoire");
 }
 
+TEST(LocaleTest, LanguageNameStartsWithACapital)
+{
+    EXPECT_EQ(Locale::languageName("pl_PL", "pl_PL"), "Polski (Polska)");
+    EXPECT_EQ(Locale::languageName("pl", "pl"), "Polski");
+    EXPECT_EQ(Locale::languageName("es_ES", "es_ES"), "Español (España)");
+    EXPECT_EQ(Locale::languageName("cs_CZ", "en_US"), "Czech (Czechia)");
+    EXPECT_EQ(Locale::languageName("zh_Hans", "zh_Hans"), "中文（简体）");
+    EXPECT_EQ(Locale::languageName("zh_Hans", "zh_Hans", Locale::LanguageNames::Dialect), "简体中文");
+}
+
 TEST(LocaleTest, RegionalFormatsPairLanguageAndRegion)
 {
     const Locale japanese = Locale::regional("ja_JP", {.region = "SG"});

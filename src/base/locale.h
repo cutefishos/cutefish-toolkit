@@ -109,6 +109,13 @@ public:
         Narrow,
     };
 
+    enum class LanguageNames {
+        // "Chinese (Simplified)", "English (United States)"
+        Standard,
+        // "Simplified Chinese", "American English"
+        Dialect,
+    };
+
     enum class DataSizeFormat {
         // 1024-based with KiB, MiB, ...
         Iec,
@@ -213,6 +220,10 @@ public:
 
     // The English name of an ISO 3166 code, such as "SG" for "Singapore".
     static std::string territoryName(std::string_view code);
+    // A language's name as a list or menu shows it, in the language `in`
+    // and starting with a capital letter: "pl" in "pl" is "Polski".
+    static std::string languageName(std::string_view language, std::string_view in,
+                                    LanguageNames names = LanguageNames::Standard);
 
     struct Data;
 

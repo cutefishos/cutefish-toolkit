@@ -22,6 +22,7 @@
 #include <unicode/ucol.h>
 #include <unicode/udat.h>
 #include <unicode/udata.h>
+#include <unicode/uldnames.h>
 #include <unicode/uloc.h>
 #include <unicode/ulocdata.h>
 #include <unicode/measunit.h>
@@ -1459,6 +1460,31 @@ std::string Locale::territoryName(std::string_view code)
     UErrorCode status = U_ZERO_ERROR;
     const int32_t length = uloc_getDisplayCountry(id.c_str(), "en", buffer, 128, &status);
     return U_FAILURE(status) ? std::string() : toUtf8(buffer, length);
+}
+
+std::string Locale::languageName(std::string_view language, std::string_view in, LanguageNames names)
+{
+    const std::string id(language);
+    const std::string displayId(in);
+    UDisplayContext contexts[] = {
+            names == LanguageNames::Dialect ? UDISPCTX_DIALECT_NAMES : UDISPCTX_STANDARD_NAMES,
+            UDISPCTX_CAPITALIZATION_FOR_UI_LIST_OR_MENU,
+    };
+    UErrorCode status = U_ZERO_ERROR;
+    ULocaleDisplayNames* displayNames = uldn_openForContext(displayId.c_str(), contexts, 2, &status);
+    UChar buffer[256];
+    int32_t length = 0;
+    if (U_SUCCESS(status))
+        length = uldn_localeDisplayName(displayNames, id.c_str(), buffer, 256, &status);
+    uldn_close(displayNames);
+    if (U_FAILURE(status) || length <= 0)
+        return id;
+
+    // CLDR leaves some languages, Polish among them, lower case in UI lists.
+    int32_t rest = 0;
+    UChar32 first;
+    U16_NEXT(buffer, rest, length, first);
+    return fromCodePoint(u_totitle(first)) + toUtf8(buffer + rest, length - rest);
 }
 
 } // namespace cutefish::base
