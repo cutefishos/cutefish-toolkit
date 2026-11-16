@@ -232,6 +232,9 @@ public:
     // pixels at the scale (the window's when 0), transparent around them.
     // Layers are drawn flat, without their transforms.
     Bitmap grab(double scale = 0);
+    // Drawn moved by a shift in logical pixels, such as a fraction of a
+    // device pixel to land text on the rows it takes in place.
+    Bitmap grab(double scale, PointF shift);
 
     PointF mapFromWindow(PointF point) const;
     PointF mapToWindow(PointF point) const;

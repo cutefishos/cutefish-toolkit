@@ -117,6 +117,7 @@ struct FastBlurredCopy::Cache
     sk_sp<SkImage> image;
     double scale = 0;
     SizeF size;
+    PointF phase;
     bool stale = true;
 };
 
@@ -171,14 +172,21 @@ void FastBlurredCopy::paint(Painter& painter)
     const SizeF size = geometry().size();
     if (size.width <= 0 || size.height <= 0)
         return;
+    // The image lands on whole device pixels; the content is drawn into it
+    // at the remainder, so its text rounds onto the rows it would in place.
+    const PointF origin = painter.offset();
+    const double left = std::round(origin.x * scale);
+    const double top = std::round(origin.y * scale);
+    const PointF phase {origin.x - left / scale, origin.y - top / scale};
     Cache& cache = *m_cache;
-    if (cache.stale || !cache.image || scale != cache.scale || !(size == cache.size)) {
+    if (cache.stale || !cache.image || scale != cache.scale || !(size == cache.size) || !(phase == cache.phase)) {
         cache.stale = false;
         cache.scale = scale;
         cache.size = size;
+        cache.phase = phase;
         cache.image.reset();
         // The texture is the item's: whole logical pixels, then the scale.
-        const Bitmap grabbed = m_content->grab(scale);
+        const Bitmap grabbed = m_content->grab(scale, phase);
         Bitmap texture(textureLength(size.width, scale), textureLength(size.height, scale),
                        Bitmap::Format::Argb32Premultiplied);
         for (int y = 0; y < std::min(texture.height(), grabbed.height()); ++y) {
@@ -191,11 +199,9 @@ void FastBlurredCopy::paint(Painter& painter)
     }
     if (!cache.image)
         return;
-    const PointF origin = painter.offset();
     SkPaint paint;
     paint.setAlphaf(float(painter.opacity()));
-    painter.canvas()->drawImage(cache.image, SkScalar(std::round(origin.x * scale)),
-                                SkScalar(std::round(origin.y * scale)), SkSamplingOptions(), &paint);
+    painter.canvas()->drawImage(cache.image, SkScalar(left), SkScalar(top), SkSamplingOptions(), &paint);
 }
 
 } // namespace cutefish::ui

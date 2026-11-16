@@ -625,6 +625,11 @@ void View::paintFlat(View* view, Painter& painter)
 
 Bitmap View::grab(double scale)
 {
+    return grab(scale, {});
+}
+
+Bitmap View::grab(double scale, PointF shift)
+{
     if (scale <= 0)
         scale = window() ? window()->scale() : 1.0;
     const int width = int(std::ceil(m_geometry.width * scale));
@@ -639,7 +644,7 @@ Bitmap View::grab(double scale)
         return {};
     surface->getCanvas()->clear(SK_ColorTRANSPARENT);
     Painter painter(surface->getCanvas(), scale);
-    painter.translate({-m_geometry.x, -m_geometry.y});
+    painter.translate({shift.x - m_geometry.x, shift.y - m_geometry.y});
     paintFlat(this, painter);
     return bitmap;
 }
