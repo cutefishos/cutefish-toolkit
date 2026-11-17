@@ -481,10 +481,8 @@ std::shared_ptr<const DesktopEntry> ApplicationRegistry::resolveWindow(const std
                                                                        const std::string& executablePath,
                                                                        const std::string& executableName) const
 {
-    if (m_bundleHandler) {
-        if (const std::string bundlePath = bundle::bundleOfProgram(executablePath); !bundlePath.empty())
-            return byPath(bundlePath);
-    }
+    if (const std::string bundlePath = bundle::bundleOfProgram(executablePath); !bundlePath.empty())
+        return byPath(bundlePath);
 
     const std::string wantedAppId = normalized(appId);
     const std::string wantedClass = normalized(windowClass);

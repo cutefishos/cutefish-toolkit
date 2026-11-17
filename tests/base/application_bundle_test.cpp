@@ -258,6 +258,9 @@ TEST(ApplicationBundleTest, ListsInstalledBundlesWhenAnEntryRunsThem)
     ASSERT_TRUE(registry->byPath(installed));
     EXPECT_EQ(registry->byPath(installed)->name, "Editor");
     EXPECT_EQ(registry->byPath(installed)->exec, "");
+    // One still running is its window's application all the same.
+    EXPECT_EQ(registry->resolveWindow("org.example.Editor", "", installed + "/Contents/MacOS/Editor", "Editor"),
+              registry->byPath(installed));
 
     ASSERT_TRUE(file::writeAtomically(applications.path() + "/runner.desktop", kHandler));
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
