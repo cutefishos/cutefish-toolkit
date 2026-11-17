@@ -45,6 +45,10 @@ public:
     // The group's hover, set by the owner of the neighbouring controls; only
     // colored controls light up with their row.
     void setGroupHovered(bool hovered);
+    // One square of the plate its parent paints, as in NavigationButtons:
+    // shaded under the pointer within the plate's round ends, its glyph in
+    // the window controls' ink.
+    void setSegment(bool segment);
 
     SizeF sizeHint() const override { return {m_size, m_size}; }
     RectF visualRect() const override;
@@ -57,6 +61,7 @@ protected:
     virtual std::string currentArtwork() const { return m_artwork; }
     void paint(Painter& painter) override;
     void paintWindowControl(Painter& painter);
+    void paintSegment(Painter& painter);
     void pointerEnter() override;
     void pointerLeave() override;
     void pointerPress(const PointerEvent& event) override;
@@ -73,6 +78,7 @@ private:
     bool m_highlighted = false;
     bool m_windowControl = false;
     bool m_groupHovered = false;
+    bool m_segment = false;
     std::optional<Color> m_glyphColor;
     PlateAlphas m_light = {0.11, 0.21};
     PlateAlphas m_dark = {0.12, 0.06};

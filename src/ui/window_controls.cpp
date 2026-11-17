@@ -25,34 +25,26 @@ static constexpr double kRim = 0.5;
 static constexpr double kShadowSigma = kButton * 0.1;
 static constexpr double kShadowOffset = kButton * 0.06;
 
-// A control: a plate barely apart from the window, lit a
-// little in its middle and along the inside of its top and bottom edges, a
-// hairline rim darkest at the sides, and a faint shadow under it.
-static void paintPlate(Painter& painter, const RectF& bounds, const State& state)
+// The plate under a control or a group of them: barely apart from the
+// window, lit a little in its middle and along the inside of its top and
+// bottom edges, a hairline rim darkest at the sides, and a faint shadow under
+// it. `overlay` darkens it, or lightens it in dark mode, by that alpha.
+static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, double overlay)
 {
-    // A square of whole device pixels, so the plate comes out round.
-    const double scale = painter.scale();
-    const Rect device = painter.snappedRect({bounds.x + std::round((bounds.width - kButton) / 2),
-                                             bounds.y + std::round((bounds.height - kButton) / 2), kButton, kButton});
-    const PointF offset = painter.offset();
-    const RectF plate {device.x / scale - offset.x, device.y / scale - offset.y, device.width / scale,
-                       device.height / scale};
-    const double radius = plate.width / 2;
+    const double radius = plate.height / 2;
     const Color white = Color::rgb(0xFFFFFF);
     const Color black = Color::rgb(0x000000);
     const auto vertical = [&plate](std::vector<GradientStop> stops) {
         return LinearGradient {{plate.x, plate.y}, {plate.x, plate.bottom()}, std::move(stops)};
     };
 
-    painter.save();
-    painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
     painter.drawOuterShadow(plate, radius, Corners::Circular, kShadowSigma,
-                            black.withAlpha(state.dark ? 0.2 : 0.04), {0, kShadowOffset});
+                            black.withAlpha(dark ? 0.2 : 0.04), {0, kShadowOffset});
 
     painter.save();
     painter.clipRoundedRect(plate, radius);
     // Lightest in the middle of its lower half.
-    const double body = state.dark ? 0.25 : 1.0;
+    const double body = dark ? 0.25 : 1.0;
     painter.fillRoundedRect(plate, radius,
                             LinearGradient {{plate.x, plate.y},
                                             {plate.right(), plate.y},
@@ -61,7 +53,7 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
                                              {1, white.withAlpha(body * 0.04)}}});
     painter.fillRoundedRect(plate, radius,
                             vertical({{0.3, white.withAlpha(0)}, {0.75, white.withAlpha(body * 0.32)}}));
-    const double shine = state.dark ? 0.3 : 1.0;
+    const double shine = dark ? 0.3 : 1.0;
     painter.fillRoundedRect(plate, radius,
                             vertical({{0, white.withAlpha(shine)},
                                       {0.035, white.withAlpha(shine)},
@@ -73,25 +65,53 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
                                       {0.955, white.withAlpha(shine * 0.6)},
                                       {0.97, white.withAlpha(shine)},
                                       {1, white.withAlpha(shine)}}));
-    if (state.enabled && (state.hovered || state.pressed)) {
-        const Color overlay = state.dark ? white : black;
-        painter.fillRoundedRect(plate, radius, vertical({{0, overlay.withAlpha(state.pressed ? 0.08 : 0.04)},
-                                                         {1, overlay.withAlpha(state.pressed ? 0.08 : 0.04)}}));
+    if (overlay > 0) {
+        const Color tint = dark ? white : black;
+        painter.fillRoundedRect(plate, radius, vertical({{0, tint.withAlpha(overlay)}, {1, tint.withAlpha(overlay)}}));
     }
     painter.restore();
 
     // One device pixel wide.
-    const double hairline = 1 / scale;
+    const double hairline = 1 / painter.scale();
     Path rim;
     rim.setFillRule(Path::FillRule::EvenOdd);
-    rim.addEllipse(plate);
-    rim.addEllipse(plate.adjusted(hairline, hairline, -hairline, -hairline));
-    const Color edge = state.dark ? white : black;
-    painter.fillPath(rim, vertical({{0, edge.withAlpha(state.dark ? 0.2 : 0.1)},
-                                    {0.5, edge.withAlpha(state.dark ? 0.12 : 0.32)},
-                                    {1, edge.withAlpha(state.dark ? 0.08 : 0.14)}}));
+    if (plate.width == plate.height) {
+        rim.addEllipse(plate);
+        rim.addEllipse(plate.adjusted(hairline, hairline, -hairline, -hairline));
+    } else {
+        rim.addRoundedRect(plate, radius, radius);
+        rim.addRoundedRect(plate.adjusted(hairline, hairline, -hairline, -hairline), radius - hairline,
+                           radius - hairline);
+    }
+    const Color edge = dark ? white : black;
+    painter.fillPath(rim, vertical({{0, edge.withAlpha(dark ? 0.2 : 0.1)},
+                                    {0.5, edge.withAlpha(dark ? 0.12 : 0.32)},
+                                    {1, edge.withAlpha(dark ? 0.08 : 0.14)}}));
+}
 
-    const Color ink = (state.dark ? white : Color::rgb(0x0C0C0C)).withAlpha(state.active || state.hovered ? 1.0 : 0.5);
+// `bounds` on whole device pixels, in logical coordinates.
+static RectF snappedPlate(Painter& painter, const RectF& bounds)
+{
+    const double scale = painter.scale();
+    const Rect device = painter.snappedRect(bounds);
+    const PointF offset = painter.offset();
+    return {device.x / scale - offset.x, device.y / scale - offset.y, device.width / scale, device.height / scale};
+}
+
+static void paintPlate(Painter& painter, const RectF& bounds, const State& state)
+{
+    // A square of whole device pixels, so the plate comes out round.
+    const RectF plate = snappedPlate(painter, {bounds.x + std::round((bounds.width - kButton) / 2),
+                                               bounds.y + std::round((bounds.height - kButton) / 2), kButton,
+                                               kButton});
+    const Rect device = painter.deviceRect(plate);
+
+    painter.save();
+    painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
+    const bool lit = state.enabled && (state.hovered || state.pressed);
+    paintPlateBody(painter, plate, state.dark, lit ? (state.pressed ? 0.08 : 0.04) : 0);
+
+    const Color ink = inkColor(state.dark, state.active || state.hovered);
     if (state.artwork == "dialog-close") {
         sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-dialog-close", device.width, ink);
         painter.drawImage(image.get(), device.x, device.y);
@@ -144,6 +164,16 @@ void paint(Painter& painter, const RectF& bounds, const State& state)
         paintColored(painter, bounds, state);
     else
         paintPlate(painter, bounds, state);
+}
+
+Color inkColor(bool dark, bool strong)
+{
+    return (dark ? Color::rgb(0xFFFFFF) : Color::rgb(0x0C0C0C)).withAlpha(strong ? 1.0 : 0.5);
+}
+
+void paintGroupPlate(Painter& painter, const RectF& bounds, bool dark)
+{
+    paintPlateBody(painter, snappedPlate(painter, bounds), dark, 0);
 }
 
 RectF visualRect(const RectF& bounds, const State& state)

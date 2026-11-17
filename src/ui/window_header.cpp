@@ -162,6 +162,11 @@ void WindowHeader::setButtonsCentered(bool centered)
     requestLayout();
 }
 
+double WindowHeader::buttonsTop() const
+{
+    return m_zone->geometry().y;
+}
+
 void WindowHeader::layout()
 {
     // A RowLayout centres on whole pixels.

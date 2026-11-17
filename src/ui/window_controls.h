@@ -49,6 +49,13 @@ void paint(Painter& painter, const RectF& bounds, const State& state);
 // past them.
 RectF visualRect(const RectF& bounds, const State& state);
 
+// The plates' glyph colour; `strong` while the window is active or the
+// pointer is on the control.
+Color inkColor(bool dark, bool strong);
+// One plate across `bounds`, round at its ends, for buttons that share it;
+// its shadow reaches as far past them as a control's does.
+void paintGroupPlate(Painter& painter, const RectF& bounds, bool dark);
+
 // A control `kButton` logical pixels square, `scale` device pixels to one,
 // rendered on its own with `kShadowMargin` all round, into a bitmap of
 // round((kButton + 2 * kShadowMargin) * scale) pixels.

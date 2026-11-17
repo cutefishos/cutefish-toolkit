@@ -54,6 +54,9 @@ public:
     void setContentUnderButtons(bool under);
     // The width taken by the margin and the buttons, as of the last layout.
     double leadingInset() const { return m_leadingInset; }
+    // The buttons' top edge, as of the last layout, for content that lines up
+    // with them.
+    double buttonsTop() const;
 
     SizeF sizeHint() const override { return {0, m_height}; }
     bool acceptsPointer() const override { return true; }
