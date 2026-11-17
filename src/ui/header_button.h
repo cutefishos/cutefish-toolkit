@@ -40,13 +40,14 @@ public:
     // The glyph or artwork in this colour instead of the header mode's tint;
     // the plates keep the tint.
     void setGlyphColor(std::optional<Color> color);
-    // A window control: a grey round plate at rest, and the artwork only while
-    // the pointer is over the button or its group.
+    // A window control, drawn by window_controls in the theme's style.
     void setWindowControl(bool windowControl);
-    // The group's hover, set by the owner of the neighbouring controls.
+    // The group's hover, set by the owner of the neighbouring controls; only
+    // colored controls light up with their row.
     void setGroupHovered(bool hovered);
 
     SizeF sizeHint() const override { return {m_size, m_size}; }
+    RectF visualRect() const override;
     bool acceptsPointer() const override { return true; }
 
     std::function<void()> onClicked;

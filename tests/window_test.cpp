@@ -142,11 +142,18 @@ TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)
 
 // FishUI puts the buttons' row in a RowLayout cell after a start margin item:
 // the row starts on a whole logical pixel, a half rounding up, while the
-// buttons keep the fractional top margin.
+// buttons keep the fractional top margin. Plates sit 6 apart, colored dots 1.
 TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
 {
+    const Theme saved = Theme::current();
+    for (const bool colored : {false, true})
     for (const auto& [margin, rowX] : {std::pair{4.0, 9.0}, std::pair{9.375, 14.0}, std::pair{8.6, 14.0},
                                        std::pair{8.5, 14.0}, std::pair{8.4, 13.0}}) {
+        Theme theme = saved;
+        theme.coloredWindowControls = colored;
+        Theme::setCurrent(theme);
+        const double spacing = colored ? 1 : 6;
+        const double row = 3 * 22 + 2 * spacing;
         Window window;
         auto column = std::make_unique<Column>();
         WindowHeader* header = column->addChild<WindowHeader>(48);
@@ -169,13 +176,15 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
             buttons.push_back(child->geometry());
         ASSERT_EQ(buttons.size(), 3u);
         SCOPED_TRACE(margin);
-        EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 5, 68, 22}));
+        SCOPED_TRACE(colored);
+        EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 5, row, 22}));
         EXPECT_EQ(buttons[0], (RectF{0, 0, 22, 22}));
-        EXPECT_EQ(buttons[1].x, 23);
-        EXPECT_EQ(buttons[2].x, 46);
-        EXPECT_EQ(content->geometry().x, rowX + 68 + 1);
-        EXPECT_EQ(content->geometry().width, 1100 - (rowX + 68 + 1));
+        EXPECT_EQ(buttons[1].x, 22 + spacing);
+        EXPECT_EQ(buttons[2].x, 44 + 2 * spacing);
+        EXPECT_EQ(content->geometry().x, rowX + row + spacing);
+        EXPECT_EQ(content->geometry().width, 1100 - (rowX + row + spacing));
     }
+    Theme::setCurrent(saved);
 }
 
 // As Qt's ShortcutOverride: a focused text field keeps plain and Shift keys

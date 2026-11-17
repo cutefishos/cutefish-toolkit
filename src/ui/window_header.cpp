@@ -9,6 +9,7 @@
 
 #include "ui/application.h"
 #include "ui/header_button.h"
+#include "ui/theme.h"
 #include "ui/window.h"
 #include "ui/window_controls.h"
 
@@ -18,7 +19,6 @@ static constexpr double kButton = window_controls::kButton;
 // The controls sit in the 32-pixel slot the apps centre their margins on.
 static constexpr double kSlot = 32;
 static constexpr double kSlotInset = (kSlot - kButton) / 2;
-static constexpr double kButtonSpacing = window_controls::kSpacing;
 
 namespace {
 
@@ -166,10 +166,12 @@ void WindowHeader::layout()
 {
     // A RowLayout centres on whole pixels.
     double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin + kSlotInset;
+    const double spacing = Theme::current().coloredWindowControls ? window_controls::kColoredSpacing
+                                                                  : window_controls::kSpacing;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())
-            row += (row > 0 ? kButtonSpacing : 0) + kButton;
+            row += (row > 0 ? spacing : 0) + kButton;
     }
     // FishUI's RowLayout of a start margin item and the buttons' row: each
     // cell starts on a whole logical pixel, halves rounding up, so a
@@ -185,9 +187,9 @@ void WindowHeader::layout()
         if (!button->isVisible())
             continue;
         button->setGeometry({x, 0, kButton, kButton});
-        x += kButton + kButtonSpacing;
+        x += kButton + spacing;
     }
-    m_leadingInset = rowX + row + kButtonSpacing;
+    m_leadingInset = rowX + row + spacing;
     if (!m_content)
         return;
     // The content keeps the spacing after the row, as the ports expect.

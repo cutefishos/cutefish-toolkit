@@ -117,16 +117,45 @@ TEST(WindowHintsTest, CenteredHeaderButtons)
     window.show();
     window.grab();
     // Close, minimize and maximize from the start, 9 px from it, 11 px down,
-    // in one row hovered as a whole.
+    // 6 apart.
     const std::string dump = window.layoutDump();
-    EXPECT_NE(dump.find("logical 9 11 68 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("logical 9 11 78 22"), std::string::npos) << dump;
     EXPECT_NE(dump.find("device 9 11 22 22"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 32 11 22 22"), std::string::npos) << dump;
-    EXPECT_NE(dump.find("device 55 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 37 11 22 22"), std::string::npos) << dump;
+    EXPECT_NE(dump.find("device 65 11 22 22"), std::string::npos) << dump;
 }
 
-TEST(WindowHintsTest, WindowControlGlyphsShowAcrossTheWholeRow)
+TEST(WindowHintsTest, WindowControlPlatesHoverOneAtATime)
 {
+    Window window;
+    auto column = std::make_unique<Column>();
+    WindowHeader* header = column->addChild<WindowHeader>(44);
+    header->setButtonsCentered(true);
+    header->setLayoutHints({.fillWidth = true});
+    window.resize({300, 200});
+    window.setContentView(std::move(column));
+    window.show();
+    // The close and minimize plates beside their glyphs.
+    const auto plates = [&] {
+        const Image image = window.grab();
+        return std::pair{int(image.pixel(13, 22).r), int(image.pixel(41, 22).r)};
+    };
+    const auto [closeRest, minimizeRest] = plates();
+    TestInput::movePointer(window, {48, 22});
+    const auto [close, minimize] = plates();
+    EXPECT_EQ(close, closeRest);
+    EXPECT_LT(minimize, minimizeRest - 4);
+    // The gap between them hovers neither.
+    TestInput::movePointer(window, {34, 22});
+    EXPECT_EQ(plates(), std::pair(closeRest, minimizeRest));
+}
+
+TEST(WindowHintsTest, ColoredWindowControlGlyphsShowAcrossTheWholeRow)
+{
+    const Theme saved = Theme::current();
+    Theme theme = saved;
+    theme.coloredWindowControls = true;
+    Theme::setCurrent(theme);
     Window window;
     auto column = std::make_unique<Column>();
     WindowHeader* header = column->addChild<WindowHeader>(44);
@@ -151,6 +180,7 @@ TEST(WindowHintsTest, WindowControlGlyphsShowAcrossTheWholeRow)
     }
     TestInput::movePointer(window, {200, 22});
     EXPECT_EQ(centres(), std::pair(closeRest, minimizeRest));
+    Theme::setCurrent(saved);
 }
 
 TEST(WindowHintsTest, ScrollBarDarkModeOverridesTheTheme)
