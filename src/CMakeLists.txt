@@ -93,6 +93,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/file_chooser.h
     ui/header_backdrop.h
     ui/header_button.h
+    ui/header_button_group.h
     ui/icon.h
     ui/icon_image.h
     ui/image.h
@@ -177,6 +178,7 @@ add_library(cutefish-toolkit SHARED
     ui/file_drop_area.cpp
     ui/header_backdrop.cpp
     ui/header_button.cpp
+    ui/header_button_group.cpp
     ui/icon.cpp
     ui/icon_image.cpp
     ui/icon_loader.cpp

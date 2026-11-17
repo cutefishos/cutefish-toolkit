@@ -3,28 +3,19 @@
 
 #pragma once
 
-#include "ui/view.h"
+#include "ui/header_button_group.h"
 
 namespace cutefish::ui {
 
-class HeaderButton;
-
 // Back and forward for a header, one square each of a single plate in the
 // window controls' style.
-class NavigationButtons : public View
+class NavigationButtons : public HeaderButtonGroup
 {
 public:
     NavigationButtons();
 
     HeaderButton* back() const { return m_back; }
     HeaderButton* forward() const { return m_forward; }
-
-    SizeF sizeHint() const override;
-    RectF visualRect() const override;
-
-protected:
-    void layout() override;
-    void paint(Painter& painter) override;
 
 private:
     HeaderButton* m_back;
