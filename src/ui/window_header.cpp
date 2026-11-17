@@ -126,6 +126,18 @@ void WindowHeader::setCloseVisible(bool visible)
     m_close->setVisible(visible);
 }
 
+void WindowHeader::setCloseOnly(bool closeOnly)
+{
+    if (closeOnly == m_closeOnly)
+        return;
+    m_closeOnly = closeOnly;
+    m_close->setArtwork(closeOnly ? "dialog-close" : "close");
+    m_minimize->setVisible(!closeOnly);
+    m_maximize->setVisible(!closeOnly);
+    m_maximize->setEnabled(!closeOnly);
+    requestLayout();
+}
+
 void WindowHeader::setContentUnderButtons(bool under)
 {
     if (under == m_contentUnderButtons)
@@ -153,7 +165,7 @@ void WindowHeader::setButtonsCentered(bool centered)
 void WindowHeader::layout()
 {
     // A RowLayout centres on whole pixels.
-    const double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin + kSlotInset;
+    double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin + kSlotInset;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())
@@ -162,7 +174,11 @@ void WindowHeader::layout()
     // FishUI's RowLayout of a start margin item and the buttons' row: each
     // cell starts on a whole logical pixel, halves rounding up, so a
     // fractional margin moves the row by up to half a pixel.
-    const double rowX = std::floor(m_buttonMargin + 0.5) + kSlotInset;
+    double rowX = std::floor(m_buttonMargin + 0.5) + kSlotInset;
+    if (m_closeOnly) {
+        rowX = window_controls::kDialogCloseInset;
+        top = window_controls::kDialogCloseInset;
+    }
     m_zone->setGeometry({rowX, top, row, kButton});
     double x = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {

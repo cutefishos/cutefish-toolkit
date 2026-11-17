@@ -40,6 +40,9 @@ public:
     // does nothing, for windows of a fixed size.
     void setMaximizeEnabled(bool enabled);
     void setCloseVisible(bool visible);
+    // A dialog's controls: the close button alone, a round plate always
+    // showing its cross, in the window's corner whatever the margin.
+    void setCloseOnly(bool closeOnly);
     // From the top and the start, 4 by default and 8 in dialogs.
     void setButtonMargin(double margin);
     // The buttons centred in the bar's height, with no top margin, keeping the
@@ -64,6 +67,7 @@ private:
     double m_buttonMargin = 4;
     bool m_buttonsCentered = false;
     bool m_contentUnderButtons = false;
+    bool m_closeOnly = false;
     double m_leadingInset = 0;
     View* m_content = nullptr;
     View* m_zone;

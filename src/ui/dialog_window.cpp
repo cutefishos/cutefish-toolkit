@@ -25,17 +25,12 @@ namespace cutefish::ui {
 static constexpr double kHeaderHeight = 44;
 static constexpr double kButtonMargin = 8;
 static constexpr double kButton = 32;
-// With the window controls, the header is a title bar: 32 high, the controls'
-// first centre 16 in from the top and the start, the title centred on the
-// window in a smaller size.
-static constexpr double kControlsMargin = 0;
-static constexpr double kControlsHeaderHeight = 32;
+// With the close control, the header is a title bar, the title centred on
+// the window in a smaller size, on the close control's line.
+static constexpr double kControlsHeaderHeight = window_controls::kDialogHeaderHeight;
 static constexpr double kControlsTitleSize = 12;
-// The content sits a little under the title bar.
-static constexpr double kControlsContentGap = 4;
-// The three window controls, inset in the buttons' line as one control in a
-// 32-pixel slot.
-static constexpr double kControlsWidth = window_controls::kRowWidth + (kButton - window_controls::kButton);
+static constexpr double kControlsEnd = window_controls::kDialogCloseInset + window_controls::kButton;
+static constexpr double kControlsCentre = window_controls::kDialogCloseInset + window_controls::kButton / 2;
 static constexpr double kContentPadding = 16;
 static constexpr double kTitleSize = 14;
 static constexpr double kButtonTextSize = 13;
@@ -218,9 +213,7 @@ public:
         , m_back(addChild<HeaderButton>(std::string(), kButton))
         , m_title(addChild<Label>(std::move(title)))
     {
-        m_header->setButtonMargin(kControlsMargin);
-        m_header->setMinimizeEnabled(false);
-        m_header->setMaximizeEnabled(false);
+        m_header->setCloseOnly(true);
         m_title->setFontSize(kControlsTitleSize);
         m_title->setTextAlignment(Label::TextAlignment::Center);
         m_title->setVerticallyCentered(true);
@@ -237,8 +230,6 @@ public:
     void setControlsVisible(bool visible)
     {
         m_header->setCloseVisible(visible);
-        m_header->setMinimizeVisible(visible);
-        m_header->setMaximizeVisible(visible);
         m_controlsVisible = visible;
         m_title->setFontSize(visible ? kControlsTitleSize : kTitleSize);
         m_title->setTextAlignment(visible ? Label::TextAlignment::Center : Label::TextAlignment::Left);
@@ -273,14 +264,14 @@ protected:
     void layout() override
     {
         const double width = geometry().width;
-        // The title is centred on the buttons' line.
+        // The title and the back button are centred on the close control's line.
         const double header = headerHeight();
-        const double line = m_controlsVisible ? (header - kButton) / 2 : kButtonMargin;
+        const double line = m_controlsVisible ? kControlsCentre - kButton / 2 : kButtonMargin;
         double x = kButtonMargin;
         double left = kContentPadding;
         m_header->setGeometry({0, 0, width, header});
         if (m_controlsVisible) {
-            x = kControlsMargin + kControlsWidth + Theme::current().smallSpacing;
+            x = kControlsEnd + Theme::current().smallSpacing;
             left = x;
         }
         if (m_back->isVisible()) {
@@ -307,7 +298,7 @@ protected:
 
 private:
     double headerHeight() const { return m_controlsVisible ? kControlsHeaderHeight : kHeaderHeight; }
-    double contentTop() const { return m_controlsVisible ? kControlsHeaderHeight + kControlsContentGap : kHeaderHeight; }
+    double contentTop() const { return headerHeight(); }
 
     DialogWindow* m_dialog;
     WindowHeader* m_header;
@@ -539,9 +530,7 @@ public:
         addChild(std::move(content));
         if (controls) {
             m_header = addChild<WindowHeader>(kControlsHeaderHeight);
-            m_header->setButtonMargin(kControlsMargin);
-            m_header->setMinimizeEnabled(false);
-            m_header->setMaximizeEnabled(false);
+            m_header->setCloseOnly(true);
         }
     }
 

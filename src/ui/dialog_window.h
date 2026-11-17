@@ -115,8 +115,8 @@ public:
     }
     // A back button, before the title, for pages that replace each other.
     void setBackVisible(bool visible);
-    // The window controls, the close one alone enabled; hidden for dialogs
-    // whose own Cancel or Close button closes them.
+    // The close control; hidden for dialogs whose own Cancel or Close
+    // button closes them.
     void setCloseVisible(bool visible);
     // The whole window's height, the content taking what the header and the
     // padding leave; 0, the default, takes the content's own height.

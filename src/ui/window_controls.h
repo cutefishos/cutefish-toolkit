@@ -19,10 +19,15 @@ namespace window_controls {
 inline constexpr double kButton = 22;
 inline constexpr double kSpacing = 1;
 inline constexpr double kRowWidth = 3 * kButton + 2 * kSpacing;
+// A dialog's lone close control sits as far from the top as from the start,
+// in a title bar that leaves the same room under it; the title shares its line.
+inline constexpr double kDialogCloseInset = 10;
+inline constexpr double kDialogHeaderHeight = 2 * kDialogCloseInset + kButton;
 
 struct State
 {
-    // "close", "minimize", "maximize" or "restore".
+    // "close", "minimize", "maximize" or "restore"; "dialog-close" is a
+    // dialog's only control, a light plate always showing its cross.
     std::string artwork;
     // The header's mode.
     bool dark = false;

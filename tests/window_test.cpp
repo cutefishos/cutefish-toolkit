@@ -435,9 +435,9 @@ TEST(WindowTest, DialogTakesTheHeightOfItsContent)
     column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
     dialog.setContentView(std::move(column));
     dialog.show();
-    // A 32-pixel title bar with the window controls, 4 under it the content,
+    // A 42-pixel title bar with the close control, the content under it,
     // 16 below it.
-    EXPECT_EQ(dialog.window()->size().height, 32 + 4 + 100 + 16);
+    EXPECT_EQ(dialog.window()->size().height, 42 + 100 + 16);
     EXPECT_EQ(dialog.window()->size().width, 320);
 }
 
@@ -473,8 +473,8 @@ TEST(WindowTest, DialogOfAFixedHeightGivesTheRestToItsContent)
     dialog.show();
     dialog.window()->grab();
     EXPECT_EQ(dialog.window()->size().height, 400);
-    EXPECT_EQ(content->geometry().y, 32 + 4);
-    EXPECT_EQ(content->geometry().height, 400 - 32 - 4 - 16);
+    EXPECT_EQ(content->geometry().y, 42);
+    EXPECT_EQ(content->geometry().height, 400 - 42 - 16);
 
     dialog.setCloseVisible(false);
     dialog.window()->grab();

@@ -11,6 +11,7 @@
 #include "base/event_loop.h"
 #include "ui/about_dialog.h"
 #include "ui/application.h"
+#include "ui/header_button.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/test_input.h"
@@ -88,11 +89,23 @@ TEST(AboutDialogTest, LaysOutTall)
 
     const std::vector<WindowHeader*> headers = viewsOf<WindowHeader>(window);
     ASSERT_EQ(headers.size(), 1u);
-    EXPECT_EQ(headers[0]->geometry(), (RectF{0, 0, 280, 40}));
+    EXPECT_EQ(headers[0]->geometry(), (RectF{0, 0, 280, 42}));
+
+    // The close control alone, as far from the top as from the start.
+    std::vector<HeaderButton*> controls;
+    for (HeaderButton* button : viewsOf<HeaderButton>(window)) {
+        if (button->isVisible())
+            controls.push_back(button);
+    }
+    ASSERT_EQ(controls.size(), 1u);
+    EXPECT_EQ(controls[0]->artwork(), "dialog-close");
+    const PointF corner = controls[0]->mapToWindow({0, 0});
+    EXPECT_EQ(corner, (PointF{10, 10}));
+    EXPECT_EQ(controls[0]->geometry().width, 22);
 
     View* icon = f.icon();
     ASSERT_NE(icon, nullptr);
-    EXPECT_EQ(icon->geometry(), (RectF{84, 80, 112, 112}));
+    EXPECT_EQ(icon->geometry(), (RectF{84, 82, 112, 112}));
 
     const auto& children = window->contentView()->children();
     ASSERT_EQ(children.size(), 5u);
@@ -101,7 +114,7 @@ TEST(AboutDialogTest, LaysOutTall)
     auto* link = dynamic_cast<Label*>(children[4].get());
     ASSERT_TRUE(name && description && link);
     EXPECT_EQ(name->text(), "Calendar");
-    EXPECT_EQ(name->geometry().y, 192 + 20);
+    EXPECT_EQ(name->geometry().y, 194 + 20);
     EXPECT_EQ(description->geometry().y, name->geometry().bottom() + 8);
     EXPECT_EQ(description->geometry().width, 200);
     for (Label* label : {name, description, link})

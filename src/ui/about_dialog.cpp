@@ -19,13 +19,14 @@
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 #include "ui/window_header.h"
 
 namespace cutefish::ui {
 
 // As wide as it is; as tall as its contents, which makes it taller than wide.
 static constexpr double kWidth = 280;
-static constexpr double kHeaderHeight = 40;
+static constexpr double kHeaderHeight = window_controls::kDialogHeaderHeight;
 static constexpr double kIconTop = 40;
 static constexpr double kIconSize = 112;
 static constexpr double kIconGap = 20;
@@ -114,11 +115,7 @@ public:
         , m_description(addChild<Label>(dialog->m_description))
         , m_link(addChild<LinkLabel>())
     {
-        // The controls' first centre 16 in from the top and the start.
-        m_header->setButtonMargin(0);
-        m_header->setMinimizeEnabled(false);
-        // Fixed in both directions.
-        m_header->setMaximizeEnabled(false);
+        m_header->setCloseOnly(true);
 
         m_name->setFontSize(22);
         m_name->setWeight(700);
