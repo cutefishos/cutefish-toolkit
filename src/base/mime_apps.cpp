@@ -213,7 +213,8 @@ static std::string terminalId(const std::string& line)
 // not offered for opening files.
 static bool opensFiles(const DesktopEntry& entry)
 {
-    return !entry.hidden && !entry.terminal;
+    // A bundle has no command while nothing runs bundles.
+    return !entry.hidden && !entry.terminal && !(entry.bundle && entry.exec.empty());
 }
 
 // A bundle that is no longer installed opens nothing, even where a list

@@ -335,6 +335,9 @@ static std::string execArgument(const std::string& argument, bool literal)
 // the others when it takes none, and the documents to open last.
 static std::string execFor(const std::string& path, const DesktopEntry& handler)
 {
+    if (handler.exec.empty())
+        return {};
+
     // Field codes have to survive, so the handler's arguments are split with
     // every '%' escaped.
     DesktopEntry raw;

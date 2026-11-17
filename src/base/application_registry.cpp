@@ -140,13 +140,13 @@ static std::vector<DesktopEntry> scan(const std::vector<std::string>& directorie
         }
     }
 
+    // Without a program that runs them, bundles keep their names and icons
+    // and have no command.
     const auto handler = std::find_if(results.begin(), results.end(), opensBundles);
-    if (handler != results.end()) {
-        const DesktopEntry bundleHandler = *handler;
-        for (const std::string& directory : bundleDirectories) {
-            std::vector<DesktopEntry> bundles = scanBundles(directory, bundleHandler);
-            std::move(bundles.begin(), bundles.end(), std::back_inserter(results));
-        }
+    const DesktopEntry bundleHandler = handler != results.end() ? *handler : DesktopEntry();
+    for (const std::string& directory : bundleDirectories) {
+        std::vector<DesktopEntry> bundles = scanBundles(directory, bundleHandler);
+        std::move(bundles.begin(), bundles.end(), std::back_inserter(results));
     }
     return results;
 }
@@ -413,11 +413,11 @@ std::shared_ptr<const DesktopEntry> ApplicationRegistry::byPath(const std::strin
 std::shared_ptr<const DesktopEntry> ApplicationRegistry::readBundle(const std::string& path) const
 {
     const std::string bundlePath = bundle::bundlePath(path);
-    if (bundlePath.empty() || !m_bundleHandler)
+    if (bundlePath.empty())
         return nullptr;
     if (const auto it = m_byPath.find(bundlePath); it != m_byPath.end())
         return it->second;
-    std::optional<DesktopEntry> entry = bundle::read(bundlePath, *m_bundleHandler);
+    std::optional<DesktopEntry> entry = bundle::read(bundlePath, m_bundleHandler ? *m_bundleHandler : DesktopEntry());
     if (!entry)
         return nullptr;
     entry->noDisplay = true;
@@ -426,7 +426,7 @@ std::shared_ptr<const DesktopEntry> ApplicationRegistry::readBundle(const std::s
 
 std::shared_ptr<const DesktopEntry> ApplicationRegistry::otherBundle(const std::string& path) const
 {
-    if (path.empty() || !m_bundleHandler)
+    if (path.empty())
         return nullptr;
     if (const auto it = m_byPath.find(path); it != m_byPath.end())
         return it->second;
@@ -436,7 +436,9 @@ std::shared_ptr<const DesktopEntry> ApplicationRegistry::otherBundle(const std::
     if (!other.job.isPending() && (!other.read.isValid() || other.read.hasExpired(kOtherBundleRecheck))) {
         other.read.start();
         auto* self = const_cast<ApplicationRegistry*>(this);
-        other.job = runInThread([path, handler = *m_bundleHandler] { return bundle::read(path, handler); },
+        other.job = runInThread([path, handler = m_bundleHandler ? *m_bundleHandler : DesktopEntry()] {
+            return bundle::read(path, handler);
+        },
                                 [self, path](std::optional<DesktopEntry> entry) {
                                     self->otherBundleRead(path, std::move(entry));
                                 });

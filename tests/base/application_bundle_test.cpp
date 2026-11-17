@@ -81,6 +81,14 @@ TEST(ApplicationBundleTest, ReadsABundleAsAnEntry)
     const std::string path = directory.path() + "/My Editor.app";
     ASSERT_TRUE(makeBundle(path, "Editor 100%"));
 
+    // With nothing to run it, it keeps its name and icon and has no command.
+    const auto unhandled = bundle::read(path, DesktopEntry());
+    ASSERT_TRUE(unhandled);
+    EXPECT_EQ(unhandled->name, "Editor 100%");
+    EXPECT_EQ(unhandled->icon, path + "/Contents/Resources/AppIcon.icns");
+    EXPECT_EQ(unhandled->exec, "");
+    EXPECT_FALSE(unhandled->shouldShow({}));
+
     const auto handler = DesktopEntry::parse("runner", "/x/runner.desktop", kHandler, "en_US");
     ASSERT_TRUE(handler);
     const auto entry = bundle::read(path + "/", *handler);
@@ -244,7 +252,12 @@ TEST(ApplicationBundleTest, ListsInstalledBundlesWhenAnEntryRunsThem)
     std::unique_ptr<ApplicationRegistry> registry =
             ApplicationRegistry::create(loop, {applications.path()}, {bundles.path()});
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
-    EXPECT_TRUE(registry->entries().empty());
+    // Known by name and icon, as to what shows a pinned one, yet no
+    // application to run.
+    EXPECT_TRUE(registry->applications().empty());
+    ASSERT_TRUE(registry->byPath(installed));
+    EXPECT_EQ(registry->byPath(installed)->name, "Editor");
+    EXPECT_EQ(registry->byPath(installed)->exec, "");
 
     ASSERT_TRUE(file::writeAtomically(applications.path() + "/runner.desktop", kHandler));
     ASSERT_TRUE(waitForChange(loop, *registry, 5s));
