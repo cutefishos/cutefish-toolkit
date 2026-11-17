@@ -461,7 +461,9 @@ void TextLayoutPrivate::shape()
         sk_sp<SkTypeface> face = presentedTypeface(set, text, c, size_t(next));
         const uint8_t level = levels[i];
         size_t end = size_t(next);
-        // Marks and joiners stay with what they follow.
+        size_t clusterStart = i;
+        // Marks and joiners stay with what they follow. A mark that typeface
+        // lacks takes its cluster to a typeface that has both.
         while (end < text.size() && text[end] != '\t' && levels[end] == level) {
             const TextFormatRange* nextFormat = formatAt(end);
             const bool nextBold = nextFormat ? nextFormat->bold || font.bold : font.bold;
@@ -471,6 +473,7 @@ void TextLayoutPrivate::shape()
             if (static_cast<unsigned char>(text[end]) < 0x80) {
                 if (typefaceFor(set, char32_t(text[end])) != face)
                     break;
+                clusterStart = end;
                 ++end;
                 continue;
             }
@@ -483,6 +486,23 @@ void TextLayoutPrivate::shape()
                     || (d >= 0x1F3FB && d <= 0x1F3FF) || (d >= 0xE0020 && d <= 0xE007F);
             if (!joins && presentedTypeface(set, text, d, size_t(after)) != face)
                 break;
+            const bool mark = category == U_NON_SPACING_MARK || category == U_ENCLOSING_MARK
+                    || category == U_COMBINING_SPACING_MARK;
+            if (mark && !(d >= 0xFE00 && d <= 0xFE0F) && face->unicharToGlyph(SkUnichar(d)) == 0) {
+                const sk_sp<SkTypeface>& other = typefaceFor(set, char32_t(d));
+                int32_t baseEnd = int32_t(clusterStart);
+                UChar32 base;
+                U8_NEXT(text.data(), baseEnd, int32_t(text.size()), base);
+                if (other != face && other->unicharToGlyph(SkUnichar(std::max<UChar32>(base, 0))) != 0) {
+                    if (clusterStart > i) {
+                        end = clusterStart;
+                        break;
+                    }
+                    face = other;
+                }
+            }
+            if (!joins)
+                clusterStart = end;
             end = size_t(after);
         }
 

@@ -186,6 +186,33 @@ TEST(TextLayoutTest, VariationSelectorAsksForEmoji)
     EXPECT_TRUE(red);
 }
 
+// A mark the text font lacks (U+0335 after U+02C3, which Inter has) moves
+// its cluster to a font with both instead of drawing a missing-glyph box.
+TEST(TextLayoutTest, MarkTakesItsClusterToAFontThatHasIt)
+{
+    const auto ink = [](const std::string& text) {
+        TextLayout layout(text, {"Inter", 24, false, false});
+        layout.setDefaultColor(Color::rgb(0x000000));
+        layOut(layout, 0);
+        Window window;
+        window.resize({100, 40});
+        window.setBackgroundColor(Color::rgb(0xFFFFFF));
+        window.setContentView(std::make_unique<Canvas>([&](Painter& painter) { layout.draw(painter, {2, 4}); }));
+        window.show();
+        const Image image = window.grab();
+        int dark = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x)
+                dark += image.pixel(x, y).r < 128;
+        }
+        return dark;
+    };
+    const int plain = ink("\u02C3");
+    const int marked = ink("\u02C3\u0335");
+    EXPECT_GT(plain, 0);
+    EXPECT_LT(marked, plain * 2);
+}
+
 TEST(TextLayoutTest, CodeLinesLayOutQuickly)
 {
     std::string line = "    for (std::size_t index = 0; index < values.size(); ++index) { total += values[index]; } // sum";
