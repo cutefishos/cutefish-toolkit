@@ -4,9 +4,11 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 
 #include "base/event_loop.h"
+#include "base/locale.h"
 #include "ui/application.h"
 #include "ui/check_box.h"
 #include "ui/combo_box.h"
@@ -514,6 +516,90 @@ TEST(ControlsTest, ThemeIconsFollowTheInheritChain)
     // An unknown name falls back along its dashes.
     ThemeIcon fallback("folder-some-unknown-kind", 16);
     EXPECT_EQ(fallback.path(), path);
+}
+
+// The theme's calendar carries today's date: text in the slots of its dated
+// drawing, the slots themselves not drawn. Too small for a weekday, it has
+// the day alone, where its own drawing still has both.
+TEST(ControlsTest, CalendarIconShowsTheDate)
+{
+    const std::filesystem::path path = ThemeIcon("office-calendar", 64).path();
+    if (path.empty() || !std::filesystem::exists(path.parent_path().string() + "@dated/calendar.svg"))
+        GTEST_SKIP() << "the icon theme has no dated calendar";
+    Application& application = *Application::instance();
+    const char* saved = std::getenv("LANGUAGE");
+    const std::string previous = saved ? saved : "";
+    std::string language = previous;
+    // The icon is drawn again for a region with the next change of the
+    // language.
+    const auto inRegion = [&application, &language](const std::string& region) {
+        cutefish::base::RegionalPreferences preferences;
+        preferences.region = region;
+        cutefish::base::Locale::setSystemPreferences(preferences);
+        language = language == "en_GB" ? "en_AU" : "en_GB";
+        application.setLanguageEnvironment({{"LANGUAGE", language}});
+    };
+    inRegion("US");
+    const auto grab = [](const std::string& name, int size) {
+        Window window;
+        host(window, std::make_unique<ThemeIcon>(name, size), {double(size), double(size)});
+        return window.grab();
+    };
+    const Image image = grab("office-calendar", 64);
+    ASSERT_EQ(image.width(), 64);
+    int weekday = 0;
+    for (int y = 14; y < 22; ++y) {
+        for (int x = 12; x < 52; ++x) {
+            const Color pixel = image.pixel(x, y);
+            if (pixel.r > 200 && pixel.g < 150)
+                ++weekday;
+        }
+    }
+    EXPECT_GT(weekday, 10);
+    EXPECT_LT(weekday, 40 * 8 * 6 / 10);
+    int day = 0;
+    for (int y = 31; y < 50; ++y) {
+        for (int x = 10; x < 54; ++x) {
+            if (image.pixel(x, y).r < 120)
+                ++day;
+        }
+    }
+    EXPECT_GT(day, 30);
+    EXPECT_LT(day, 44 * 19 * 6 / 10);
+
+    const auto reddish = [](const Image& small) {
+        int count = 0;
+        for (int y = 0; y < small.height(); ++y) {
+            for (int x = 0; x < small.width(); ++x) {
+                const Color pixel = small.pixel(x, y);
+                if (pixel.r - pixel.g > 40)
+                    ++count;
+            }
+        }
+        return count;
+    };
+    EXPECT_EQ(reddish(grab("office-calendar", 24)), 0);
+    // By its path a file is drawn as it is.
+    EXPECT_GT(reddish(grab(std::filesystem::canonical(path).string(), 24)), 0);
+
+    // In Japan the weekday is as dark as the day.
+    inRegion("JP");
+    const Image dark = grab("office-calendar", 64);
+    inRegion("US");
+    EXPECT_EQ(reddish(dark), 0);
+    int darkWeekday = 0;
+    for (int y = 14; y < 22; ++y) {
+        for (int x = 12; x < 52; ++x) {
+            if (dark.pixel(x, y).r < 120)
+                ++darkWeekday;
+        }
+    }
+    EXPECT_GT(darkWeekday, 10);
+    EXPECT_GT(reddish(grab("office-calendar", 64)), 10);
+
+    using cutefish::base::RegionalPreferences;
+    cutefish::base::Locale::setSystemPreferences(RegionalPreferences::read(RegionalPreferences::sessionPath()));
+    application.setLanguageEnvironment({{"LANGUAGE", previous}});
 }
 
 namespace {

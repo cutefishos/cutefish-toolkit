@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -19,6 +20,12 @@
 #include <unordered_map>
 #include <utility>
 
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <unicode/uchar.h>
+#include <unicode/utf8.h>
+#include <unistd.h>
+
 #include "include/codec/SkCodec.h"
 #include "include/codec/SkJpegDecoder.h"
 #include "include/codec/SkPngDecoder.h"
@@ -26,19 +33,36 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColorFilter.h"
 #include "include/core/SkData.h"
+#include "include/core/SkFont.h"
+#include "include/core/SkFontMetrics.h"
+#include "include/core/SkFontStyle.h"
+#include "include/core/SkMatrix.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkStream.h"
 #include "include/core/SkSurface.h"
+#include "include/core/SkTypeface.h"
+#include "modules/skparagraph/include/Paragraph.h"
+#include "modules/skparagraph/include/ParagraphBuilder.h"
+#include "modules/skparagraph/include/ParagraphStyle.h"
+#include "modules/skparagraph/include/TextStyle.h"
 #include "modules/skresources/include/SkResources.h"
 #include "modules/svg/include/SkSVGDOM.h"
+#include "modules/svg/include/SkSVGRect.h"
 #include "modules/svg/include/SkSVGSVG.h"
 
+#include "base/event_loop.h"
 #include "base/file.h"
+#include "base/locale.h"
 #include "base/paths.h"
 #include "base/thread_pool.h"
+#include "ui/application.h"
 #include "ui/embedded_files.h"
 #include "ui/image_formats.h"
+#include "ui/text_context.h"
+#include "ui/text_lines.h"
 #include "ui/theme.h"
+
+namespace textlayout = skia::textlayout;
 
 namespace cutefish::ui {
 
@@ -60,6 +84,28 @@ static constexpr double kPlateExtent = 56.0 / 64;
 static constexpr double kOwnPlateAspect = 1.02;
 static constexpr double kOwnPlateCorner = 0.25;
 static constexpr double kOwnPlateFill = 0.99;
+// An icon that shows today's date, as the theme's calendar: beside the
+// directory of its drawing, one with this suffix holds the same drawing with
+// rectangles, the slots, where the weekday and the day go. The index does not
+// list that directory, so no other icon loader sees it.
+static constexpr const char* kDatedSuffix = "@dated";
+// Below this logical size, or this many device pixels, the weekday is too
+// small to read, and the day stands alone in a slot of its own.
+static constexpr int kDatedAloneSize = 32;
+static constexpr int kDatedAlonePixels = 48;
+static constexpr int kWeekdayWeight = SkFontStyle::kMedium_Weight;
+static constexpr int kDayWeight = SkFontStyle::kNormal_Weight;
+// Thin strokes fade at the sizes the day stands alone at.
+static constexpr int kDayAloneWeight = SkFontStyle::kMedium_Weight;
+// For a font that does not tell its capitals' height.
+static constexpr double kCapHeight = 0.72;
+// The day's digits stand this much of the em apart, in place of the text
+// font's tracking, which draws large sizes tight for running text.
+static constexpr double kDayTracking = 0.04;
+// Text of a script without capitals: its em by the slot's height, and its
+// baseline below the slot's middle by the em, which centres ideographs.
+static constexpr double kUncasedEm = 1.4;
+static constexpr double kUncasedBaseline = 0.38;
 // Coverage below this is a soft shadow or glow, not the visible part.
 static constexpr uint8_t kInkAlpha = 16;
 // The drawing size an SVG icon's visible part is measured at.
@@ -851,11 +897,23 @@ std::string IconLoader::themeIconPath(const std::string& name, int size, double 
     return resolve(name, size, scale).path;
 }
 
+// The drawing with slots for a theme's file, which links to it share.
+static std::string datedTemplate(const std::string& path)
+{
+    std::error_code error;
+    const std::filesystem::path file = std::filesystem::canonical(path, error);
+    if (error)
+        return {};
+    const std::filesystem::path directory = file.parent_path();
+    const std::filesystem::path slots = directory.parent_path() / (directory.filename().string() + kDatedSuffix) / file.filename();
+    return std::filesystem::is_regular_file(slots, error) ? slots.string() : std::string();
+}
+
 IconLoader::Resolved IconLoader::resolve(const std::string& name, int size, double scale)
 {
     // A desktop entry's Icon may name a file by its absolute path.
     if (name.starts_with('/'))
-        return {std::filesystem::is_regular_file(name) ? name : std::string(), {}};
+        return {std::filesystem::is_regular_file(name) ? name : std::string(), {}, {}};
 
     const int iconScale = int(std::ceil(scale));
     const std::string key = name + "@" + std::to_string(size) + "x" + std::to_string(iconScale) + "/"
@@ -883,9 +941,11 @@ IconLoader::Resolved IconLoader::resolve(const std::string& name, int size, doub
             foreign = true;
         }
     }
-    Resolved resolved{path, {}};
+    Resolved resolved{path, {}, {}};
     if (foreign && !name.ends_with("-symbolic"))
         resolved.plate = lookup(kPlateName, kPlateName, 64, 1, nullptr);
+    else if (!foreign)
+        resolved.dated = datedTemplate(path);
     m_paths.emplace(key, resolved);
     return resolved;
 }
@@ -1115,6 +1175,235 @@ static sk_sp<SkImage> renderOnPlate(const std::string& plate, sk_sp<SkData> data
     return surface->makeImageSnapshot();
 }
 
+struct DateSlot
+{
+    SkRect rect;
+    SkColor color = SK_ColorBLACK;
+};
+
+// A slot of a dated drawing, taken out of it: a rectangle as tall as the
+// text's capitals and as wide as the text may get, filled in the text's colour.
+static std::optional<DateSlot> takeSlot(SkSVGDOM& svg, const char* id)
+{
+    sk_sp<SkSVGNode>* node = svg.findNodeById(id);
+    if (!node || !*node || (*node)->tag() != SkSVGTag::kRect)
+        return std::nullopt;
+    const SkSVGRect& rect = static_cast<const SkSVGRect&>(**node);
+    DateSlot slot;
+    slot.rect = SkRect::MakeXYWH(rect.getX().value(), rect.getY().value(), rect.getWidth().value(),
+                                 rect.getHeight().value());
+    const auto& fill = rect.getFill();
+    if (fill.isValue() && fill->type() == SkSVGPaint::Type::kColor && fill->color().type() == SkSVGColor::Type::kColor)
+        slot.color = fill->color().color();
+    (*node)->setAttribute("visibility", "hidden");
+    return slot;
+}
+
+static UChar32 firstCodePoint(const std::string& text)
+{
+    int32_t offset = 0;
+    UChar32 first = 0;
+    if (!text.empty())
+        U8_NEXT(text.data(), offset, int32_t(text.size()), first);
+    return first;
+}
+
+// The weekday as a calendar heads a day with it: the language's abbreviation
+// on its own, without the full stop some end it with, its first letter a
+// capital.
+static std::string weekdayText(const base::CalendarDate& date)
+{
+    std::string text = base::Locale::system().standaloneDayName(date.dayOfWeek(), base::Locale::FormatType::Short);
+    if (text.ends_with('.'))
+        text.pop_back();
+    const UChar32 first = firstCodePoint(text);
+    if (first > 0 && u_islower(first)) {
+        char capital[U8_MAX_LENGTH];
+        int32_t length = 0;
+        U8_APPEND_UNSAFE(capital, length, u_toupper(first));
+        text.replace(0, size_t(U8_LENGTH(first)), capital, size_t(length));
+    }
+    return text;
+}
+
+// Calendars of this region print the days off in red, where a red weekday
+// would read as one: there it takes the day's colour.
+static bool weekdayTakesDayColor()
+{
+    return base::Locale::system().territory() == "JP";
+}
+
+static std::unique_ptr<textlayout::Paragraph> slotParagraph(const TextContext& context, const std::string& text,
+                                                            double em, int weight, SkColor color,
+                                                            std::optional<double> tracking)
+{
+    textlayout::TextStyle style = context.style(em, weight, Color::fromArgb(color));
+    // The same drawing at every size: the exact size instead of the whole
+    // pixels text in windows takes, unhinted, greyscale.
+    style.setFontSize(SkScalar(em));
+    if (tracking)
+        style.setLetterSpacing(SkScalar(em * *tracking));
+    style.setFontEdging(SkFont::Edging::kAntiAlias);
+    style.setFontHinting(SkFontHinting::kNone);
+    style.setSubpixel(true);
+    textlayout::ParagraphStyle paragraphStyle;
+    paragraphStyle.setTextStyle(style);
+    auto builder = textlayout::ParagraphBuilder::make(paragraphStyle, context.fontCollection(), context.unicode());
+    builder->pushStyle(style);
+    builder->addText(text.data(), text.size());
+    builder->pop();
+    std::unique_ptr<textlayout::Paragraph> paragraph = builder->Build();
+    paragraph->layout(SK_ScalarInfinity);
+    return paragraph;
+}
+
+// Text in a slot, in device pixels. Capitals and digits are as tall as the
+// slot and stand on its bottom edge, on a whole pixel row; a script without
+// capitals is centred on the slot. The glyphs are centred across the slot,
+// and drawn smaller when they are wider than it. A tracking, in em, replaces
+// the text font's own.
+static void drawSlotText(SkCanvas* canvas, const TextContext& context, const SkRect& slot, const std::string& text,
+                         int weight, SkColor color, std::optional<double> tracking = std::nullopt)
+{
+    const UChar32 first = firstCodePoint(text);
+    const bool capitals = u_isupper(first) || u_isdigit(first);
+    double capHeight = kCapHeight;
+    if (const sk_sp<SkTypeface> typeface = context.typeface(weight)) {
+        SkFontMetrics metrics;
+        SkFont(typeface, 1).getMetrics(&metrics);
+        if (metrics.fCapHeight > 0)
+            capHeight = metrics.fCapHeight;
+    }
+    double em = capitals ? slot.height() / capHeight : slot.height() * kUncasedEm;
+    std::unique_ptr<textlayout::Paragraph> paragraph = slotParagraph(context, text, em, weight, color, tracking);
+    RectF ink = inkBoundingRect(paragraph.get(), em, 1, false);
+    if (ink.width > slot.width()) {
+        em *= slot.width() / ink.width;
+        paragraph = slotParagraph(context, text, em, weight, color, tracking);
+        ink = inkBoundingRect(paragraph.get(), em, 1, false);
+    }
+    if (ink.width <= 0)
+        return;
+    const double baseline = std::round(slot.centerY() + em * (capitals ? capHeight / 2 : kUncasedBaseline));
+    paragraph->paint(canvas, SkScalar(slot.centerX() - (ink.x + ink.width / 2)),
+                     SkScalar(baseline - paragraph->getAlphabeticBaseline()));
+}
+
+// A dated drawing at a size with the date in its slots: the weekday over the
+// day, or the day alone in its own slot. On the application's thread, for
+// the fonts; null without an application or the slots.
+static sk_sp<SkImage> renderDated(const std::string& path, int size, bool alone, const base::CalendarDate& date)
+{
+    Application* application = Application::instance();
+    sk_sp<SkData> data = SkData::MakeFromFileName(path.c_str());
+    const sk_sp<SkSVGDOM> svg = data ? loadSvg(std::move(data)) : nullptr;
+    if (!application || !svg || !svg->getRoot() || size <= 0)
+        return nullptr;
+    const std::optional<DateSlot> weekday = takeSlot(*svg, "weekday");
+    const std::optional<DateSlot> day = takeSlot(*svg, "day");
+    const std::optional<DateSlot> dayAlone = takeSlot(*svg, "day-alone");
+    const std::optional<SkRect> viewBox = svg->getRoot()->getViewBox();
+    if (!weekday || !day || !viewBox || viewBox->isEmpty())
+        return nullptr;
+
+    const sk_sp<SkImage> drawing = renderSvg(svg, size, nullptr);
+    sk_sp<SkSurface> surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(size, size));
+    if (!drawing || !surface)
+        return nullptr;
+    SkCanvas* canvas = surface->getCanvas();
+    canvas->clear(SK_ColorTRANSPARENT);
+    canvas->drawImage(drawing, 0, 0);
+    // As the drawing fits its size: the view box centred, its aspect kept.
+    const SkMatrix fit = SkMatrix::RectToRect(*viewBox, SkRect::MakeWH(SkScalar(size), SkScalar(size)),
+                                              SkMatrix::kCenter_ScaleToFit);
+    const TextContext& context = application->text();
+    const std::string dayText = std::to_string(date.day);
+    if (alone && dayAlone) {
+        drawSlotText(canvas, context, fit.mapRect(dayAlone->rect), dayText, kDayAloneWeight, dayAlone->color,
+                     kDayTracking);
+    } else {
+        drawSlotText(canvas, context, fit.mapRect(weekday->rect), weekdayText(date), kWeekdayWeight,
+                     weekdayTakesDayColor() ? day->color : weekday->color);
+        drawSlotText(canvas, context, fit.mapRect(day->rect), dayText, kDayWeight, day->color, kDayTracking);
+    }
+    return surface->makeImageSnapshot();
+}
+
+// The clock the date's timer runs on: std::time reads a coarser one, which
+// may still show the second before midnight as the timer fires.
+static std::time_t wallClockSeconds()
+{
+    timespec now{};
+    clock_gettime(CLOCK_REALTIME, &now);
+    return now.tv_sec;
+}
+
+sk_sp<SkImage> IconLoader::datedIcon(const Resolved& resolved, const std::string& key, int size, int pixels)
+{
+    if (resolved.dated.empty())
+        return nullptr;
+    const base::CalendarDate today = base::DateTime::fromSecondsSinceEpoch(wallClockSeconds()).date;
+    sk_sp<SkImage> image = renderDated(resolved.dated, pixels, size < kDatedAloneSize || pixels < kDatedAlonePixels, today);
+    if (!image)
+        return nullptr;
+    store(key, image);
+    m_datedKeys.insert(key);
+    watchDate();
+    return image;
+}
+
+void IconLoader::forgetDated()
+{
+    for (const std::string& key : m_datedKeys) {
+        if (const auto it = m_index.find(key); it != m_index.end()) {
+            m_images.erase(it->second);
+            m_index.erase(it);
+        }
+    }
+    m_datedKeys.clear();
+}
+
+void IconLoader::watchDate()
+{
+    Application* application = Application::instance();
+    if (m_dateFd >= 0 || !application)
+        return;
+    m_dateFd = timerfd_create(CLOCK_REALTIME, TFD_CLOEXEC | TFD_NONBLOCK);
+    if (m_dateFd < 0)
+        return;
+    base::EventLoop& loop = application->loop();
+    loop.watch(m_dateFd, EPOLLIN, [this](uint32_t) {
+        uint64_t expirations = 0;
+        // Fails with ECANCELED when the system time was set.
+        [[maybe_unused]] const ssize_t size = read(m_dateFd, &expirations, sizeof(expirations));
+        forgetDated();
+        armDateTimer();
+        if (Application* application = Application::instance())
+            application->themeChanged();
+    });
+    loop.addDestroyHook([this] {
+        close(m_dateFd);
+        m_dateFd = -1;
+    });
+    armDateTimer();
+}
+
+void IconLoader::armDateTimer()
+{
+    const std::time_t now = wallClockSeconds();
+    std::tm midnight{};
+    localtime_r(&now, &midnight);
+    midnight.tm_mday += 1;
+    midnight.tm_hour = 0;
+    midnight.tm_min = 0;
+    midnight.tm_sec = 0;
+    midnight.tm_isdst = -1;
+    itimerspec spec{};
+    // Never at once again, were the next day's start not ahead.
+    spec.it_value.tv_sec = std::max(std::mktime(&midnight), now + 60);
+    timerfd_settime(m_dateFd, TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET, &spec, nullptr);
+}
+
 sk_sp<SkImage> IconLoader::rasterise(const std::string& path, int size, const Color* tint, const std::string& plate)
 {
     bool icns = false;
@@ -1196,6 +1485,8 @@ sk_sp<SkImage> IconLoader::pixmap(const std::string& name, int pixels)
     const std::string& path = resolved.path;
     if (path.empty())
         return nullptr;
+    if (sk_sp<SkImage> dated = datedIcon(resolved, key, pixels, pixels))
+        return dated;
     sk_sp<SkImage> image;
     if (path.ends_with(".svg") || !resolved.plate.empty()) {
         image = rasterise(path, pixels, nullptr, resolved.plate);
@@ -1242,6 +1533,8 @@ sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, int icon
     const Resolved resolved = resolve(name, size, iconScale);
     if (resolved.path.empty())
         return nullptr;
+    if (sk_sp<SkImage> dated = datedIcon(resolved, key, size, pixels))
+        return dated;
     sk_sp<SkImage> image = rasterise(fittedDrawing(resolved.path, pixels), pixels, nullptr, resolved.plate);
     if (image)
         store(key, image);
@@ -1266,6 +1559,9 @@ void IconLoader::preloadThemeIcons(const std::vector<std::string>& names, int si
         if (cached(key) || std::any_of(pending->begin(), pending->end(), [&key](const Pending& p) { return p.key == key; }))
             continue;
         Resolved resolved = resolve(name, size, scale);
+        // Text is drawn on this thread.
+        if (datedIcon(resolved, key, size, device))
+            continue;
         if (!resolved.path.empty())
             pending->push_back({key, std::move(resolved.path), std::move(resolved.plate), nullptr});
     }
@@ -1308,6 +1604,8 @@ sk_sp<SkImage> IconLoader::themeIcon(const std::string& name, int size, double s
     const Resolved resolved = resolve(name, size, scale);
     if (resolved.path.empty())
         return nullptr;
+    if (sk_sp<SkImage> dated = datedIcon(resolved, key, size, device))
+        return dated;
     sk_sp<SkImage> image = rasterise(resolved.path, device, nullptr, resolved.plate);
     if (image)
         store(key, image);

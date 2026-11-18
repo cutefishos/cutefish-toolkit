@@ -156,6 +156,7 @@ public:
 
 private:
     friend class EmbeddedWindow;
+    friend class IconLoader;
     friend struct Theme;
     friend class Window;
 

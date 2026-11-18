@@ -16,6 +16,7 @@
 #include "base/thread_pool.h"
 #include "gpu/egl_context.h"
 #include "ui/appearance.h"
+#include "ui/icon_loader.h"
 #include "ui/platform_window.h"
 #include "ui/text_context.h"
 #include "ui/text_lines.h"
@@ -215,6 +216,7 @@ void Application::languageEnvironmentChanged()
 void Application::themeChanged()
 {
     clearSubpixelCoverage();
+    IconLoader::instance().forgetDated();
     for (Window* window : m_windows)
         window->handleThemeChanged();
 }
