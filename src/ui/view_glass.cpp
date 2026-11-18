@@ -190,7 +190,7 @@ half4 main(float2 p) {
     float amount = width > 0.0 ? bend * pow(clamp(1.0 + d / width, 0.0, 1.0), profile) : 0.0;
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
     half4 colour = blurred.eval(at - normal * amount);
-    if (dispersion > 0.0 && amount > 0.0) {
+    if (dispersion > 0.0 && amount != 0.0) {
         colour.r = blurred.eval(at - normal * amount * (1.0 - dispersion)).r;
         colour.b = blurred.eval(at - normal * amount * (1.0 + dispersion)).b;
     }
