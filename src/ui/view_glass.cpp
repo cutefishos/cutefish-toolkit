@@ -288,10 +288,16 @@ static double mixed(double a, double b, double t)
     return a + (b - a) * t;
 }
 
+// Premultiplied, so a colour fading out keeps its hue on the way and the
+// pane passes no shade darker or lighter than both ends.
 static void mixColour(double* into, const double* a, const double* b, double t)
 {
-    for (int i = 0; i < 4; ++i)
-        into[i] = mixed(a[i], b[i], t);
+    const double alpha = mixed(a[3], b[3], t);
+    for (int i = 0; i < 3; ++i) {
+        const double premultiplied = mixed(a[i] * a[3], b[i] * b[3], t);
+        into[i] = alpha > 0 ? premultiplied / alpha : mixed(a[i], b[i], t);
+    }
+    into[3] = alpha;
 }
 
 // The same pane, however it was asked to get there.

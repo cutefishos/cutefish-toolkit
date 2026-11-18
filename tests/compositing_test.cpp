@@ -557,6 +557,34 @@ TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
     EXPECT_EQ(under->paints, paints);
 }
 
+TEST(CompositingTest, GlassFadingAColourOutPassesNoDarkerShade)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    auto* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 40, 40});
+    ViewGlass pressed = halfWhiteDisc();
+    pressed.tint[3] = 0;
+    pressed.sideEdge[3] = 0;
+    pressed.over[0] = pressed.over[1] = pressed.over[2] = 1;
+    pressed.over[3] = 0.85;
+    pane->setGlass({pressed});
+    window.resize({60, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    TestInput::presentFrame(window, now += kFrameNs);
+    // White laid over white, fading to no colour at all: white throughout.
+    ViewGlass released = pressed;
+    std::fill(released.over, released.over + 4, 0.0);
+    released.duration = 0.1;
+    pane->setGlass({released});
+    for (int i = 0; i < 8; ++i)
+        EXPECT_GE(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 254) << i;
+}
+
 TEST(CompositingTest, GlassLightsWhereThePointerIs)
 {
     Window window;
