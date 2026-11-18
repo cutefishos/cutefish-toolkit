@@ -505,16 +505,17 @@ TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
     brighter.curve[2] = 1;
     brighter.curve[3] = 1;
     pane->setGlass({brighter});
-    // The first frame starts the move; half way through, half way there.
-    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 128, 2);
-    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 191, 3);
+    // The first frame shows the move one refresh along (a sixth of 0.1 s),
+    // two thirds of the way 50 ms later, then all of it.
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 149, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 212, 3);
     EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 255, 1);
     EXPECT_EQ(under->paints, paints);
 
     // Left out, it fades out over its own duration.
     pane->setGlass({});
-    TestInput::presentFrame(window, now += kFrameNs);
-    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 128, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 212, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 85, 3);
     EXPECT_EQ(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 0);
     EXPECT_EQ(under->paints, paints);
 }

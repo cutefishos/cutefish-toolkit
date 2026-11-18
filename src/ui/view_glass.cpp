@@ -336,6 +336,24 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     return glass;
 }
 
+// Where the track is at the frame time, from its start.
+static void advance(GlassTrack& track, uint64_t frameTimeNs)
+{
+    const double elapsed = double(frameTimeNs - std::min(frameTimeNs, track.start)) / 1e9;
+    const auto progress = [elapsed](double duration) {
+        return duration > 0 ? std::min(elapsed / duration, 1.0) : 1.0;
+    };
+    const double t = progress(track.to.duration);
+    const double s = track.to.shapeDuration < 0 ? t : progress(track.to.shapeDuration);
+    if (t >= 1 && s >= 1) {
+        track.shown = track.to;
+        track.moving = false;
+        return;
+    }
+    const double* shapeCurve = track.to.shapeDuration < 0 ? track.to.curve : track.to.shapeCurve;
+    track.shown = between(track.from, track.to, eased(track.to.curve, t), eased(shapeCurve, s));
+}
+
 void View::setGlass(std::vector<ViewGlass> glass)
 {
     auto& all = glassOfViews();
@@ -377,6 +395,12 @@ void View::setGlass(std::vector<ViewGlass> glass)
             track.shown = track.from;
             track.moving = true;
             moves = true;
+            // Declared while a frame is drawn, the move shows its first
+            // refresh in that frame.
+            if (window->m_rendering && window->m_frameTimeNs > window->m_refreshNs) {
+                track.start = window->m_frameTimeNs - window->m_refreshNs;
+                advance(track, window->m_frameTimeNs);
+            }
         } else {
             track.shown = pane;
         }
@@ -452,23 +476,12 @@ bool View::tickGlass(Window* window, uint64_t frameTimeNs)
         for (GlassTrack& track : state.tracks) {
             if (!track.moving)
                 continue;
+            // The first frame that shows a move shows it one refresh along.
             if (!track.start)
-                track.start = frameTimeNs;
+                track.start = frameTimeNs - std::min(frameTimeNs, window->m_refreshNs);
             damagePane(view, track.shown);
-            const double elapsed = double(frameTimeNs - track.start) / 1e9;
-            const auto progress = [elapsed](double duration) {
-                return duration > 0 ? std::min(elapsed / duration, 1.0) : 1.0;
-            };
-            const double t = progress(track.to.duration);
-            const double s = track.to.shapeDuration < 0 ? t : progress(track.to.shapeDuration);
-            if (t >= 1 && s >= 1) {
-                track.shown = track.to;
-                track.moving = false;
-            } else {
-                const double* shapeCurve = track.to.shapeDuration < 0 ? track.to.curve : track.to.shapeCurve;
-                track.shown = between(track.from, track.to, eased(track.to.curve, t), eased(shapeCurve, s));
-                moving = true;
-            }
+            advance(track, frameTimeNs);
+            moving = moving || track.moving;
             damagePane(view, track.shown);
         }
         std::erase_if(state.tracks, [](const GlassTrack& track) { return track.leaving && !track.moving; });
