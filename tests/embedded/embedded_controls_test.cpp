@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -46,6 +47,10 @@ static int inkedPixels(const EmbeddedWindow::Frame& frame, int top, int bottom)
 // unrounded at every scale (Noto Sans).
 TEST(EmbeddedControlsTest, TextLaysOutAsTheOffscreenPlatform)
 {
+    // Without the face weight 600 is set in the bold one, at other advances.
+    const char semiBoldFace[] = "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf";
+    if (!std::filesystem::exists(semiBoldFace))
+        GTEST_SKIP() << "no " << semiBoldFace;
     struct Case
     {
         const char* text;
