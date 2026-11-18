@@ -108,10 +108,12 @@ uniform float4 sideEdge;
 uniform float edgeWidth;
 uniform float saturation;
 uniform float bezel;
+uniform float sideBezel;
 uniform float bend;
 uniform float profile;
 uniform float dispersion;
 uniform float zoom;
+uniform float exponent;
 uniform float4 glow;
 uniform float3 glowAt;
 uniform float glowEdge;
@@ -184,7 +186,8 @@ half4 main(float2 p) {
         normal = float2(0.0, side.y);
     // Within the bezel the pane reads from further in, so what lies under its
     // edge shows magnified from the middle's side.
-    float amount = bezel > 0.0 ? bend * pow(clamp(1.0 + d / bezel, 0.0, 1.0), profile) : 0.0;
+    float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
+    float amount = width > 0.0 ? bend * pow(clamp(1.0 + d / width, 0.0, 1.0), profile) : 0.0;
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
     half4 colour = blurred.eval(at - normal * amount);
     if (dispersion > 0.0 && amount > 0.0) {
@@ -199,6 +202,8 @@ half4 main(float2 p) {
     colour.rgb = mix(half3(luma), colour.rgb, half(saturation));
 
     colour = laid(colour, tint);
+    if (exponent != 1.0 && colour.a > 0.0)
+        colour.rgb = half3(pow(clamp(colour.rgb / colour.a, 0.0, 1.0), half3(exponent))) * colour.a;
     // The light follows the outline, from the top's stops in the upper half
     // and the bottom's in the lower, fading towards the sides as the outline
     // turns.
@@ -320,10 +325,12 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.blur = mixed(a.blur, b.blur, t);
     glass.saturation = mixed(a.saturation, b.saturation, t);
     glass.bezel = mixed(a.bezel, b.bezel, t);
+    glass.sideBezel = mixed(a.sideBezel, b.sideBezel, t);
     glass.bend = mixed(a.bend, b.bend, t);
     glass.profile = mixed(a.profile, b.profile, t);
     glass.dispersion = mixed(a.dispersion, b.dispersion, t);
     glass.zoom = mixed(a.zoom, b.zoom, t);
+    glass.exponent = mixed(a.exponent, b.exponent, t);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -644,10 +651,12 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("edgeWidth") = float(glass.edgeDevicePixels);
         builder.uniform("saturation") = float(glass.saturation);
         builder.uniform("bezel") = float(glass.bezel) * unit;
+        builder.uniform("sideBezel") = glass.sideBezel < 0 ? -1.0f : float(glass.sideBezel) * unit;
         builder.uniform("bend") = float(glass.bend) * unit;
         builder.uniform("profile") = float(std::max(glass.profile, 0.01));
         builder.uniform("dispersion") = float(glass.dispersion);
         builder.uniform("zoom") = float(std::max(glass.zoom, 0.01));
+        builder.uniform("exponent") = float(std::max(glass.exponent, 0.01));
         builder.uniform("glow") = colour(glass.glow);
         if (pointer && glass.glowRadius > 0) {
             const PointF light = glass.glowLag > 0 ? *lagging : *pointer;

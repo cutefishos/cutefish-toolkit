@@ -50,12 +50,18 @@ struct ViewGlass
     double blur = 0;
     double saturation = 1;
     double bezel = 0;
+    // The bezel along the sides, where the outline's normal is horizontal;
+    // it turns into `bezel` towards the top and bottom by the square of the
+    // normal's vertical part. Negative: `bezel` all round.
+    double sideBezel = -1;
     double bend = 0;
     double profile = 2;
     // The share of the bend by which red is bent less and blue more.
     double dispersion = 0;
     // What lies under the middle shows magnified by this.
     double zoom = 1;
+    // The colour after the tint is raised to this power, channel by channel.
+    double exponent = 1;
 
     // Laid over the glass within `glowRadius` of the pointer while it is in
     // the window, strongest under it; the edge line brightens by

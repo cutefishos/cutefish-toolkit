@@ -477,6 +477,43 @@ TEST(CompositingTest, GlassShowsWhatLiesFurtherInWithinItsBezelAndAddsItsLight)
     EXPECT_NEAR(image.pixel(160, 40).r, 179, 2);
 }
 
+TEST(CompositingTest, GlassBendsByItsSideBezelAtTheSidesAndRaisesItsColour)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({60, 0, 40, 40});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.sideBezel = 0;
+    bending.bend = 8;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    View* raised = root->addChild<View>();
+    raised->setGeometry({70, 10, 20, 20});
+    ViewGlass raising;
+    raising.key = 1;
+    raising.rect = {0, 0, 20, 20};
+    raising.exponent = 0.5;
+    raised->setGlass({raising});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // No bezel at the side: the black under the pane's left edge shows as it is.
+    EXPECT_LE(image.pixel(21, 40).r, 2);
+    // Grey 128 raised to the power 0.5.
+    EXPECT_NEAR(image.pixel(160, 40).r, 181, 2);
+}
+
 TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
 {
     Window window;
