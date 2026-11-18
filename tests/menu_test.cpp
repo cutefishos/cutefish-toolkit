@@ -521,13 +521,13 @@ TEST(MenuTest, BubbleMenuTakesThePopupGlass)
     TestInput::setGlassAvailable(false);
 }
 
-// A longer arrow adds its extra length to the menu, on the arrow's side.
-TEST(MenuTest, ArrowLengthGrowsTheBubble)
+// A larger arrow adds only its extra length to the menu, on the arrow's side.
+TEST(MenuTest, ArrowSizeGrowsTheBubble)
 {
     Fixture f;
     f.menu.setArrow(BubbleShape::Edge::Bottom, {40, 30});
     const SizeF normal = f.menu.implicitSize(&f.window);
-    f.menu.setArrowLength(BubbleShape().arrowLength + 2);
+    f.menu.setArrowSize(BubbleShape().arrowWidth + 2, BubbleShape().arrowLength + 2);
     const SizeF longer = f.menu.implicitSize(&f.window);
     EXPECT_DOUBLE_EQ(longer.width, normal.width);
     EXPECT_DOUBLE_EQ(longer.height, normal.height + 2);
