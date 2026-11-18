@@ -91,6 +91,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/geometry_conversions.h
     ui/glyph_run.h
     ui/file_chooser.h
+    ui/font_file.h
     ui/header_backdrop.h
     ui/header_button.h
     ui/header_button_group.h
@@ -171,6 +172,7 @@ add_library(cutefish-toolkit SHARED
     ui/embedded_gpu.cpp
     ui/embedded_window.cpp
     ui/font_fallback.cpp
+    ui/font_file.cpp
     ui/frame_client.cpp
     ui/geometry.cpp
     ui/glyph_run.cpp

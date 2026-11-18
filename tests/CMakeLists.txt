@@ -48,6 +48,7 @@ add_executable(cutefish-toolkit-tests
     drop_down_popup_test.cpp
     fast_blur_test.cpp
     file_drop_area_test.cpp
+    font_file_test.cpp
     frame_cost_test.cpp
     header_backdrop_test.cpp
     glyph_run_test.cpp

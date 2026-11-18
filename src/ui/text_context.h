@@ -74,6 +74,9 @@ public:
     skia::textlayout::TextStyle style(double fontSize, int weight, Color color,
                                       const std::string& family = {}) const;
     sk_sp<SkTypeface> typeface(int weight, const std::string& family = {}) const;
+    // A face of a font file, installed or not: the face in the index's low
+    // 16 bits, a variable font's named instance above them.
+    sk_sp<SkTypeface> typefaceFromFile(const std::string& path, int index) const;
 
     // The typeface's height metrics: from OS/2 or hhea, in 26.6 fixed point.
     // Ascent and descent are rounded to whole pixels when metrics are hinted,

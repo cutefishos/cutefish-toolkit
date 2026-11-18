@@ -549,6 +549,11 @@ sk_sp<SkTypeface> TextContext::typeface(int weight, const std::string& family) c
     return typefaces.empty() ? nullptr : typefaces.front();
 }
 
+sk_sp<SkTypeface> TextContext::typefaceFromFile(const std::string& path, int index) const
+{
+    return m_fontManager->makeFromFile(path.c_str(), index);
+}
+
 static int16_t readInt16(const std::vector<uint8_t>& table, size_t offset)
 {
     return int16_t(uint16_t(table[offset] << 8 | table[offset + 1]));
