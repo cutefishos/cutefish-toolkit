@@ -285,8 +285,8 @@ protected:
     // Drops, as views::View has them: a drag goes to the topmost view under
     // it, or the nearest parent, whose canDrop() takes the offer. It hears
     // dragEnter(), then dragUpdate() on every move, which returns the action
-    // it would take (one DropAction), then dragLeave() or drop(), which
-    // returns the action taken.
+    // it would take (one DropAction, or several with dropActions()), then
+    // dragLeave() or drop(), which returns the action taken.
     virtual bool canDrop(const DropOffer&) const { return false; }
     virtual void dragEnter(const DragEvent&) {}
     virtual uint32_t dragUpdate(const DragEvent&) { return 0; }

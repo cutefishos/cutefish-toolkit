@@ -24,6 +24,32 @@ enum DropAction : uint32_t {
     AskAction = 4,
 };
 
+// What View::dragUpdate() answers when the target takes any of `accepted`:
+// the compositor picks one by the keys held, `preferred` when none is, and
+// the target hears its pick through DropOffer::action().
+constexpr uint32_t dropActions(uint32_t accepted, DropAction preferred)
+{
+    return accepted << 8 | preferred;
+}
+
+// The parts of a dragUpdate() answer; a single action is both.
+constexpr uint32_t acceptedDropActions(uint32_t answer)
+{
+    return answer >> 8 | (answer & 0xff);
+}
+
+constexpr DropAction preferredDropAction(uint32_t answer)
+{
+    return DropAction(answer & 0xff);
+}
+
+// The action a drop with that answer takes: the compositor's pick when the
+// target accepts it, else the preferred one.
+constexpr DropAction takenDropAction(uint32_t answer, uint32_t picked)
+{
+    return (picked & acceptedDropActions(answer)) ? DropAction(picked) : preferredDropAction(answer);
+}
+
 // What a view hands out when it starts a drag: the data in each MIME type,
 // made when a target asks for it, and the icon under the pointer.
 struct DragSource
@@ -74,6 +100,10 @@ public:
     // The drag's source when this process started it, for a target in
     // another of its windows (or the same one); null for other clients'.
     virtual const DragSource* localSource() const { return nullptr; }
+
+    // The action the compositor picked out of those the target accepts and
+    // the source allows; NoAction before it has.
+    virtual uint32_t action() const { return NoAction; }
 
     bool hasMimeType(const std::string& mimeType) const
     {

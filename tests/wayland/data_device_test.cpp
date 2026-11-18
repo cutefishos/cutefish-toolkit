@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -24,6 +25,7 @@
 #include "xdg-shell-server-protocol.h"
 
 #include "base/event_loop.h"
+#include "ui/drag.h"
 #include "wayland/connection.h"
 #include "wayland/shell_surface.h"
 
@@ -98,6 +100,14 @@ public:
         return resource;
     }
 
+    // The wl_data_offer requests the client sent: set_actions with its
+    // mask and preferred action, finish as {0, 0}.
+    std::vector<std::pair<uint32_t, uint32_t>> offerRequests() const
+    {
+        std::lock_guard lock(m_mutex);
+        return m_offerRequests;
+    }
+
     int clientFd = -1;
 
 private:
@@ -128,6 +138,13 @@ private:
 
     void createObjects(wl_resource* resource, const wl_message* message, wl_argument* arguments)
     {
+        if (wl_resource_instance_of(resource, &wl_data_offer_interface, nullptr)) {
+            std::lock_guard lock(m_mutex);
+            if (std::string_view(message->name) == "set_actions")
+                m_offerRequests.emplace_back(arguments[0].u, arguments[1].u);
+            else if (std::string_view(message->name) == "finish")
+                m_offerRequests.emplace_back(0, 0);
+        }
         int index = 0;
         for (const char* c = message->signature; *c; ++c) {
             if (*c == '?' || (*c >= '0' && *c <= '9'))
@@ -159,8 +176,9 @@ private:
     wl_event_source* m_wakeSource = nullptr;
     std::thread m_thread;
     std::atomic<bool> m_stop = false;
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
     std::vector<std::function<void(FakeCompositor&)>> m_tasks;
+    std::vector<std::pair<uint32_t, uint32_t>> m_offerRequests;
     std::vector<std::unique_ptr<Global>> m_globals;
     std::map<std::string, std::vector<wl_resource*>> m_resources;
 };
@@ -185,18 +203,27 @@ public:
     void key(const KeyEvent&, bool) override {}
     void textInput(const TextInputEvent&) override {}
 
-    uint32_t dragEnter(double, double, DropOffer*, uint32_t) override
+    uint32_t dragEnter(double, double, DropOffer* offer, uint32_t) override
     {
         ++entered;
-        return 0;
+        this->offer = offer;
+        return answer;
     }
     uint32_t dragMotion(double, double, uint32_t) override
     {
         ++moved;
-        return 0;
+        return answer;
     }
     void dragLeave() override { ++left; }
+    uint32_t drop() override
+    {
+        picked = offer ? offer->action() : NoAction;
+        return takenDropAction(answer, picked);
+    }
 
+    uint32_t answer = 0;
+    DropOffer* offer = nullptr;
+    uint32_t picked = NoAction;
     int entered = 0;
     int moved = 0;
     int left = 0;
@@ -214,6 +241,24 @@ void settle(FakeCompositor& compositor, wl_display* display)
     // roundtrip has the compositor read them.
     wl_display_roundtrip(display);
     wl_display_roundtrip(display);
+}
+
+// A drag offer from a source allowing copy, move and ask, entering the
+// last surface.
+void enterWithOffer(FakeCompositor& compositor)
+{
+    compositor.post([](FakeCompositor& self) {
+        wl_resource* device = self.last(wl_data_device_interface);
+        wl_resource* surface = self.last(wl_surface_interface);
+        if (!device || !surface)
+            return;
+        wl_resource* offer = self.create(wl_data_offer_interface, wl_resource_get_version(device), 0);
+        wl_data_device_send_data_offer(device, offer);
+        wl_data_offer_send_offer(offer, "text/uri-list");
+        wl_data_offer_send_source_actions(offer, CopyAction | MoveAction | AskAction);
+        wl_data_offer_send_action(offer, NoAction);
+        wl_data_device_send_enter(device, 1, surface, wl_fixed_from_int(10), wl_fixed_from_int(10), offer);
+    });
 }
 
 } // namespace
@@ -253,4 +298,74 @@ TEST(DataDeviceTest, DragForgetsAWindowThatGoes)
     settle(compositor, connection->display());
     EXPECT_EQ(target.moved, 0);
     EXPECT_EQ(target.left, 0);
+}
+
+// A target taking a copy or a move tells the compositor both and its
+// preference, and drops with the action the compositor picked.
+TEST(DataDeviceTest, TargetOffersEveryActionItTakesAndDropsWithThePick)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+    ASSERT_TRUE(connection->dataDevice());
+
+    DragTarget target;
+    target.answer = dropActions(CopyAction | MoveAction, MoveAction);
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    connection->flush();
+    settle(compositor, connection->display());
+
+    enterWithOffer(compositor);
+    settle(compositor, connection->display());
+    ASSERT_EQ(target.entered, 1);
+    using Requests = std::vector<std::pair<uint32_t, uint32_t>>;
+    EXPECT_EQ(compositor.offerRequests(), (Requests{{CopyAction | MoveAction, MoveAction}}));
+    EXPECT_EQ(target.offer->action(), uint32_t(NoAction));
+
+    // A copy key held: the compositor picks the copy.
+    compositor.post([](FakeCompositor& self) {
+        wl_data_offer_send_action(self.last(wl_data_offer_interface), CopyAction);
+        wl_data_device_send_motion(self.last(wl_data_device_interface), 2, wl_fixed_from_int(12),
+                                   wl_fixed_from_int(12));
+    });
+    settle(compositor, connection->display());
+    EXPECT_EQ(target.offer->action(), uint32_t(CopyAction));
+    EXPECT_EQ(compositor.offerRequests().size(), 1u);
+
+    compositor.post([](FakeCompositor& self) { wl_data_device_send_drop(self.last(wl_data_device_interface)); });
+    settle(compositor, connection->display());
+    EXPECT_EQ(target.picked, uint32_t(CopyAction));
+    EXPECT_EQ(compositor.offerRequests(), (Requests{{CopyAction | MoveAction, MoveAction}, {0, 0}}));
+}
+
+// A target answering one action offers just that one, as before.
+TEST(DataDeviceTest, ASingleActionIsBothTheMaskAndThePreference)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+
+    DragTarget target;
+    target.answer = CopyAction;
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    connection->flush();
+    settle(compositor, connection->display());
+
+    enterWithOffer(compositor);
+    settle(compositor, connection->display());
+    ASSERT_EQ(target.entered, 1);
+    using Requests = std::vector<std::pair<uint32_t, uint32_t>>;
+    EXPECT_EQ(compositor.offerRequests(), (Requests{{CopyAction, CopyAction}}));
+
+    // The preference the source does not allow is dropped, the rest stays.
+    target.answer = dropActions(CopyAction | MoveAction, MoveAction);
+    compositor.post([](FakeCompositor& self) {
+        wl_data_offer_send_source_actions(self.last(wl_data_offer_interface), CopyAction);
+        wl_data_device_send_motion(self.last(wl_data_device_interface), 2, wl_fixed_from_int(12),
+                                   wl_fixed_from_int(12));
+    });
+    settle(compositor, connection->display());
+    EXPECT_EQ(compositor.offerRequests(), (Requests{{CopyAction, CopyAction}, {CopyAction, NoAction}}));
 }

@@ -47,6 +47,7 @@ public:
     const std::vector<std::string>& mimeTypes() const override { return m_types; }
     uint32_t sourceActions() const override { return m_actions; }
     const DragSource* localSource() const override { return m_device.localSource(); }
+    uint32_t action() const override { return m_action; }
 
     void read(const std::string& mimeType, std::function<void(std::string data)> done) override
     {
@@ -66,12 +67,14 @@ public:
 
     wl_data_offer* offer() const { return m_offer; }
     void setSourceActions(uint32_t actions) { m_actions = actions; }
+    void setAction(uint32_t action) { m_action = action; }
 
 private:
     DataDevice& m_device;
     wl_data_offer* m_offer;
     std::vector<std::string> m_types;
     uint32_t m_actions;
+    uint32_t m_action = NoAction;
 };
 
 struct DataDeviceListeners
@@ -89,8 +92,11 @@ struct DataDeviceListeners
             self->m_dropOffer->setSourceActions(actions);
     }
 
-    static void offerAction(void*, wl_data_offer*, uint32_t)
+    static void offerAction(void* data, wl_data_offer* offer, uint32_t action)
     {
+        auto* self = static_cast<DataDevice*>(data);
+        if (self->m_dropOffer && self->m_dropOffer->offer() == offer)
+            self->m_dropOffer->setAction(action);
     }
 
     static void dataOffer(void* data, wl_data_device*, wl_data_offer* offer)
@@ -170,7 +176,7 @@ struct DataDeviceListeners
         if (action != 0 && wire && wl_proxy_get_version(reinterpret_cast<wl_proxy*>(wire)) >= 3) {
             // The source hears the final action, the one the user chose
             // after an ask included.
-            if (action != self->m_acceptedAction)
+            if (action != offer->action())
                 wl_data_offer_set_actions(wire, action, action);
             wl_data_offer_finish(wire);
         }
@@ -270,21 +276,26 @@ DataDevice::~DataDevice()
     wl_data_device_release(m_device);
 }
 
-void DataDevice::updateTarget(uint32_t action)
+void DataDevice::updateTarget(uint32_t answer)
 {
     if (!m_dropOffer || !m_dropOffer->offer())
         return;
-    // One action out of what the source allows.
-    action &= m_dropOffer->sourceActions() ? m_dropOffer->sourceActions() : ~0u;
-    if (action == m_acceptedAction)
+    // Out of what the source allows; the compositor picks among the
+    // accepted ones by the keys held.
+    const uint32_t allowed = m_dropOffer->sourceActions() ? m_dropOffer->sourceActions() : ~0u;
+    uint32_t preferred = preferredDropAction(answer) & allowed;
+    preferred &= ~preferred + 1;
+    const uint32_t accepted = (acceptedDropActions(answer) & allowed) | preferred;
+    const uint32_t target = dropActions(accepted, DropAction(preferred));
+    if (target == m_acceptedAction)
         return;
-    m_acceptedAction = action;
-    m_dropAccepted = action != 0;
+    m_acceptedAction = target;
+    m_dropAccepted = accepted != 0;
     wl_data_offer* offer = m_dropOffer->offer();
     const std::vector<std::string>& types = m_dropOffer->mimeTypes();
     wl_data_offer_accept(offer, m_dropSerial, m_dropAccepted && !types.empty() ? types.front().c_str() : nullptr);
     if (wl_proxy_get_version(reinterpret_cast<wl_proxy*>(offer)) >= 3)
-        wl_data_offer_set_actions(offer, action, action);
+        wl_data_offer_set_actions(offer, accepted, preferred);
     m_connection.flush();
 }
 

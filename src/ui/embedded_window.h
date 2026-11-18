@@ -165,8 +165,8 @@ public:
 
     // A drag over the window, in logical coordinates. The offer is the
     // host's and stays valid until leave or drop. Enter and motion return
-    // the action the target would take (one DropAction; NoAction refuses);
-    // drop() returns the one it took.
+    // the action the target would take (one DropAction or a dropActions()
+    // answer; NoAction refuses); drop() returns the one it took.
     uint32_t dragEnter(PointF position, DropOffer* offer, uint32_t modifiers = NoModifier);
     uint32_t dragMotion(PointF position, uint32_t modifiers = NoModifier);
     void dragLeave();

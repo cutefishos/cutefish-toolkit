@@ -90,7 +90,7 @@ public:
         virtual void screenPosition(PointF) {}
 
         // A drag over the surface; enter and motion return the action the
-        // window would take, drop the one it took.
+        // window would take (a dropActions() answer), drop the one it took.
         virtual uint32_t dragEnter(double, double, DropOffer*, uint32_t) { return 0; }
         virtual uint32_t dragMotion(double, double, uint32_t) { return 0; }
         virtual void dragLeave() {}

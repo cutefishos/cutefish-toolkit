@@ -59,7 +59,7 @@ private:
     friend class WaylandDropOffer;
 
     // Tells the target window's view and answers the compositor.
-    void updateTarget(uint32_t action);
+    void updateTarget(uint32_t answer);
     // Drops the offer; an unfinished one tells the source the drag was cancelled.
     void endTarget();
     void endSource(DropAction action);
