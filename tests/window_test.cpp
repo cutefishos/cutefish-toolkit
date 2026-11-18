@@ -21,6 +21,7 @@
 #include "ui/toast.h"
 #include "ui/window.h"
 #include "ui/window_header.h"
+#include "ui/window_tab_bar.h"
 
 using namespace cutefish::ui;
 
@@ -44,6 +45,23 @@ TEST(WindowTest, HeaderDoubleClickTogglesMaximized)
     // The maximize button, third from the start, restores.
     TestInput::click(window, {9 + 2 * (22 + 1) + 11, 20});
     EXPECT_FALSE(window.states().maximized);
+}
+
+TEST(WindowTest, TabBarTrackDoubleClickTogglesMaximized)
+{
+    Window window;
+    auto header = std::make_unique<WindowHeader>();
+    WindowTabBar* bar = header->setContent<WindowTabBar>();
+    window.resize({900, 300});
+    window.setContentView(std::move(header));
+    window.show();
+    bar->insertTab(0, "Tab");
+    window.grab();
+    ASSERT_LT(bar->geometry().x + bar->trackWidth(), 850);
+
+    TestInput::click(window, {850, 20});
+    TestInput::click(window, {850, 20});
+    EXPECT_TRUE(window.states().maximized);
 }
 
 // A configure leaving the size to the window, once it is neither maximized,

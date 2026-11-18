@@ -41,6 +41,9 @@ public:
     // does nothing, for windows of a fixed size.
     void setMaximizeEnabled(bool enabled);
     void setCloseVisible(bool visible);
+    // A double click on the bar: maximizes or restores the window unless
+    // maximize is off, for content that takes the bar's presses.
+    void toggleMaximized();
     // A dialog's controls: the close button alone, a round plate always
     // showing its cross, in the window's corner whatever the margin.
     void setCloseOnly(bool closeOnly);

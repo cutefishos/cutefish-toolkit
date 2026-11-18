@@ -219,11 +219,18 @@ void WindowHeader::pointerPress(const PointerEvent& event)
     if (!window || event.button != MouseButton::Left || window->states().fullScreen)
         return;
     if (event.clickCount == 2) {
-        if (m_maximize->isEnabled())
-            window->setMaximized(!window->states().maximized);
+        toggleMaximized();
         return;
     }
     window->startMove();
+}
+
+void WindowHeader::toggleMaximized()
+{
+    Window* window = this->window();
+    if (!window || window->states().fullScreen || !m_maximize->isEnabled())
+        return;
+    window->setMaximized(!window->states().maximized);
 }
 
 } // namespace cutefish::ui

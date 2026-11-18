@@ -17,6 +17,7 @@
 #include "ui/text_field.h"
 #include "ui/theme.h"
 #include "ui/window.h"
+#include "ui/window_header.h"
 
 namespace cutefish::ui {
 
@@ -443,6 +444,18 @@ protected:
         const double delta = std::abs(event.deltaX) > std::abs(event.deltaY) ? event.deltaX : event.deltaY;
         m_bar->setScroll(m_bar->m_scrollX + delta);
         return true;
+    }
+
+    void pointerPress(const PointerEvent& event) override
+    {
+        if (event.button != MouseButton::Left || event.clickCount != 2)
+            return;
+        for (View* view = parent(); view; view = view->parent()) {
+            if (auto* header = dynamic_cast<WindowHeader*>(view)) {
+                header->toggleMaximized();
+                return;
+            }
+        }
     }
 
 private:
