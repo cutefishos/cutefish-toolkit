@@ -428,13 +428,53 @@ TEST(CompositingTest, GlassShadesWhatLiesUnderItsViewByDistanceToItsOutline)
     window.show();
 
     const Image image = window.grab();
-    // White at half over black in the middle, a black line along the sides,
-    // none along the top, the corners of the rect and outside untouched.
+    // White at half over black in the middle and up to the outline, whose
+    // line lies outside it; the corners of the rect and outside untouched.
     EXPECT_NEAR(image.pixel(60, 60).r, 128, 2);
-    EXPECT_LE(image.pixel(20, 60).r, 4);
+    EXPECT_NEAR(image.pixel(20, 60).r, 128, 2);
     EXPECT_NEAR(image.pixel(60, 20).r, 128, 2);
     EXPECT_EQ(image.pixel(22, 22).r, 0);
     EXPECT_EQ(image.pixel(5, 5).r, 0);
+}
+
+TEST(CompositingTest, GlassShowsWhatLiesFurtherInWithinItsBezelAndAddsItsLight)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({60, 0, 40, 40});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.bend = 8;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    View* lit = root->addChild<View>();
+    lit->setGeometry({70, 10, 20, 20});
+    ViewGlass lighting;
+    lighting.key = 1;
+    lighting.rect = {0, 0, 20, 20};
+    lighting.light = {{0, 0.2}};
+    lit->setGlass({lighting});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Over the black strip just inside the pane's left edge it shows the
+    // white further in; the middle shows what lies under it.
+    EXPECT_GE(image.pixel(21, 40).r, 250);
+    EXPECT_GE(image.pixel(25, 40).r, 250);
+    EXPECT_GE(image.pixel(60, 40).r, 250);
+    EXPECT_LE(image.pixel(17, 40).r, 2);
+    // The light adds to the grey under it rather than veiling it.
+    EXPECT_NEAR(image.pixel(160, 40).r, 179, 2);
 }
 
 TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
@@ -600,10 +640,10 @@ TEST(CompositingTest, ComposedAtAnotherScaleGlassEdgesStayOneBufferPixel)
 
     const Image image = TestInput::composeFrame(window, 1.75);
     ASSERT_EQ(image.width(), 70);
-    // The pane's side line covers the one buffer pixel inside its edge.
-    EXPECT_EQ(image.pixel(6, 17).r, 255);
-    EXPECT_LE(image.pixel(7, 17).r, 2);
-    EXPECT_GE(image.pixel(8, 17).r, 253);
+    // The pane's side line covers the one buffer pixel outside its edge.
+    EXPECT_EQ(image.pixel(5, 17).r, 255);
+    EXPECT_LE(image.pixel(6, 17).r, 2);
+    EXPECT_GE(image.pixel(7, 17).r, 253);
     // The textures are scaled into the buffer: the square spans 49 to 63.
     EXPECT_LE(image.pixel(50, 14).r, 2);
     EXPECT_LE(image.pixel(62, 14).r, 2);

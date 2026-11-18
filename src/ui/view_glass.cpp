@@ -146,6 +146,22 @@ half4 main(float2 p) {
         float fall = 1.0 - smoothstep(-shadowBlur * 0.5, shadowBlur, sd);
         outside = laid(under, float4(shadow.rgb, shadow.a * fall * opacity));
     }
+    float lit = 0.0;
+    if (glowAt.z > 0.0 && glow.a > 0.0)
+        lit = glow.a * (1.0 - smoothstep(0.0, glowAt.z, length(p - glowAt.xy)));
+    // The line lies just outside the outline: the pixel's share of the band
+    // between the outline and edgeWidth out.
+    float band = clamp(min(d + 0.5, edgeWidth) - max(d - 0.5, 0.0), 0.0, 1.0);
+    if (band > 0.0) {
+        float sideways = 1.0;
+        if (q.x > 0.0 && q.y > 0.0)
+            sideways = q.x * q.x / dot(q, q);
+        else if (q.y > q.x)
+            sideways = 0.0;
+        float4 line = mix(edge, sideEdge, sideways);
+        line = mix(line, float4(glow.rgb, 1.0), clamp(lit * glowEdge, 0.0, 1.0));
+        outside = laid(outside, float4(line.rgb, line.a * band * opacity));
+    }
     if (coverage <= 0.0)
         return outside;
 
@@ -166,43 +182,38 @@ half4 main(float2 p) {
         normal = float2(side.x, 0.0);
     else
         normal = float2(0.0, side.y);
+    // Within the bezel the pane reads from further in, so what lies under its
+    // edge shows magnified from the middle's side.
     float amount = bezel > 0.0 ? bend * pow(clamp(1.0 + d / bezel, 0.0, 1.0), profile) : 0.0;
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
-    half4 colour = blurred.eval(at + normal * amount);
+    half4 colour = blurred.eval(at - normal * amount);
     if (dispersion > 0.0 && amount > 0.0) {
-        colour.r = blurred.eval(at + normal * amount * (1.0 - dispersion)).r;
-        colour.b = blurred.eval(at + normal * amount * (1.0 + dispersion)).b;
+        colour.r = blurred.eval(at - normal * amount * (1.0 - dispersion)).r;
+        colour.b = blurred.eval(at - normal * amount * (1.0 + dispersion)).b;
     }
     if (shown < 1.0)
-        colour = mix(backdrop.eval(at + normal * amount), colour, half(shown));
+        colour = mix(backdrop.eval(at - normal * amount), colour, half(shown));
+    // Unclamped until the end: the tint lays its colour over saturation
+    // beyond the gamut, which keeps a saturated colour saturated under it.
     half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
-    colour.rgb = clamp(mix(half3(luma), colour.rgb, half(saturation)), 0.0, colour.a);
+    colour.rgb = mix(half3(luma), colour.rgb, half(saturation));
 
     colour = laid(colour, tint);
+    // The light follows the outline, from the top's stops in the upper half
+    // and the bottom's in the lower, fading towards the sides as the outline
+    // turns.
+    float ly = normal.y <= 0.0 ? -d : rect.w - rect.y + d;
     float alpha = light[0].y;
     for (int i = 1; i < 24; i++) {
         float2 a = light[i - 1];
         float2 b = light[i];
-        if (y > a.x && b.x > a.x)
-            alpha = mix(a.y, b.y, clamp((y - a.x) / (b.x - a.x), 0.0, 1.0));
+        if (ly > a.x && b.x > a.x)
+            alpha = mix(a.y, b.y, clamp((ly - a.x) / (b.x - a.x), 0.0, 1.0));
     }
-    colour = laid(colour, float4(1.0, 1.0, 1.0, alpha));
-    float lit = 0.0;
-    if (glowAt.z > 0.0 && glow.a > 0.0)
-        lit = glow.a * (1.0 - smoothstep(0.0, glowAt.z, length(p - glowAt.xy)));
+    colour.rgb += half(alpha * normal.y * normal.y) * colour.a;
     colour = laid(colour, float4(glow.rgb, lit));
     colour = laid(colour, over);
-
-    // The pixel's share of the band between the outline and edgeWidth in.
-    float band = clamp(min(d + 0.5, 0.0) - max(d - 0.5, -edgeWidth), 0.0, 1.0);
-    float sideways = 1.0;
-    if (q.x > 0.0 && q.y > 0.0)
-        sideways = q.x * q.x / dot(q, q);
-    else if (q.y > q.x)
-        sideways = 0.0;
-    float4 line = mix(edge, sideEdge, sideways);
-    line = mix(line, float4(glow.rgb, 1.0), clamp(lit * glowEdge, 0.0, 1.0));
-    colour = laid(colour, float4(line.rgb, line.a * band));
+    colour.rgb = clamp(colour.rgb, 0.0, colour.a);
     return mix(outside, colour, half(coverage * shown * opacity));
 }
 )";

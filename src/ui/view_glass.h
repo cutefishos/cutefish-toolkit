@@ -15,14 +15,13 @@ namespace cutefish::ui {
 // shaded per device pixel from its signed distance to the outline, which
 // also anti-aliases the outline, so its edge stays as thin and crisp at any
 // scale. What lies under it is blurred, saturated and, within the bezel of
-// the edge, bent in from further out, the colours bent apart by the
-// dispersion; then come the tint, white light whose strength follows the
-// height, a light around the pointer, a colour over all of that, and a line
-// just inside the outline whose colour turns from `edge` along the top and
-// bottom to `sideEdge` along the sides, by the square of the outline's
-// horizontal normal. A shadow falls outside the outline. Colours are
-// straight RGBA, 0 to 1; lengths are the view's units unless they say
-// device pixels.
+// the edge, read from further in, so it shows magnified there, the colours
+// bent apart by the dispersion; then come the tint, white light added by the
+// height, a light around the pointer and a colour over all of that. A line
+// just outside the outline turns from `edge` along the top and bottom to
+// `sideEdge` along the sides, by the square of the outline's horizontal
+// normal, and a shadow falls outside it. Colours are straight RGBA, 0 to 1;
+// lengths are the view's units unless they say device pixels.
 //
 // Panes with the same key in successive View::setGlass() calls move from
 // what shows to the new values over the new pane's duration, on the
@@ -39,8 +38,9 @@ struct ViewGlass
     double opacity = 1;
 
     double tint[4] = {1, 1, 1, 0};
-    // Points down from the top of the rect and the light's alpha there, in
-    // order; at most 24.
+    // Points down from the top of the rect and the light added there, in
+    // order; at most 24. They follow the outline in from the top and the
+    // bottom, fading out towards the sides.
     std::vector<PointF> light;
     double over[4] = {0, 0, 0, 0};
     double edge[4] = {0, 0, 0, 0};
