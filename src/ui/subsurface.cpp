@@ -118,8 +118,9 @@ void SubsurfacePrivate::parentCommitting()
     std::unique_lock lock(mutex);
     if (target == wanted && logical == wantedLogical)
         return;
-    // The first size has no picture to keep in step with.
-    const bool waits = q->onResize && !target.isEmpty() && swappedSerial > 0;
+    // The first size too: the window's first frame over the subsurface then
+    // shows with the subsurface's first picture.
+    const bool waits = q->onResize && !target.isEmpty();
     if (waits && !synchronized) {
         wl_subsurface_set_sync(subsurface);
         synchronized = true;
