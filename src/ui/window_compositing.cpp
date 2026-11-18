@@ -805,6 +805,13 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
     const SkIRect window = ratio == 1 ? buffer
                                       : SkIRect::MakeWH(int(std::lround(m_size.width * m_scale)),
                                                         int(std::lround(m_size.height * m_scale)));
+    // Textures first: what their paint changes in the window, such as glass
+    // a view declares as it paints, shows in this frame.
+    updateLayers(m_contentView.get(), {}, canvas, &window);
+    if (m_overlay)
+        updateLayers(m_overlay.get(), {}, canvas, &window);
+    if (m_toolTip)
+        updateLayers(m_toolTip.get(), {}, canvas, &window);
     if (damage.full)
         damage.pending.setRect(window);
     growForBackdrops(damage.pending, this, m_scale);

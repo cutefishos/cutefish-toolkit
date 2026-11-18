@@ -539,6 +539,43 @@ TEST(CompositingTest, GlassLightLagsBehindThePointer)
     EXPECT_EQ(image.pixel(30, 30).r, 0);
 }
 
+// A texture whose paint sets the glass of the pane it names.
+class GlassPainter : public View
+{
+public:
+    void paint(Painter&) override
+    {
+        ViewGlass glass = halfWhiteDisc();
+        glass.tint[3] = alpha;
+        pane->setGlass({glass});
+    }
+
+    View* pane = nullptr;
+    double alpha = 0.5;
+};
+
+TEST(CompositingTest, GlassSetWhileTexturesPaintShowsInTheSameFrame)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {0, 0, 0, 255});
+    View* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 40, 40});
+    auto* painter = root->addChild<GlassPainter>();
+    painter->setGeometry({0, 0, 5, 5});
+    painter->setLayered(true);
+    painter->pane = pane;
+    window.resize({60, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 128, 2);
+    painter->alpha = 1;
+    painter->requestPaint();
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 255, 1);
+}
+
 TEST(CompositingTest, ComposedAtAnotherScaleGlassEdgesStayOneBufferPixel)
 {
     Window window;
