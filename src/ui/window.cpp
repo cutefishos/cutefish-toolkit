@@ -244,6 +244,7 @@ Window::~Window()
         Application::instance()->loop().stopTimer(m_configureTimer);
     std::erase(Application::instance()->m_windows, this);
     cursorImages().erase(this);
+    View::forgetGlassOf(this);
     for (Window* window : Application::instance()->m_windows) {
         if (window->m_transientParent == this) {
             window->m_transientParent = nullptr;
@@ -985,15 +986,20 @@ void Window::handlePointerEnter(double x, double y)
 {
     if (blockedByModal())
         return;
+    const PointF from = m_pointer;
+    const bool wasInside = m_pointerInside;
     m_pointer = {x, y};
     m_pointerInside = true;
     m_cursorShape = -1;
+    View::glassPointerMoved(this, from, wasInside);
     updateHover();
 }
 
 void Window::handlePointerLeave()
 {
+    const bool wasInside = m_pointerInside;
     m_pointerInside = false;
+    View::glassPointerMoved(this, m_pointer, wasInside);
     hideToolTip();
     m_pressed = nullptr;
     updateHoverChain();
@@ -1011,8 +1017,11 @@ void Window::handlePointerMotion(double x, double y)
             handlePointerLeave();
         return;
     }
+    const PointF from = m_pointer;
+    const bool wasInside = m_pointerInside;
     m_pointer = {x, y};
     m_pointerInside = true;
+    View::glassPointerMoved(this, from, wasInside);
     if (m_pressed)
         m_pressed->pointerMove(pointerEvent(m_pressed));
     if (m_pressed && pressMovesWindow()) {

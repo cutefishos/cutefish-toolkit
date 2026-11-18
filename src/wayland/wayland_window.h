@@ -113,6 +113,8 @@ public:
 private:
     void configure(int width, int height, const WindowStates& states) override;
     void scaleChanged(double scale) override;
+    // The scale of the buffer a window of the scale is presented in.
+    double bufferScale(double scale) const;
     void closeRequested() override;
     void frameDone() override;
     void presented(uint64_t timestampNs, uint32_t refreshNs) override;
@@ -163,6 +165,9 @@ private:
     BackdropFill m_subsurfaceBlurFill;
     std::optional<GlassMaterial> m_glass;
     double m_opacity = 1;
+    // The compositor's preferred scale, which buffers composed at the
+    // output's scale take; 0 until it is known.
+    double m_outputScale = 0;
     std::vector<SubsurfaceClient*> m_subsurfaces;
     std::shared_ptr<MainMenuMirror> m_mainMenu;
     std::shared_ptr<MainMenuMirror> m_dockMenu;

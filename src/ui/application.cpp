@@ -27,6 +27,7 @@ namespace cutefish::ui {
 
 static Application* s_instance = nullptr;
 static bool s_wholeScaleRendering = false;
+static bool s_outputScaleComposition = false;
 
 Application::Application(int argc, char** argv, Platform platform)
     : m_arguments(argv, argv + argc)
@@ -121,6 +122,16 @@ void Application::setWholeScaleRendering(bool enabled)
 bool Application::wholeScaleRendering()
 {
     return s_wholeScaleRendering;
+}
+
+void Application::setOutputScaleComposition(bool enabled)
+{
+    s_outputScaleComposition = enabled;
+}
+
+bool Application::outputScaleComposition()
+{
+    return s_outputScaleComposition;
 }
 
 TextContext& Application::text() const

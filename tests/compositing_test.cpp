@@ -362,7 +362,7 @@ TEST(CompositingTest, IncrementalFramesMatchFullRepaints)
 
 TEST(CompositingTest, LayerAtRestPaintsTheSamePixels)
 {
-    for (const double scale : {1.0, 1.25, 1.5}) {
+    for (const double scale : {1.0, 1.25, 1.5, 1.75}) {
         Window window;
         auto root = std::make_unique<View>();
         View* group = root->addChild<View>();
@@ -381,6 +381,197 @@ TEST(CompositingTest, LayerAtRestPaintsTheSamePixels)
         // a pixel out of place would differ by far more.
         EXPECT_LE(maxDifference(direct, layered), kTextureRounding) << scale;
     }
+}
+
+// Fills its rect, counting its paints.
+class Fill : public View
+{
+public:
+    explicit Fill(Color color)
+        : m_color(color)
+    {
+    }
+
+    void paint(Painter& painter) override
+    {
+        ++paints;
+        painter.fillRect(localRect(), m_color);
+    }
+
+    int paints = 0;
+
+private:
+    Color m_color;
+};
+
+static ViewGlass halfWhiteDisc()
+{
+    ViewGlass glass;
+    glass.key = 1;
+    glass.rect = {0, 0, 40, 40};
+    glass.radius = 20;
+    glass.tint[3] = 0.5;
+    glass.sideEdge[3] = 1;
+    return glass;
+}
+
+TEST(CompositingTest, GlassShadesWhatLiesUnderItsViewByDistanceToItsOutline)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {0, 0, 0, 255});
+    View* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 40, 40});
+    pane->setGlass({halfWhiteDisc()});
+    window.resize({60, 60});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // White at half over black in the middle, a black line along the sides,
+    // none along the top, the corners of the rect and outside untouched.
+    EXPECT_NEAR(image.pixel(60, 60).r, 128, 2);
+    EXPECT_LE(image.pixel(20, 60).r, 4);
+    EXPECT_NEAR(image.pixel(60, 20).r, 128, 2);
+    EXPECT_EQ(image.pixel(22, 22).r, 0);
+    EXPECT_EQ(image.pixel(5, 5).r, 0);
+}
+
+TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
+{
+    Window window;
+    auto root = std::make_unique<View>();
+    // In a texture, so only a paint of its own paints it.
+    Fill* under = root->addChild<Fill>(Color {0, 0, 0, 255});
+    under->setGeometry({0, 0, 60, 60});
+    under->setLayered(true);
+    under->setOpaqueLayer(true);
+    auto* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 40, 40});
+    pane->setGlass({halfWhiteDisc()});
+    window.resize({60, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 128, 2);
+    const int paints = under->paints;
+    ViewGlass brighter = halfWhiteDisc();
+    brighter.tint[3] = 1;
+    brighter.duration = 0.1;
+    brighter.curve[0] = 0;
+    brighter.curve[1] = 0;
+    brighter.curve[2] = 1;
+    brighter.curve[3] = 1;
+    pane->setGlass({brighter});
+    // The first frame starts the move; half way through, half way there.
+    EXPECT_NEAR(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 128, 2);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 191, 3);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 255, 1);
+    EXPECT_EQ(under->paints, paints);
+
+    // Left out, it fades out over its own duration.
+    pane->setGlass({});
+    TestInput::presentFrame(window, now += kFrameNs);
+    EXPECT_NEAR(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 128, 3);
+    EXPECT_EQ(TestInput::presentFrame(window, now += 50000000).pixel(30, 30).r, 0);
+    EXPECT_EQ(under->paints, paints);
+}
+
+TEST(CompositingTest, GlassLightsWhereThePointerIs)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {0, 0, 0, 255});
+    auto* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 80, 40});
+    ViewGlass glass;
+    glass.rect = {0, 0, 80, 40};
+    glass.radius = 20;
+    glass.glow[3] = 1;
+    glass.glowRadius = 15;
+    pane->setGlass({glass});
+    window.resize({100, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    EXPECT_EQ(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 0);
+    TestInput::movePointer(window, {30, 30});
+    Image image = TestInput::presentFrame(window, now += kFrameNs);
+    EXPECT_GE(image.pixel(30, 30).r, 240);
+    EXPECT_EQ(image.pixel(70, 30).r, 0);
+    TestInput::movePointer(window, {70, 30});
+    image = TestInput::presentFrame(window, now += kFrameNs);
+    EXPECT_EQ(image.pixel(30, 30).r, 0);
+    EXPECT_GE(image.pixel(70, 30).r, 240);
+}
+
+TEST(CompositingTest, GlassLightLagsBehindThePointer)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {0, 0, 0, 255});
+    auto* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 80, 40});
+    ViewGlass glass;
+    glass.rect = {0, 0, 80, 40};
+    glass.radius = 20;
+    glass.glow[3] = 1;
+    glass.glowRadius = 15;
+    glass.glowLag = 0.1;
+    pane->setGlass({glass});
+    window.resize({100, 60});
+    window.setContentView(std::move(root));
+    window.setScale(1);
+    window.show();
+
+    uint64_t now = 1000000000;
+    TestInput::movePointer(window, {30, 30});
+    EXPECT_GE(TestInput::presentFrame(window, now += kFrameNs).pixel(30, 30).r, 240);
+    TestInput::movePointer(window, {70, 30});
+    // A frame later the light has gone less than half the way.
+    Image image = TestInput::presentFrame(window, now += kFrameNs);
+    EXPECT_LT(image.pixel(70, 30).r, 40);
+    for (int i = 0; i < 12; ++i)
+        image = TestInput::presentFrame(window, now += kFrameNs);
+    EXPECT_GE(image.pixel(70, 30).r, 240);
+    EXPECT_EQ(image.pixel(30, 30).r, 0);
+}
+
+TEST(CompositingTest, ComposedAtAnotherScaleGlassEdgesStayOneBufferPixel)
+{
+    Window window;
+    auto root = std::make_unique<View>();
+    Fill* white = root->addChild<Fill>(Color {255, 255, 255, 255});
+    white->setGeometry({0, 0, 40, 20});
+    white->setLayered(true);
+    white->setOpaqueLayer(true);
+    Fill* square = root->addChild<Fill>(Color {0, 0, 0, 255});
+    square->setGeometry({28, 4, 8, 8});
+    square->setLayered(true);
+    View* pane = root->addChild<View>();
+    pane->setGeometry({4, 4, 20, 12});
+    ViewGlass glass;
+    glass.rect = {0, 0, 20, 12};
+    glass.sideEdge[3] = 1;
+    pane->setGlass({glass});
+    window.resize({40, 20});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = TestInput::composeFrame(window, 1.75);
+    ASSERT_EQ(image.width(), 70);
+    // The pane's side line covers the one buffer pixel inside its edge.
+    EXPECT_EQ(image.pixel(6, 17).r, 255);
+    EXPECT_LE(image.pixel(7, 17).r, 2);
+    EXPECT_GE(image.pixel(8, 17).r, 253);
+    // The textures are scaled into the buffer: the square spans 49 to 63.
+    EXPECT_LE(image.pixel(50, 14).r, 2);
+    EXPECT_LE(image.pixel(62, 14).r, 2);
+    EXPECT_GE(image.pixel(47, 14).r, 253);
+    EXPECT_GE(image.pixel(64, 14).r, 253);
 }
 
 TEST(CompositingTest, TransformsMoveTexturesWithoutRepainting)

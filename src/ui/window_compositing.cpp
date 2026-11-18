@@ -615,6 +615,7 @@ void View::paintFlat(View* view, Painter& painter)
     painter.save();
     painter.multiplyOpacity(view->opacity());
     painter.translate(view->geometry().topLeft());
+    view->paintGlass(painter, painter.opacity());
     if (view->clipsChildren())
         painter.clip(view->localRect());
     view->paint(painter);
@@ -653,6 +654,12 @@ void View::paintTree(Painter& painter, const SkRegion* region)
 {
     if (!m_visible || m_opacity <= 0)
         return;
+    if (hasGlass()) {
+        painter.save();
+        painter.translate(m_geometry.topLeft());
+        paintGlass(painter, painter.opacity() * m_opacity);
+        painter.restore();
+    }
     if (!m_layer) {
         painter.save();
         painter.multiplyOpacity(m_opacity);
@@ -676,12 +683,13 @@ void View::paintTree(Painter& painter, const SkRegion* region)
         paintBackdrop(canvas, *backdrop, matrix, position, scale, float(painter.opacity() * m_opacity));
     canvas->save();
     canvas->concat(matrix);
-    // At rest the texture lands pixel for pixel; scaled, it filters.
-    const SkSamplingOptions sampling = m_transform.scale == 1 ? SkSamplingOptions()
-                                                              : SkSamplingOptions(SkFilterMode::kLinear);
+    // At rest the texture lands pixel for pixel; scaled, or composed into a
+    // buffer at another scale, it filters.
+    const bool exact = m_transform.scale == 1 && canvas->getTotalMatrix().isTranslate();
+    const SkSamplingOptions sampling = exact ? SkSamplingOptions() : SkSamplingOptions(SkFilterMode::kLinear);
     // The texture may be larger than what it holds; filtering stays inside.
-    const SkCanvas::SrcRectConstraint constraint = m_transform.scale == 1 ? SkCanvas::kFast_SrcRectConstraint
-                                                                          : SkCanvas::kStrict_SrcRectConstraint;
+    const SkCanvas::SrcRectConstraint constraint = exact ? SkCanvas::kFast_SrcRectConstraint
+                                                         : SkCanvas::kStrict_SrcRectConstraint;
     canvas->drawImageRect(m_layer->surface->makeImageSnapshot(), SkRect::MakeIWH(bounds.width(), bounds.height()),
                           SkRect::Make(bounds), sampling, &paint, constraint);
     canvas->restore();
@@ -708,9 +716,40 @@ void View::paintContent(Painter& painter, const SkRegion* region)
     painter.restore();
 }
 
+// How much larger the buffer is than the window at its scale: 1 but for a
+// window composed at its output's scale.
+static double composition(const SkCanvas* canvas, SizeF size, double scale)
+{
+    const double width = std::round(size.width * scale);
+    if (width <= 0)
+        return 1;
+    const double ratio = canvas->imageInfo().width() / width;
+    return std::abs(ratio - 1) < 1e-3 ? 1 : ratio;
+}
+
+// The buffer pixels a region of window pixels touches, and one more for
+// the filtering.
+static SkRegion composedRegion(const SkRegion& region, double ratio, const SkIRect& buffer)
+{
+    SkRegion composed;
+    for (SkRegion::Iterator it(region); !it.done(); it.next()) {
+        const SkIRect& rect = it.rect();
+        const SkIRect scaled = SkIRect::MakeLTRB(int(std::floor(rect.left() * ratio)) - 1,
+                                                 int(std::floor(rect.top() * ratio)) - 1,
+                                                 int(std::ceil(rect.right() * ratio)) + 1,
+                                                 int(std::ceil(rect.bottom() * ratio)) + 1);
+        composed.op(intersection(scaled, buffer), SkRegion::kUnion_Op);
+    }
+    return composed;
+}
+
 void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
 {
-    const SkIRect window = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
+    const double ratio = composition(canvas, m_size, m_scale);
+    const SkIRect buffer = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
+    const SkIRect window = ratio == 1 ? buffer
+                                      : SkIRect::MakeWH(int(std::lround(m_size.width * m_scale)),
+                                                        int(std::lround(m_size.height * m_scale)));
     updateLayers(m_contentView.get(), {}, canvas, &window);
     if (m_overlay)
         updateLayers(m_overlay.get(), {}, canvas, &window);
@@ -719,6 +758,9 @@ void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
 
     const auto paintInside = [&](SkCanvas* target) {
         target->clear(backgroundColor().argb());
+        target->save();
+        if (ratio != 1)
+            target->scale(SkScalar(ratio), SkScalar(ratio));
         Painter painter(target, m_scale);
         if (region)
             painter.setDamage(region);
@@ -727,8 +769,11 @@ void Window::paintContent(SkCanvas* canvas, const SkRegion* region)
             m_overlay->paintTree(painter, region);
         if (m_toolTip)
             m_toolTip->paintTree(painter, region);
+        target->restore();
     };
-    if (region)
+    if (region && ratio != 1)
+        repaint(canvas, composedRegion(*region, ratio, buffer), paintInside);
+    else if (region)
         repaint(canvas, *region, paintInside);
     else
         paintInside(canvas);
@@ -753,10 +798,17 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
 {
     applyTextTarget();
     FrameDamage& damage = *m_frameDamage;
-    const SkIRect window = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
+    // Damage is kept in the window's pixels at its scale, which the buffer
+    // may hold at another.
+    const double ratio = composition(canvas, m_size, m_scale);
+    const SkIRect buffer = SkIRect::MakeWH(canvas->imageInfo().width(), canvas->imageInfo().height());
+    const SkIRect window = ratio == 1 ? buffer
+                                      : SkIRect::MakeWH(int(std::lround(m_size.width * m_scale)),
+                                                        int(std::lround(m_size.height * m_scale)));
     if (damage.full)
         damage.pending.setRect(window);
     growForBackdrops(damage.pending, this, m_scale);
+    View::growForGlass(damage.pending, this, m_scale);
     damage.pending.op(window, SkRegion::kIntersect_Op);
     if (damage.pending.computeRegionComplexity() > kMaximumDamageRects)
         damage.pending.setRect(damage.pending.getBounds());
@@ -770,12 +822,14 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
         for (int i = 0; i < bufferAge - 1; ++i)
             repaint.op(damage.history[size_t(i)], SkRegion::kUnion_Op);
     }
+    View::growForGlass(repaint, this, m_scale);
     if (repaint.computeRegionComplexity() > kMaximumDamageRects)
         repaint.setRect(repaint.getBounds());
     paintContent(canvas, &repaint);
 
     std::vector<Rect> rects;
-    for (SkRegion::Iterator it(damage.pending); !it.done(); it.next()) {
+    const SkRegion pending = ratio == 1 ? damage.pending : composedRegion(damage.pending, ratio, buffer);
+    for (SkRegion::Iterator it(pending); !it.done(); it.next()) {
         const SkIRect& rect = it.rect();
         rects.push_back({rect.x(), rect.y(), rect.width(), rect.height()});
     }

@@ -12,6 +12,7 @@
 
 #include "ui/event.h"
 #include "ui/geometry.h"
+#include "ui/view_glass.h"
 
 class SkRegion;
 
@@ -170,6 +171,10 @@ public:
         bool operator==(const BackdropArea&) const = default;
     };
     void setBackdrop(const std::vector<BackdropArea>& areas, double blur, double saturation = 1);
+    // Panes of glass the view stands on, in its coordinates, drawn as the
+    // window composites, under the view and over what lies under it; see
+    // ViewGlass. None removes them.
+    void setGlass(std::vector<ViewGlass> glass);
 
     // Everything the view paints, in its own coordinates: its rect, and more
     // where shadows or focus rings reach out.
@@ -306,6 +311,7 @@ protected:
 
 private:
     friend class BlurredCopy;
+    friend class GlassClock;
     friend class HeaderBackdrop;
     friend class TestInput;
     friend class Window;
@@ -314,6 +320,22 @@ private:
     static void invalidateMeasurements();
     // The backdrop a layered view had, kept apart from it, goes with it.
     static void forgetBackdrop(const View* view);
+    // Glass, kept apart from the views as backdrops are: the view's goes
+    // with it, a window's frames stop running its panes when it goes.
+    static void forgetGlass(const View* view);
+    static void forgetGlassOf(const Window* window);
+    // Moves the window's moving panes on to the frame; false once none
+    // moves.
+    static bool tickGlass(Window* window, uint64_t frameTimeNs);
+    // The pointer moved in the window, from where it was: panes lit around
+    // it are painted again.
+    static void glassPointerMoved(Window* window, PointF from, bool wasInside);
+    // Grows the region (device pixels) over every pane of the window it
+    // touches, as a pane reads what lies under it.
+    static void growForGlass(SkRegion& region, const Window* window, double scale);
+    bool hasGlass() const;
+    // The panes, the painter at the view's top left.
+    void paintGlass(Painter& painter, double opacity) const;
     // The view and every view under it lay out again, and measure again too
     // unless told otherwise.
     void invalidateSubtree(bool remeasure = true);

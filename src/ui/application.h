@@ -69,6 +69,14 @@ public:
     // without fractional scales. Set before the first window shows.
     static void setWholeScaleRendering(bool enabled);
     static bool wholeScaleRendering();
+    // With whole scale rendering, windows still lay out and paint their
+    // textures at the whole scale, but compose them into buffers at the
+    // output's own scale, which the compositor shows pixel for pixel: the
+    // textures are scaled as they are composed, and what is drawn while
+    // composing, such as glass, lands on the output's pixels. Set before
+    // the first window shows.
+    static void setOutputScaleComposition(bool enabled);
+    static bool outputScaleComposition();
 
     const std::vector<std::string>& arguments() const { return m_arguments; }
     Platform platform() const { return m_platform; }

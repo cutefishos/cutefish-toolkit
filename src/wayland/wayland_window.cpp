@@ -364,8 +364,8 @@ bool WaylandWindow::present(SizeF size, double scale, bool opaque, const PaintFu
         return false;
     auto* application = Application::instance();
     auto& gpu = *m_gpu;
-    const int width = int(std::lround(size.width * scale));
-    const int height = int(std::lround(size.height * scale));
+    const int width = int(std::lround(size.width * bufferScale(scale)));
+    const int height = int(std::lround(size.height * bufferScale(scale)));
     if (!m_eglWindow) {
         m_eglWindow = wl_egl_window_create(m_shell->surface(), width, height);
         m_eglSurface = gpu.createSurface(m_eglWindow);
@@ -413,8 +413,8 @@ bool WaylandWindow::present(SizeF size, double scale, bool opaque, const PaintFu
 
 bool WaylandWindow::presentUnchanged(SizeF size, double scale, bool opaque)
 {
-    if (!m_shell || !m_eglWindow || int(std::lround(size.width * scale)) != m_bufferWidth
-        || int(std::lround(size.height * scale)) != m_bufferHeight
+    if (!m_shell || !m_eglWindow || int(std::lround(size.width * bufferScale(scale))) != m_bufferWidth
+        || int(std::lround(size.height * bufferScale(scale))) != m_bufferHeight
         || !m_shell->canCommitUnchanged(int(size.width), int(size.height), opaque))
         return false;
     for (SubsurfaceClient* client : std::vector<SubsurfaceClient*>(m_subsurfaces))
@@ -579,7 +579,16 @@ bool WaylandWindow::startDrag(DragSource source)
 
 void WaylandWindow::scaleChanged(double scale)
 {
+    m_outputScale = scale;
     notifyScaleChanged(Application::wholeScaleRendering() ? std::ceil(scale) : scale);
+}
+
+double WaylandWindow::bufferScale(double scale) const
+{
+    if (Application::wholeScaleRendering() && Application::outputScaleComposition() && m_outputScale > 0
+        && m_outputScale < scale)
+        return m_outputScale;
+    return scale;
 }
 
 void WaylandWindow::closeRequested()

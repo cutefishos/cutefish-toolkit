@@ -56,6 +56,9 @@ public:
     // Renders a frame as on screen into a chain of three buffers, repainting
     // only what changed since each buffer's last frame; returns the buffer.
     static Image presentFrame(Window& window, uint64_t frameTimeNs = 0);
+    // The whole window composed into a buffer at another scale than its
+    // own, as for an output of a fractional scale.
+    static Image composeFrame(Window& window, double bufferScale);
     // The device pixels the view's own paint inks at the scale, without its
     // children, relative to its top left.
     static Rect inkRect(View& view, double scale);

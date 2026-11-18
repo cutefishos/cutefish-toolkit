@@ -141,6 +141,22 @@ Image TestInput::presentFrame(Window& window, uint64_t frameTimeNs)
     return image ? *image : Image();
 }
 
+Image TestInput::composeFrame(Window& window, double bufferScale)
+{
+    if (!window.prepareFrame(1))
+        return {};
+    const int width = int(std::lround(window.m_size.width * bufferScale));
+    const int height = int(std::lround(window.m_size.height * bufferScale));
+    const sk_sp<SkSurface> surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(width, height));
+    if (!surface)
+        return {};
+    window.damageWhole();
+    window.paintFrame(surface->getCanvas(), 0);
+    Image image(width, height);
+    surface->readPixels(SkImageInfo::MakeN32Premul(width, height), image.bits(), size_t(width) * 4, 0, 0);
+    return image;
+}
+
 Rect TestInput::inkRect(View& view, double scale)
 {
     // Room for shadows and rings on every side.
