@@ -164,10 +164,11 @@ TEST(WindowHintsTest, ColoredWindowControlGlyphsShowAcrossTheWholeRow)
     window.resize({300, 200});
     window.setContentView(std::move(column));
     window.show();
-    // The middles of the close and minimize plates, where their glyphs ink.
+    // Where the close and minimize glyphs ink: the close plate's middle, and
+    // the minimize line, which sits a little above its plate's middle.
     const auto centres = [&] {
         const Image image = window.grab();
-        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 22).r)};
+        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 21).r)};
     };
     const auto [closeRest, minimizeRest] = centres();
     // The gap between close and minimize, over minimize, and over maximize.
