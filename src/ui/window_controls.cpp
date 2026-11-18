@@ -3,6 +3,7 @@
 
 #include "ui/window_controls.h"
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -22,8 +23,28 @@ namespace cutefish::ui::window_controls {
 static constexpr double kColoredPlate = 14;
 static constexpr double kArtwork = 14;
 static constexpr double kRim = 0.5;
-static constexpr double kShadowSigma = kButton * 0.1;
-static constexpr double kShadowOffset = kButton * 0.06;
+
+// The shadow, the glyph and the coloured dot keep their proportions to a
+// control's side.
+static double shadowSigma(double side)
+{
+    return side * 0.1;
+}
+
+static double shadowOffset(double side)
+{
+    return side * 0.06;
+}
+
+static double scaled(double length, double side)
+{
+    return std::round(length * side / kButton);
+}
+
+static double sideOf(const RectF& bounds)
+{
+    return std::min(bounds.width, bounds.height);
+}
 
 // The plate under a control or a group of them: barely apart from the
 // window, lit a little in its middle and along the inside of its top and
@@ -38,8 +59,8 @@ static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, doub
         return LinearGradient {{plate.x, plate.y}, {plate.x, plate.bottom()}, std::move(stops)};
     };
 
-    painter.drawOuterShadow(plate, radius, Corners::Circular, kShadowSigma,
-                            black.withAlpha(dark ? 0.2 : 0.04), {0, kShadowOffset});
+    painter.drawOuterShadow(plate, radius, Corners::Circular, shadowSigma(plate.height),
+                            black.withAlpha(dark ? 0.2 : 0.04), {0, shadowOffset(plate.height)});
 
     painter.save();
     painter.clipRoundedRect(plate, radius);
@@ -101,9 +122,9 @@ static RectF snappedPlate(Painter& painter, const RectF& bounds)
 static void paintPlate(Painter& painter, const RectF& bounds, const State& state)
 {
     // A square of whole device pixels, so the plate comes out round.
-    const RectF plate = snappedPlate(painter, {bounds.x + std::round((bounds.width - kButton) / 2),
-                                               bounds.y + std::round((bounds.height - kButton) / 2), kButton,
-                                               kButton});
+    const double side = sideOf(bounds);
+    const RectF plate = snappedPlate(painter, {bounds.x + std::round((bounds.width - side) / 2),
+                                               bounds.y + std::round((bounds.height - side) / 2), side, side});
     const Rect device = painter.deviceRect(plate);
 
     painter.save();
@@ -116,9 +137,10 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
         sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-dialog-close", device.width, ink);
         painter.drawImage(image.get(), device.x, device.y);
     } else if (!state.artwork.empty()) {
-        const Rect icon = painter.snappedRect({bounds.x + std::round((bounds.width - kArtwork) / 2),
-                                               bounds.y + std::round((bounds.height - kArtwork) / 2), kArtwork,
-                                               kArtwork});
+        const double artwork = scaled(kArtwork, side);
+        const Rect icon = painter.snappedRect({bounds.x + std::round((bounds.width - artwork) / 2),
+                                               bounds.y + std::round((bounds.height - artwork) / 2), artwork,
+                                               artwork});
         sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);
         painter.drawImage(image.get(), icon.x, icon.y);
     }
@@ -132,7 +154,8 @@ static void paintColored(Painter& painter, const RectF& bounds, const State& sta
         return painter.snappedRect({bounds.x + std::round((bounds.width - side) / 2),
                                     bounds.y + std::round((bounds.height - side) / 2), side, side});
     };
-    const Rect plate = centred(kColoredPlate);
+    const double side = sideOf(bounds);
+    const Rect plate = centred(scaled(kColoredPlate, side));
     // Coloured while the window is active or the pointer is on the row, grey
     // otherwise.
     Color fill = tint.withAlpha((state.dark ? 0.30 : 0.20) + (state.pressed ? 0.12 : 0));
@@ -151,7 +174,7 @@ static void paintColored(Painter& painter, const RectF& bounds, const State& sta
     painter.strokeDeviceRoundedRect(plate, plate.width / 2.0, Color::rgb(0x000000).withAlpha(0.12),
                                     kRim * painter.scale());
     if (state.enabled && !state.artwork.empty() && (state.hovered || state.pressed)) {
-        const Rect icon = centred(kArtwork);
+        const Rect icon = centred(scaled(kArtwork, side));
         sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);
         painter.drawImage(image.get(), icon.x, icon.y);
     }
@@ -182,9 +205,10 @@ RectF visualRect(const RectF& bounds, const State& state)
         return bounds;
     // A sigma and a half, past which the shadow is under a level; it stays
     // inside the gap to the next control.
-    const double reach = 1.5 * kShadowSigma;
-    return bounds.adjusted(-std::ceil(reach), -std::ceil(reach - kShadowOffset), std::ceil(reach),
-                           std::ceil(reach + kShadowOffset));
+    const double side = sideOf(bounds);
+    const double reach = 1.5 * shadowSigma(side);
+    return bounds.adjusted(-std::ceil(reach), -std::ceil(reach - shadowOffset(side)), std::ceil(reach),
+                           std::ceil(reach + shadowOffset(side)));
 }
 
 Bitmap render(const State& state, double scale, Bitmap::Format format)

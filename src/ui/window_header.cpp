@@ -18,7 +18,6 @@ namespace cutefish::ui {
 static constexpr double kButton = window_controls::kButton;
 // The controls sit in the 32-pixel slot the apps centre their margins on.
 static constexpr double kSlot = 32;
-static constexpr double kSlotInset = (kSlot - kButton) / 2;
 
 namespace {
 
@@ -162,6 +161,14 @@ void WindowHeader::setButtonsCentered(bool centered)
     requestLayout();
 }
 
+void WindowHeader::setButtonSize(double size)
+{
+    if (size == m_buttonSize)
+        return;
+    m_buttonSize = size;
+    requestLayout();
+}
+
 double WindowHeader::buttonsTop() const
 {
     return m_zone->geometry().y;
@@ -169,30 +176,32 @@ double WindowHeader::buttonsTop() const
 
 void WindowHeader::layout()
 {
+    const double size = m_closeOnly ? kButton : m_buttonSize;
+    const double slotInset = (kSlot - size) / 2;
     // A RowLayout centres on whole pixels.
-    double top = m_buttonsCentered ? std::floor((geometry().height - kButton) / 2) : m_buttonMargin + kSlotInset;
+    double top = m_buttonsCentered ? std::floor((geometry().height - size) / 2) : m_buttonMargin + slotInset;
     const double spacing = Theme::current().coloredWindowControls ? window_controls::kColoredSpacing
                                                                   : window_controls::kSpacing;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())
-            row += (row > 0 ? spacing : 0) + kButton;
+            row += (row > 0 ? spacing : 0) + size;
     }
     // FishUI's RowLayout of a start margin item and the buttons' row: each
     // cell starts on a whole logical pixel, halves rounding up, so a
     // fractional margin moves the row by up to half a pixel.
-    double rowX = std::floor(m_buttonMargin + 0.5) + kSlotInset;
+    double rowX = std::floor(m_buttonMargin + 0.5) + slotInset;
     if (m_closeOnly) {
         rowX = window_controls::kDialogCloseInset;
         top = window_controls::kDialogCloseInset;
     }
-    m_zone->setGeometry({rowX, top, row, kButton});
+    m_zone->setGeometry({rowX, top, row, size});
     double x = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (!button->isVisible())
             continue;
-        button->setGeometry({x, 0, kButton, kButton});
-        x += kButton + spacing;
+        button->setGeometry({x, 0, size, size});
+        x += size + spacing;
     }
     m_leadingInset = rowX + row + spacing;
     if (!m_content)

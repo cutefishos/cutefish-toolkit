@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "ui/view.h"
+#include "ui/window_controls.h"
 
 namespace cutefish::ui {
 
@@ -48,6 +49,9 @@ public:
     // The buttons centred in the bar's height, with no top margin, keeping the
     // start margin.
     void setButtonsCentered(bool centered);
+    // The controls' side, window_controls::kButton by default, for bars too
+    // low for full-size controls.
+    void setButtonSize(double size);
 
     // The content spans the whole bar and lies under the buttons, for windows
     // whose sidebar runs beneath them.
@@ -69,6 +73,7 @@ private:
     double m_height;
     double m_buttonMargin = 4;
     bool m_buttonsCentered = false;
+    double m_buttonSize = window_controls::kButton;
     bool m_contentUnderButtons = false;
     bool m_closeOnly = false;
     double m_leadingInset = 0;
