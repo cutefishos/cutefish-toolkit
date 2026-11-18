@@ -973,6 +973,7 @@ BubbleShape Menu::bubble(SizeF size, double arrowPosition) const
     shape.continuousCorners = m_continuousCorners;
     shape.arrowEdge = m_arrowEdge;
     shape.arrowPosition = arrowPosition;
+    shape.arrowLength = m_arrowLength;
     return shape;
 }
 

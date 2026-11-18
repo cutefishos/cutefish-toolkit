@@ -110,6 +110,9 @@ public:
     // A bubble menu: an arrow on this edge pointing at the target, in the
     // coordinates of the window it opens in. None by default.
     void setArrow(BubbleShape::Edge edge, PointF target);
+    // How far the arrow stands out of its edge; the bubble's own length by
+    // default.
+    void setArrowLength(double length) { m_arrowLength = length; }
     // Continuous corners on the body; circular by default.
     void setContinuousCorners(bool continuous) { m_continuousCorners = continuous; }
     // Where the menu stays, in the window's coordinates, as
@@ -210,6 +213,7 @@ private:
     BubbleShape::Edge m_arrowEdge = BubbleShape::Edge::None;
     PointF m_arrowTarget;
     bool m_continuousCorners = false;
+    double m_arrowLength = BubbleShape().arrowLength;
     std::optional<RectF> m_availableGeometry;
     MenuRole m_role = MenuRole::None;
     // Set while a main menu shows this menu.
