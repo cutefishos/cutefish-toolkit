@@ -156,12 +156,14 @@ static void paintDarkEdge(Painter& painter, const RectF& plate)
     });
 }
 
-// The light plate's rim: its own outer device pixel darkened, most at the
-// middle of its height.
+// The light plate's rim: a half point line just inside its outline,
+// darkest at the middle of its height.
 static void paintLightRim(Painter& painter, const RectF& plate)
 {
-    paintEdge(painter, plate, 1.5, [](double distance, double, double down) {
-        const double band = std::clamp(std::min(distance + 0.5, 0.0) - std::max(distance - 0.5, -1.0), 0.0, 1.0);
+    const double lineWidth = 0.5 * painter.scale();
+    paintEdge(painter, plate, lineWidth + 1, [lineWidth](double distance, double, double down) {
+        const double band
+                = std::clamp(std::min(distance + 0.5, 0.0) - std::max(distance - 0.5, -lineWidth), 0.0, 1.0);
         const double alpha = down < 0.5 ? 0.1 + (0.32 - 0.1) * down / 0.5 : 0.32 + (0.14 - 0.32) * (down - 0.5) / 0.5;
         return EdgePixel {0, band * alpha};
     });
