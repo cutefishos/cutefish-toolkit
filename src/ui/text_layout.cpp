@@ -287,6 +287,7 @@ struct TextLayoutPrivate
     double letterSpacing = 0;
     std::vector<TextFormatRange> formats;
     Color defaultColor = Color::rgb(0x000000);
+    bool opaqueColorGlyphs = false;
 
     bool shaped = false;
     double pixelSize = 0;
@@ -632,6 +633,12 @@ void TextLayout::setDefaultColor(Color color)
     d->drawCached = false;
 }
 
+void TextLayout::setOpaqueColorGlyphs(bool opaque)
+{
+    d->opaqueColorGlyphs = opaque;
+    d->drawCached = false;
+}
+
 void TextLayout::beginLayout()
 {
     d->shape();
@@ -871,6 +878,14 @@ size_t TextLayout::xToCursor(int lineIndex, double x) const
     return rtlLine ? line.textStart : line.textStart + line.textLength;
 }
 
+static bool hasColorGlyphs(const SkTypeface* typeface)
+{
+    const auto hasTable = [typeface](const char tag[4]) {
+        return typeface->getTableSize(SkSetFourByteTag(tag[0], tag[1], tag[2], tag[3])) > 0;
+    };
+    return typeface && (hasTable("CBDT") || hasTable("COLR") || hasTable("sbix") || hasTable("SVG "));
+}
+
 void TextLayoutPrivate::buildDrawCache()
 {
     batches.clear();
@@ -905,8 +920,9 @@ void TextLayoutPrivate::buildDrawCache()
             }
             if (cluster.run < 0)
                 continue;
-            Pending& entry = pendingFor(color);
             const GlyphRun& run = runs[size_t(cluster.run)];
+            Pending& entry = pendingFor(opaqueColorGlyphs && hasColorGlyphs(run.typeface.get()) ? color.withAlpha(1)
+                                                                                               : color);
             for (size_t g = 0; g < cluster.glyphCount; ++g) {
                 const size_t index = cluster.glyphStart + g;
                 entry.glyphs.push_back({cluster.run,

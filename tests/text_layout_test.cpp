@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <functional>
@@ -184,6 +185,34 @@ TEST(TextLayoutTest, VariationSelectorAsksForEmoji)
         }
     }
     EXPECT_TRUE(red);
+}
+
+// Opaque colour glyphs keep the emoji's red whole in faint text, which
+// otherwise fades it with the letters.
+TEST(TextLayoutTest, OpaqueColorGlyphsIgnoreTheTextAlpha)
+{
+    const auto reddest = [](bool opaque) {
+        TextLayout layout("a❤️b", {"Inter", 24, false, false});
+        layout.setDefaultColor(Color::rgb(0x000000).withAlpha(0.2));
+        layout.setOpaqueColorGlyphs(opaque);
+        layOut(layout, 0);
+        Window window;
+        window.resize({100, 40});
+        window.setBackgroundColor(Color::rgb(0xFFFFFF));
+        window.setContentView(std::make_unique<Canvas>([&](Painter& painter) { layout.draw(painter, {2, 4}); }));
+        window.show();
+        const Image image = window.grab();
+        int best = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const Color c = image.pixel(x, y);
+                best = std::max(best, int(c.r) - int(c.g));
+            }
+        }
+        return best;
+    };
+    EXPECT_GT(reddest(true), 150);
+    EXPECT_LT(reddest(false), 80);
 }
 
 // A mark the text font lacks (U+0335 after U+02C3, which Inter has) moves

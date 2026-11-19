@@ -84,6 +84,9 @@ public:
     void setFormats(std::vector<TextFormatRange> formats);
     // For text outside every coloured range.
     void setDefaultColor(Color color);
+    // Colour glyphs (emoji) drawn at full opacity whatever the alpha of the
+    // text's colour, so dimmed text dims its letters only.
+    void setOpaqueColorGlyphs(bool opaque);
 
     // Lines are made between these; earlier lines are dropped.
     void beginLayout();
