@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 
@@ -27,6 +28,7 @@
 #include "ui/sidebar_divider.h"
 #include "ui/theme.h"
 #include "ui/window.h"
+#include "ui/window_controls.h"
 
 using namespace cutefish::ui;
 
@@ -464,6 +466,30 @@ TEST(ControlsTest, ComboBoxGreysItsTextWhenDisabled)
     EXPECT_NEAR(darkest(), theme.text.g, 6);
     box->setEnabled(false);
     EXPECT_NEAR(darkest(), theme.disabledText.g * 0.6 + theme.alternateBackground.g * 0.4, 6);
+}
+
+// The dark plate over a dark title bar: a dark line just outside its sides,
+// nothing outside its top and bottom, light just inside the top and more
+// inside the bottom, and no shadow under it.
+TEST(ControlsTest, DarkWindowControlPlateEdge)
+{
+    window_controls::State state;
+    state.dark = true;
+    const Bitmap bitmap = window_controls::render(state, 2);
+    ASSERT_EQ(bitmap.width(), 64);
+    const auto over = [&bitmap](int x, int y) {
+        const uint8_t* pixel = bitmap.bits() + size_t(y) * bitmap.stride() + size_t(x) * 4;
+        return int(std::lround(pixel[1] + 38 * (255 - pixel[3]) / 255.0));
+    };
+    // The plate covers device pixels 10 to 53 both ways.
+    EXPECT_NEAR(over(32, 9), 38, 2);
+    EXPECT_NEAR(over(32, 54), 38, 2);
+    EXPECT_NEAR(over(32, 60), 38, 1);
+    EXPECT_GE(over(32, 10) - over(32, 18), 40);
+    EXPECT_GE(over(32, 53) - over(32, 10), 15);
+    EXPECT_LE(over(9, 32), 38 - 15);
+    EXPECT_LE(over(54, 32), 38 - 15);
+    EXPECT_NEAR(over(10, 32), over(14, 32), 4);
 }
 
 // The pressed plate while checked, as while the button's menu is open, in

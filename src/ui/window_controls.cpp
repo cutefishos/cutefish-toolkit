@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -46,10 +47,102 @@ static double sideOf(const RectF& bounds)
     return std::min(bounds.width, bounds.height);
 }
 
+// What the dark plate's light adds to its body at a depth inside its top and
+// bottom outline, in points; nothing past the last.
+struct EdgeLight
+{
+    double depth;
+    double added;
+};
+
+static constexpr EdgeLight kDarkTopLight[] = {{0.25, 58}, {0.75, 38}, {1.25, 14}, {1.75, 11}, {2.25, 8},
+                                              {2.75, 7}, {3.25, 5.5}, {3.75, 4.5}, {4.25, 3}, {5.25, 3},
+                                              {6.25, 2}, {7.25, 1}, {8, 0}};
+static constexpr EdgeLight kDarkBottomLight[] = {{0.25, 82}, {0.75, 41}, {1.25, 11}, {1.75, 9}, {2.25, 7},
+                                                 {2.75, 5}, {3.25, 4}, {4.25, 3}, {5.25, 2}, {6.25, 1},
+                                                 {8, 0}};
+
+template<size_t N>
+static double edgeLightAt(const EdgeLight (&table)[N], double depth)
+{
+    if (depth <= table[0].depth)
+        return table[0].added;
+    for (size_t i = 1; i < N; ++i) {
+        if (depth <= table[i].depth) {
+            const double t = (depth - table[i - 1].depth) / (table[i].depth - table[i - 1].depth);
+            return table[i - 1].added + t * (table[i].added - table[i - 1].added);
+        }
+    }
+    return 0;
+}
+
+// The dark plate's edge, worked out per device pixel from its distance to the
+// outline so it follows the curve smoothly at any scale: a half point dark
+// line just outside the sides, fading to none at the top and bottom as the outline turns, and light
+// just inside the top and, brighter, the bottom, fading to none at the sides
+// and gone a few points in.
+static void paintDarkEdge(Painter& painter, const RectF& plate)
+{
+    const double scale = painter.scale();
+    const Rect device = painter.deviceRect(plate);
+    const int width = device.width + 2, height = device.height + 2;
+    SkBitmap edge;
+    if (!edge.tryAllocPixels(SkImageInfo::Make(width, height, kRGBA_8888_SkColorType, kPremul_SkAlphaType)))
+        return;
+    edge.eraseColor(SK_ColorTRANSPARENT);
+    const double halfWidth = device.width / 2.0, halfHeight = device.height / 2.0;
+    const double radius = halfHeight;
+    const double reach = kDarkBottomLight[std::size(kDarkBottomLight) - 1].depth * scale;
+    const double lineWidth = 0.5 * scale;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // From the middle, in device pixels, at the pixel's centre.
+            const double px = x - 1 + 0.5 - halfWidth, py = y - 1 + 0.5 - halfHeight;
+            const double qx = std::abs(px) - (halfWidth - radius), qy = std::abs(py) - (halfHeight - radius);
+            double distance, upright;
+            if (qx > 0 && qy > 0) {
+                const double length = std::hypot(qx, qy);
+                distance = length - radius;
+                upright = qy * qy / (length * length);
+            } else if (qx > qy) {
+                distance = qx - radius;
+                upright = 0;
+            } else {
+                distance = qy - radius;
+                upright = 1;
+            }
+            if (distance > 1.5 || -distance > reach)
+                continue;
+            // The line covers the band from the outline to half a point out;
+            // the light, what lies inside the outline.
+            const double band
+                    = std::clamp(std::min(distance + 0.5, lineWidth) - std::max(distance - 0.5, 0.0), 0.0, 1.0);
+            const double inside = std::clamp(0.5 - distance, 0.0, 1.0);
+            const double depth = std::max(-distance, 0.0) / scale;
+            // Laid white adds what is asked to the body over a dark title bar,
+            // about 50 near the top and 67 near the bottom.
+            const double light = inside * upright
+                    * (py < 0 ? edgeLightAt(kDarkTopLight, depth) / (255 - 50)
+                              : edgeLightAt(kDarkBottomLight, depth) / (255 - 67));
+            const double dark = band * 0.51 * (1 - upright);
+            // The line laid over the light.
+            const double alpha = dark + light * (1 - dark);
+            const double white = light * (1 - dark);
+            const auto byte = [](double v) { return uint8_t(std::lround(std::clamp(v, 0.0, 1.0) * 255)); };
+            uint8_t* pixel = static_cast<uint8_t*>(edge.getAddr(x, y));
+            pixel[0] = pixel[1] = pixel[2] = byte(white);
+            pixel[3] = byte(alpha);
+        }
+    }
+    edge.setImmutable();
+    painter.drawImage(edge.asImage().get(), device.x - 1, device.y - 1);
+}
+
 // The plate under a control or a group of them: barely apart from the
-// window, lit a little in its middle and along the inside of its top and
-// bottom edges, a hairline rim darkest at the sides, and a faint shadow under
-// it. `overlay` darkens it, or lightens it in dark mode, by that alpha.
+// window, lit a little in its middle. In the light it is lit along the inside
+// of its top and bottom edges, has a hairline rim darkest at the sides and a
+// faint shadow under it; in the dark it takes paintDarkEdge's edge and no
+// shadow. `overlay` darkens it, or lightens it in dark mode, by that alpha.
 static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, double overlay)
 {
     const double radius = plate.height / 2;
@@ -59,8 +152,9 @@ static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, doub
         return LinearGradient {{plate.x, plate.y}, {plate.x, plate.bottom()}, std::move(stops)};
     };
 
-    painter.drawOuterShadow(plate, radius, Corners::Circular, shadowSigma(plate.height),
-                            black.withAlpha(dark ? 0.2 : 0.04), {0, shadowOffset(plate.height)});
+    if (!dark)
+        painter.drawOuterShadow(plate, radius, Corners::Circular, shadowSigma(plate.height), black.withAlpha(0.04),
+                                {0, shadowOffset(plate.height)});
 
     painter.save();
     painter.clipRoundedRect(plate, radius);
@@ -74,23 +168,29 @@ static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, doub
                                              {1, white.withAlpha(body * 0.04)}}});
     painter.fillRoundedRect(plate, radius,
                             vertical({{0.3, white.withAlpha(0)}, {0.75, white.withAlpha(body * 0.32)}}));
-    const double shine = dark ? 0.3 : 1.0;
-    painter.fillRoundedRect(plate, radius,
-                            vertical({{0, white.withAlpha(shine)},
-                                      {0.035, white.withAlpha(shine)},
-                                      {0.07, white.withAlpha(shine * 0.5)},
-                                      {0.12, white.withAlpha(shine * 0.25)},
-                                      {0.25, white.withAlpha(0)},
-                                      {0.85, white.withAlpha(0)},
-                                      {0.93, white.withAlpha(shine * 0.3)},
-                                      {0.955, white.withAlpha(shine * 0.6)},
-                                      {0.97, white.withAlpha(shine)},
-                                      {1, white.withAlpha(shine)}}));
+    if (!dark) {
+        painter.fillRoundedRect(plate, radius,
+                                vertical({{0, white},
+                                          {0.035, white},
+                                          {0.07, white.withAlpha(0.5)},
+                                          {0.12, white.withAlpha(0.25)},
+                                          {0.25, white.withAlpha(0)},
+                                          {0.85, white.withAlpha(0)},
+                                          {0.93, white.withAlpha(0.3)},
+                                          {0.955, white.withAlpha(0.6)},
+                                          {0.97, white},
+                                          {1, white}}));
+    }
     if (overlay > 0) {
         const Color tint = dark ? white : black;
         painter.fillRoundedRect(plate, radius, vertical({{0, tint.withAlpha(overlay)}, {1, tint.withAlpha(overlay)}}));
     }
     painter.restore();
+
+    if (dark) {
+        paintDarkEdge(painter, plate);
+        return;
+    }
 
     // One device pixel wide.
     const double hairline = 1 / painter.scale();
@@ -104,10 +204,9 @@ static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, doub
         rim.addRoundedRect(plate.adjusted(hairline, hairline, -hairline, -hairline), radius - hairline,
                            radius - hairline);
     }
-    const Color edge = dark ? white : black;
-    painter.fillPath(rim, vertical({{0, edge.withAlpha(dark ? 0.2 : 0.1)},
-                                    {0.5, edge.withAlpha(dark ? 0.12 : 0.32)},
-                                    {1, edge.withAlpha(dark ? 0.08 : 0.14)}}));
+    painter.fillPath(rim, vertical({{0, black.withAlpha(0.1)},
+                                    {0.5, black.withAlpha(0.32)},
+                                    {1, black.withAlpha(0.14)}}));
 }
 
 // `bounds` on whole device pixels, in logical coordinates.
