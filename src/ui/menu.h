@@ -156,6 +156,7 @@ private:
     class Surface;
     friend class Rows;
     friend class Surface;
+    friend class TestDriver;
     friend class wayland::MainMenuMirror;
 
     struct Item

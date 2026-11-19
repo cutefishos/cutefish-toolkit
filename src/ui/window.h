@@ -457,6 +457,7 @@ private:
 
     // A status item's window, made by StatusItem.
     explicit Window(StatusItemClient* statusItem);
+    friend class TestDriver;
     friend class TestInput;
     friend class View;
 

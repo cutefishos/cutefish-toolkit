@@ -125,6 +125,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/styled_label.h
     ui/subsurface.h
     ui/switch.h
+    ui/test_driver.h
     ui/test_input.h
     ui/text_area.h
     ui/text_field.h
@@ -229,6 +230,7 @@ add_library(cutefish-toolkit SHARED
     ui/styled_label.cpp
     ui/subsurface.cpp
     ui/switch.cpp
+    ui/test_driver.cpp
     ui/test_input.cpp
     ui/text_area.cpp
     ui/text_field.cpp
