@@ -103,6 +103,15 @@ struct ViewGlass
     // device pixels and scaled back up, so a fine pattern shows wider and
     // shallower than one blur gives it.
     bool blurAtHalfResolution = false;
+    // How far inside the outline the bend is largest, easing in from nothing
+    // at the outline over that depth; 0: largest at the outline.
+    double bendPeak = 0;
+    // How much the dispersion keeps to where the outline's normal is
+    // horizontal, 0 to 1: 0 all round, 1 along the sides only.
+    double dispersionSides = 0;
+    // The shadow eases in over this length outside the outline, so it is
+    // darkest that far out rather than at the outline.
+    double shadowGap = 0;
 
     bool operator==(const ViewGlass&) const = default;
 };

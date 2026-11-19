@@ -514,6 +514,70 @@ TEST(CompositingTest, GlassBendsByItsSideBezelAtTheSidesAndRaisesItsColour)
     EXPECT_NEAR(image.pixel(160, 40).r, 181, 2);
 }
 
+TEST(CompositingTest, GlassBendsMostInsideItsOutlineDispersesAtItsSidesAndLiftsItsShadowOffIt)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* black = root->addChild<Fill>(Color {0, 0, 0, 255});
+    black->setGeometry({0, 0, 14, 40});
+    Fill* band = root->addChild<Fill>(Color {0, 0, 0, 255});
+    band->setGeometry({60, 0, 100, 14});
+    View* bent = root->addChild<View>();
+    bent->setGeometry({10, 10, 40, 20});
+    ViewGlass bending;
+    bending.key = 1;
+    bending.rect = {0, 0, 40, 20};
+    bending.bezel = 8;
+    bending.bend = 8;
+    bending.bendPeak = 4;
+    bending.profile = 1;
+    bent->setGlass({bending});
+    // Two panes over the band's lower edge, dispersing all round and along
+    // the sides only.
+    std::vector<View*> dispersing;
+    for (double sides : {0.0, 1.0}) {
+        View* pane = root->addChild<View>();
+        pane->setGeometry({sides > 0 ? 110.0 : 62.0, 8, 40, 20});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 40, 20};
+        glass.bezel = 8;
+        glass.bend = 8;
+        glass.profile = 1;
+        glass.dispersion = 0.5;
+        glass.dispersionSides = sides;
+        pane->setGlass({glass});
+    }
+    View* shaded = root->addChild<View>();
+    shaded->setGeometry({20, 50, 20, 10});
+    ViewGlass shading;
+    shading.key = 1;
+    shading.rect = {0, 0, 20, 10};
+    shading.shadow[3] = 1;
+    shading.shadowBlur = 8;
+    shading.shadowGap = 4;
+    shaded->setGlass({shading});
+    window.resize({160, 80});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Right at the outline nothing is bent, so the black strip under it
+    // shows; 4.5 points in the bend is nearly whole and shows the white.
+    EXPECT_LE(image.pixel(21, 40).r, 30);
+    EXPECT_GE(image.pixel(29, 40).r, 250);
+    // A point inside the top edge over the band: red bent less than blue
+    // where the dispersion goes all round, neither along the top where it
+    // keeps to the sides.
+    const Color all = image.pixel(2 * 82, 19);
+    const Color sides = image.pixel(2 * 130, 19);
+    EXPECT_GE(std::abs(int(all.b) - int(all.r)), 100);
+    EXPECT_LE(std::abs(int(sides.b) - int(sides.r)), 4);
+    // The shadow starts lighter at the outline than 4 points below it.
+    EXPECT_GE(image.pixel(60, 121).r, image.pixel(60, 128).r + 30);
+}
+
 TEST(CompositingTest, GlassKeepsItsLineOnWholePixelsTakesItsBottomLineAndMultiplies)
 {
     Window window;

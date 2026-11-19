@@ -125,6 +125,9 @@ uniform float2 fade;
 uniform float4 shadow;
 uniform float shadowBlur;
 uniform float shadowOffset;
+uniform float bendPeak;
+uniform float dispersionSides;
+uniform float shadowGap;
 
 // Signed distance to the outline of `box`, negative inside, and the corner
 // offset q.
@@ -170,6 +173,8 @@ half4 main(float2 p) {
         float2 sq;
         float sd = distanceTo(p - float2(0.0, shadowOffset), sq);
         float fall = 1.0 - smoothstep(-shadowBlur * 0.5, shadowBlur, sd);
+        if (shadowGap > 0.0)
+            fall *= smoothstep(0.0, shadowGap, d);
         outside = laid(under, float4(shadow.rgb, shadow.a * fall * opacity));
     }
     float lit = 0.0;
@@ -219,12 +224,19 @@ half4 main(float2 p) {
     // Within the bezel the pane reads from further in, so what lies under its
     // edge shows magnified from the middle's side.
     float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
-    float amount = width > 0.0 ? bend * pow(clamp(1.0 + d / width, 0.0, 1.0), profile) : 0.0;
+    float amount = 0.0;
+    if (width > 0.0) {
+        float peak = min(bendPeak, width * 0.99);
+        amount = bend * pow(clamp((width + d) / (width - peak), 0.0, 1.0), profile);
+        if (peak > 0.0)
+            amount *= smoothstep(0.0, peak, -d);
+    }
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
     half4 colour = halfResolution > 0.0 ? halved(at - normal * amount) : blurred.eval(at - normal * amount);
-    if (dispersion > 0.0 && amount > 0.0) {
-        colour.r = blurred.eval(at - normal * amount * (1.0 - dispersion)).r;
-        colour.b = blurred.eval(at - normal * amount * (1.0 + dispersion)).b;
+    float spread = dispersion * mix(1.0, normal.x * normal.x, dispersionSides);
+    if (spread > 0.0 && amount != 0.0) {
+        colour.r = blurred.eval(at - normal * amount * (1.0 - spread)).r;
+        colour.b = blurred.eval(at - normal * amount * (1.0 + spread)).b;
     }
     if (shown < 1.0)
         colour = mix(backdrop.eval(at - normal * amount), colour, half(shown));
@@ -260,7 +272,8 @@ half4 main(float2 p) {
 // How far past its rect a pane draws or reads, in its units.
 static double reachOf(const ViewGlass& glass)
 {
-    return std::max(glass.shadowBlur + std::abs(glass.shadowOffset), glass.bend + glass.blur * 2) + 1;
+    return std::max(glass.shadowBlur + std::abs(glass.shadowOffset) + glass.shadowGap,
+               std::abs(glass.bend) + glass.blur * 2) + 1;
 }
 
 static RectF reachRect(const ViewGlass& glass)
@@ -378,6 +391,9 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.zoom = mixed(a.zoom, b.zoom, t);
     glass.exponent = mixed(a.exponent, b.exponent, t);
     mixColour(glass.multiply, a.multiply, b.multiply, t);
+    glass.bendPeak = mixed(a.bendPeak, b.bendPeak, t);
+    glass.dispersionSides = mixed(a.dispersionSides, b.dispersionSides, t);
+    glass.shadowGap = mixed(a.shadowGap, b.shadowGap, s);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -721,6 +737,9 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("shadow") = colour(glass.shadow);
         builder.uniform("shadowBlur") = std::max(float(glass.shadowBlur) * unit, 0.5f);
         builder.uniform("shadowOffset") = float(glass.shadowOffset) * unit;
+        builder.uniform("bendPeak") = float(glass.bendPeak) * unit;
+        builder.uniform("dispersionSides") = float(std::clamp(glass.dispersionSides, 0.0, 1.0));
+        builder.uniform("shadowGap") = float(glass.shadowGap) * unit;
 
         const float sigma = float(glass.blur) * unit / 2;
         std::string_view children[] = {"backdrop", "blurred"};
