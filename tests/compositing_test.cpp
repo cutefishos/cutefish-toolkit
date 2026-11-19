@@ -514,6 +514,97 @@ TEST(CompositingTest, GlassBendsByItsSideBezelAtTheSidesAndRaisesItsColour)
     EXPECT_NEAR(image.pixel(160, 40).r, 181, 2);
 }
 
+TEST(CompositingTest, GlassKeepsItsLineOnWholePixelsTakesItsBottomLineAndMultiplies)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* grey = root->addChild<Fill>(Color {128, 128, 128, 255});
+    grey->setGeometry({66, 0, 34, 40});
+    View* snapped = root->addChild<View>();
+    snapped->setGeometry({10.25, 10, 20, 20});
+    ViewGlass snapping;
+    snapping.key = 1;
+    snapping.rect = {0, 0, 20, 20};
+    snapping.sideEdge[3] = 1;
+    snapping.edgeOnPixels = true;
+    snapped->setGlass({snapping});
+    View* lined = root->addChild<View>();
+    lined->setGeometry({40, 10, 20, 20});
+    ViewGlass lining;
+    lining.key = 1;
+    lining.rect = {0, 0, 20, 20};
+    lining.edge[3] = 1;
+    lining.bottomEdge[0] = 1;
+    lining.bottomEdge[3] = 1;
+    lined->setGlass({lining});
+    View* multiplied = root->addChild<View>();
+    multiplied->setGeometry({70, 10, 20, 20});
+    ViewGlass multiplying;
+    multiplying.key = 1;
+    multiplying.rect = {0, 0, 20, 20};
+    multiplying.multiply[1] = 0.5;
+    multiplying.multiply[2] = 0;
+    multiplying.multiply[3] = 1;
+    multiplied->setGlass({multiplying});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // The left outline falls half way into pixel 20: the line covers that
+    // pixel and leaves the one outside it alone.
+    EXPECT_GE(image.pixel(19, 40).r, 253);
+    EXPECT_LE(image.pixel(20, 40).r, 2);
+    EXPECT_GE(image.pixel(21, 40).r, 253);
+    // Black along the top, red along the bottom.
+    EXPECT_LE(image.pixel(100, 19).r, 2);
+    EXPECT_GE(image.pixel(100, 60).r, 253);
+    EXPECT_LE(image.pixel(100, 60).g, 2);
+    // Grey 128 multiplied by (1, 0.5, 0).
+    EXPECT_NEAR(image.pixel(160, 40).r, 128, 2);
+    EXPECT_NEAR(image.pixel(160, 40).g, 64, 2);
+    EXPECT_LE(image.pixel(160, 40).b, 2);
+}
+
+TEST(CompositingTest, GlassBlurredAtHalfTheResolutionShowsAFineLineWiderAndShallower)
+{
+    for (const bool halved : {false, true}) {
+        Window window;
+        auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+        Fill* line = root->addChild<Fill>(Color {0, 0, 0, 255});
+        line->setGeometry({40, 0, 1, 40});
+        View* pane = root->addChild<View>();
+        pane->setGeometry({20, 10, 40, 20});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 40, 20};
+        glass.blurAtHalfResolution = halved;
+        pane->setGlass({glass});
+        window.resize({80, 40});
+        window.setContentView(std::move(root));
+        window.setScale(2);
+        window.show();
+
+        const Image image = window.grab();
+        int darkest = 255;
+        int greyed = 0;
+        for (int x = 74; x < 88; ++x) {
+            darkest = std::min<int>(darkest, image.pixel(x, 40).r);
+            greyed += image.pixel(x, 40).r < 230;
+        }
+        if (!halved) {
+            // Unblurred: two black pixels.
+            EXPECT_LE(darkest, 2);
+            EXPECT_EQ(greyed, 2);
+        } else {
+            EXPECT_GE(darkest, 40);
+            EXPECT_LE(darkest, 140);
+            EXPECT_GE(greyed, 3);
+        }
+    }
+}
+
 TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
 {
     Window window;

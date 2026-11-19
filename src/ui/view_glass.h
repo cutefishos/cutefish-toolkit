@@ -16,12 +16,13 @@ namespace cutefish::ui {
 // also anti-aliases the outline, so its edge stays as thin and crisp at any
 // scale. What lies under it is blurred, saturated and, within the bezel of
 // the edge, read from further in, so it shows magnified there, the colours
-// bent apart by the dispersion; then come the tint, white light added by the
-// height, a light around the pointer and a colour over all of that. A line
-// just outside the outline turns from `edge` along the top and bottom to
-// `sideEdge` along the sides, by the square of the outline's horizontal
-// normal, and a shadow falls outside it. Colours are straight RGBA, 0 to 1;
-// lengths are the view's units unless they say device pixels.
+// bent apart by the dispersion; then come the tint, `multiply`, white light
+// added by the height, a light around the pointer and a colour over all of
+// that. A line just outside the outline turns from `edge` along the top
+// (`bottomEdge` along the bottom) to `sideEdge` along the sides, by the
+// square of the outline's horizontal normal, and a shadow falls outside it.
+// Colours are straight RGBA, 0 to 1; lengths are the view's units unless
+// they say device pixels.
 //
 // Panes with the same key in successive View::setGlass() calls move from
 // what shows to the new values over the new pane's duration, on the
@@ -72,8 +73,8 @@ struct ViewGlass
     // Seconds the light takes to catch up with the pointer, easing out.
     double glowLag = 0;
 
-    // The pane fades out towards its top and bottom over these lengths,
-    // what lies under it shown less blurred there too.
+    // What lies under the pane is shown less blurred towards its top and
+    // bottom over these lengths, unblurred at the edge.
     double fadeTop = 0;
     double fadeBottom = 0;
 
@@ -89,6 +90,19 @@ struct ViewGlass
     double curve[4] = {0.25, 0.1, 0.25, 1};
     double shapeDuration = -1;
     double shapeCurve[4] = {0.25, 0.1, 0.25, 1};
+
+    // The line along the bottom, where `edge` gives the top's; a negative
+    // alpha takes `edge` there too.
+    double bottomEdge[4] = {0, 0, 0, -1};
+    // The line keeps to whole device pixels: it covers the pixel the outline
+    // falls in, so an outline between pixels does not spread it over two.
+    bool edgeOnPixels = false;
+    // The colour after the tint is multiplied by this, by its alpha.
+    double multiply[4] = {1, 1, 1, 0};
+    // What lies under the pane is blurred, averaged over blocks of two by two
+    // device pixels and scaled back up, so a fine pattern shows wider and
+    // shallower than one blur gives it.
+    bool blurAtHalfResolution = false;
 
     bool operator==(const ViewGlass&) const = default;
 };

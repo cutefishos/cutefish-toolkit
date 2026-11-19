@@ -104,8 +104,12 @@ uniform float4 tint;
 uniform float2 light[24];
 uniform float4 over;
 uniform float4 edge;
+uniform float4 bottomEdge;
 uniform float4 sideEdge;
 uniform float edgeWidth;
+uniform float edgeOnPixels;
+uniform float4 multiply;
+uniform float halfResolution;
 uniform float saturation;
 uniform float bezel;
 uniform float sideBezel;
@@ -122,12 +126,32 @@ uniform float4 shadow;
 uniform float shadowBlur;
 uniform float shadowOffset;
 
-// Signed distance to the outline, negative inside, and the corner offset q.
-float distanceTo(float2 p, out float2 q) {
-    float2 halfSize = (rect.zw - rect.xy) * 0.5;
+// Signed distance to the outline of `box`, negative inside, and the corner
+// offset q.
+float distanceIn(float4 box, float2 p, out float2 q) {
+    float2 halfSize = (box.zw - box.xy) * 0.5;
     float r = min(radius, min(halfSize.x, halfSize.y));
-    q = abs(p - (rect.xy + halfSize)) - halfSize + r;
+    q = abs(p - (box.xy + halfSize)) - halfSize + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float distanceTo(float2 p, out float2 q) {
+    return distanceIn(rect, p, q);
+}
+
+// The blurred backdrop averaged over blocks of two by two pixels and scaled
+// back up.
+half4 halved(float2 p) {
+    float2 t = p * 0.5 - 0.5;
+    float2 j = floor(t);
+    float2 f = t - j;
+    half4 block[4];
+    for (int i = 0; i < 4; i++) {
+        float2 corner = (j + float2(float(i - (i / 2) * 2), float(i / 2))) * 2.0;
+        block[i] = (blurred.eval(corner + float2(0.5, 0.5)) + blurred.eval(corner + float2(1.5, 0.5))
+                    + blurred.eval(corner + float2(0.5, 1.5)) + blurred.eval(corner + float2(1.5, 1.5))) * 0.25;
+    }
+    return mix(mix(block[0], block[1], half(f.x)), mix(block[2], block[3], half(f.x)), half(f.y));
 }
 
 // Straight colour b laid over premultiplied a.
@@ -152,20 +176,28 @@ half4 main(float2 p) {
     if (glowAt.z > 0.0 && glow.a > 0.0)
         lit = glow.a * (1.0 - smoothstep(0.0, glowAt.z, length(p - glowAt.xy)));
     // The line lies just outside the outline: the pixel's share of the band
-    // between the outline and edgeWidth out.
-    float band = clamp(min(d + 0.5, edgeWidth) - max(d - 0.5, 0.0), 0.0, 1.0);
+    // between the outline and edgeWidth out. Kept to whole pixels, it lies
+    // outside the outline moved in to them and over what the pixel shows.
+    float2 lq = q;
+    float ld = d;
+    if (edgeOnPixels > 0.0)
+        ld = distanceIn(float4(ceil(rect.xy - 0.001), floor(rect.zw + 0.001)), p, lq);
+    float band = clamp(min(ld + 0.5, edgeWidth) - max(ld - 0.5, 0.0), 0.0, 1.0);
+    float4 line = float4(0.0);
     if (band > 0.0) {
         float sideways = 1.0;
-        if (q.x > 0.0 && q.y > 0.0)
-            sideways = q.x * q.x / dot(q, q);
-        else if (q.y > q.x)
+        if (lq.x > 0.0 && lq.y > 0.0)
+            sideways = lq.x * lq.x / dot(lq, lq);
+        else if (lq.y > lq.x)
             sideways = 0.0;
-        float4 line = mix(edge, sideEdge, sideways);
+        line = mix(p.y > (rect.y + rect.w) * 0.5 ? bottomEdge : edge, sideEdge, sideways);
         line = mix(line, float4(glow.rgb, 1.0), clamp(lit * glowEdge, 0.0, 1.0));
-        outside = laid(outside, float4(line.rgb, line.a * band * opacity));
+        line.a *= band * opacity;
+        if (edgeOnPixels <= 0.0)
+            outside = laid(outside, line);
     }
     if (coverage <= 0.0)
-        return outside;
+        return edgeOnPixels > 0.0 ? laid(outside, line) : outside;
 
     float2 halfSize = (rect.zw - rect.xy) * 0.5;
     float2 centre = rect.xy + halfSize;
@@ -189,7 +221,7 @@ half4 main(float2 p) {
     float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
     float amount = width > 0.0 ? bend * pow(clamp(1.0 + d / width, 0.0, 1.0), profile) : 0.0;
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
-    half4 colour = blurred.eval(at - normal * amount);
+    half4 colour = halfResolution > 0.0 ? halved(at - normal * amount) : blurred.eval(at - normal * amount);
     if (dispersion > 0.0 && amount > 0.0) {
         colour.r = blurred.eval(at - normal * amount * (1.0 - dispersion)).r;
         colour.b = blurred.eval(at - normal * amount * (1.0 + dispersion)).b;
@@ -202,6 +234,7 @@ half4 main(float2 p) {
     colour.rgb = mix(half3(luma), colour.rgb, half(saturation));
 
     colour = laid(colour, tint);
+    colour.rgb *= mix(half3(1.0), half3(multiply.rgb), half(multiply.a));
     if (exponent != 1.0 && colour.a > 0.0)
         colour.rgb = half3(pow(clamp(colour.rgb / colour.a, 0.0, 1.0), half3(exponent))) * colour.a;
     // The light follows the outline, from the top's stops in the upper half
@@ -219,7 +252,8 @@ half4 main(float2 p) {
     colour = laid(colour, float4(glow.rgb, lit));
     colour = laid(colour, over);
     colour.rgb = clamp(colour.rgb, 0.0, colour.a);
-    return mix(outside, colour, half(coverage * shown * opacity));
+    half4 shownColour = mix(outside, colour, half(coverage * opacity));
+    return edgeOnPixels > 0.0 ? laid(shownColour, line) : shownColour;
 }
 )";
 
@@ -300,6 +334,11 @@ static void mixColour(double* into, const double* a, const double* b, double t)
     into[3] = alpha;
 }
 
+static const double* bottomEdgeOf(const ViewGlass& glass)
+{
+    return glass.bottomEdge[3] < 0 ? glass.edge : glass.bottomEdge;
+}
+
 // The same pane, however it was asked to get there.
 static bool sameLook(const ViewGlass& a, const ViewGlass& b)
 {
@@ -326,6 +365,7 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     }
     mixColour(glass.over, a.over, b.over, t);
     mixColour(glass.edge, a.edge, b.edge, t);
+    mixColour(glass.bottomEdge, bottomEdgeOf(a), bottomEdgeOf(b), t);
     mixColour(glass.sideEdge, a.sideEdge, b.sideEdge, t);
     glass.edgeDevicePixels = mixed(a.edgeDevicePixels, b.edgeDevicePixels, t);
     glass.blur = mixed(a.blur, b.blur, t);
@@ -337,6 +377,7 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.dispersion = mixed(a.dispersion, b.dispersion, t);
     glass.zoom = mixed(a.zoom, b.zoom, t);
     glass.exponent = mixed(a.exponent, b.exponent, t);
+    mixColour(glass.multiply, a.multiply, b.multiply, t);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -653,8 +694,12 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("light").set(light, 48);
         builder.uniform("over") = colour(glass.over);
         builder.uniform("edge") = colour(glass.edge);
+        builder.uniform("bottomEdge") = colour(bottomEdgeOf(glass));
         builder.uniform("sideEdge") = colour(glass.sideEdge);
         builder.uniform("edgeWidth") = float(glass.edgeDevicePixels);
+        builder.uniform("edgeOnPixels") = glass.edgeOnPixels ? 1.0f : 0.0f;
+        builder.uniform("multiply") = colour(glass.multiply);
+        builder.uniform("halfResolution") = glass.blurAtHalfResolution ? 1.0f : 0.0f;
         builder.uniform("saturation") = float(glass.saturation);
         builder.uniform("bezel") = float(glass.bezel) * unit;
         builder.uniform("sideBezel") = glass.sideBezel < 0 ? -1.0f : float(glass.sideBezel) * unit;
