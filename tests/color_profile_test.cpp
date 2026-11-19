@@ -13,7 +13,6 @@
 
 #include <jpeglib.h>
 #include <jxl/encode.h>
-#include <libheif/heif.h>
 #include <png.h>
 #include <tiffio.h>
 #include <webp/encode.h>
@@ -286,47 +285,6 @@ static std::string writeJxl(const std::string& name, bool lossless)
     return writeFile(name, std::string(output.begin(), output.end()));
 }
 
-// Empty when libheif has no AV1 or HEVC encoder.
-static std::string writeHeif(const std::string& name, const std::string& icc, bool nclx)
-{
-    heif_context* context = heif_context_alloc();
-    heif_encoder* encoder = nullptr;
-    if (heif_context_get_encoder_for_format(context, heif_compression_AV1, &encoder).code != heif_error_Ok
-        && heif_context_get_encoder_for_format(context, heif_compression_HEVC, &encoder).code != heif_error_Ok) {
-        heif_context_free(context);
-        return {};
-    }
-    heif_encoder_set_lossy_quality(encoder, 100);
-    heif_image* image = nullptr;
-    heif_image_create(kSize, kSize, heif_colorspace_RGB, heif_chroma_interleaved_RGB, &image);
-    heif_image_add_plane(image, heif_channel_interleaved, kSize, kSize, 8);
-    int stride = 0;
-    uint8_t* plane = heif_image_get_plane(image, heif_channel_interleaved, &stride);
-    const std::vector<uint8_t> pixels = solid(3);
-    for (int y = 0; y < kSize; ++y)
-        std::copy_n(pixels.data() + size_t(y) * kSize * 3, kSize * 3, plane + size_t(y) * size_t(stride));
-    heif_color_profile_nclx* colours = heif_nclx_color_profile_alloc();
-    heif_nclx_color_profile_set_color_primaries(colours, nclx ? heif_color_primaries_SMPTE_EG_432_1
-                                                              : heif_color_primaries_ITU_R_BT_709_5);
-    heif_nclx_color_profile_set_transfer_characteristics(colours, heif_transfer_characteristic_IEC_61966_2_1);
-    heif_nclx_color_profile_set_matrix_coefficients(colours, heif_matrix_coefficients_ITU_R_BT_601_6);
-    colours->full_range_flag = 1;
-    heif_image_set_nclx_color_profile(image, colours);
-    if (!icc.empty())
-        heif_image_set_raw_color_profile(image, "prof", icc.data(), icc.size());
-    heif_encoding_options* options = heif_encoding_options_alloc();
-    options->output_nclx_profile = colours;
-    heif_context_encode_image(context, image, encoder, options, nullptr);
-    heif_encoding_options_free(options);
-    heif_nclx_color_profile_free(colours);
-    const std::string path = (kDirectory / name).string();
-    heif_context_write_to_file(context, path.c_str());
-    heif_image_release(image);
-    heif_encoder_release(encoder);
-    heif_context_free(context);
-    return path;
-}
-
 static bool isColor(uint32_t argb, const uint8_t expected[3], int tolerance)
 {
     const int channels[3] = {int((argb >> 16) & 0xFF), int((argb >> 8) & 0xFF), int(argb & 0xFF)};
@@ -385,11 +343,12 @@ TEST_F(ColorProfileTest, ConvertsTaggedImagesToSrgb)
 
 TEST_F(ColorProfileTest, ConvertsHeifByIccAndByCodePoints)
 {
-    const std::string byIcc = writeHeif("p3-icc.heif", iccProfile(kDisplayP3), false);
-    if (byIcc.empty())
-        GTEST_SKIP() << "libheif has no encoder";
-    const std::string byCodePoints = writeHeif("p3-nclx.heif", {}, true);
-    const std::string plain = writeHeif("srgb-nclx.heif", {}, false);
+    // AV1 files of kColor: Display P3 by an ICC profile and by code points,
+    // and sRGB by code points. libheif installs no encoder with its decoders.
+    const std::string directory = CUTEFISH_TOOLKIT_TEST_DATA_DIR "/heif/";
+    const std::string byIcc = directory + "p3-icc.heif";
+    const std::string byCodePoints = directory + "p3-nclx.heif";
+    const std::string plain = directory + "srgb-nclx.heif";
     for (const std::string& path : {byIcc, byCodePoints}) {
         const Bitmap bitmap = Bitmap::decodeFile(path);
         ASSERT_FALSE(bitmap.isNull()) << path;
