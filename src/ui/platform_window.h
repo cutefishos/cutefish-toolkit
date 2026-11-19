@@ -156,6 +156,8 @@ public:
     virtual int moveRequests() const { return 0; }
     // Headless only: the glass last asked for.
     virtual std::optional<GlassMaterial> requestedGlass() const { return std::nullopt; }
+    // Where the window stacks; last so the earlier slots keep their places.
+    virtual void setLevel(WindowLevel) {}
 
     // See Window::setFullScreenRevealHandler().
     std::function<void(int offset, int durationMs)> onFullScreenReveal;

@@ -35,6 +35,14 @@ class TestInput;
 class TrustedConnection;
 class View;
 
+// Where a window stacks: among ordinary windows, above them, or above the
+// dock as well.
+enum class WindowLevel {
+    Normal,
+    Floating,
+    AboveDock,
+};
+
 // The values follow xdg_positioner's anchors and gravities.
 enum class PopupAnchor {
     Center = 0,
@@ -305,6 +313,8 @@ public:
     void setCursorImage(const Bitmap& image, int scale, const PointF& hotSpot);
     // Above ordinary windows.
     void setAlwaysOnTop(bool onTop);
+    // A window above the dock may also reach over the area the dock keeps.
+    void setLevel(WindowLevel level);
     // The header's colour mode for the window buttons, whatever the theme,
     // unset follows the theme.
     void setHeaderDarkMode(std::optional<bool> dark);

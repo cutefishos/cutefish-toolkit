@@ -277,6 +277,12 @@ void WaylandWindow::setAlwaysOnTop(bool onTop)
         m_shell->setAlwaysOnTop(onTop);
 }
 
+void WaylandWindow::setLevel(WindowLevel level)
+{
+    if (m_shell)
+        m_shell->setLevel(level);
+}
+
 void WaylandWindow::setRestoreId(const std::string& id)
 {
     if (m_shell)

@@ -562,6 +562,11 @@ void Window::setAlwaysOnTop(bool onTop)
     m_platform->setAlwaysOnTop(onTop);
 }
 
+void Window::setLevel(WindowLevel level)
+{
+    m_platform->setLevel(level);
+}
+
 void Window::setRestoreId(const std::string& id)
 {
     m_platform->setRestoreId(id);

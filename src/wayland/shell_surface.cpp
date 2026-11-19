@@ -691,6 +691,16 @@ void ShellSurface::setAlwaysOnTop(bool onTop)
         cutefish_window_hints_v1_set_always_on_top(m_connection.windowHints(), m_surface, onTop ? 1 : 0);
 }
 
+void ShellSurface::setLevel(WindowLevel level)
+{
+    if (!m_connection.windowHints())
+        return;
+    const uint32_t value = level == WindowLevel::AboveDock ? CUTEFISH_WINDOW_HINTS_V1_LEVEL_ABOVE_DOCK
+            : level == WindowLevel::Floating               ? CUTEFISH_WINDOW_HINTS_V1_LEVEL_FLOATING
+                                                           : CUTEFISH_WINDOW_HINTS_V1_LEVEL_NORMAL;
+    cutefish_window_hints_v1_set_level(m_connection.windowHints(), m_surface, value);
+}
+
 void ShellSurface::hideApplication()
 {
     if (m_connection.windowHints())

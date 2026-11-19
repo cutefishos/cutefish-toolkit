@@ -382,6 +382,34 @@ TEST(WindowHintsProtocolTest, SubsurfaceBlurIsSentAndUnset)
 // Opacity goes out as the hint; a toplevel places itself only where the
 // compositor offers placement, rounded to whole logical pixels, and hears
 // where it went.
+TEST(WindowHintsProtocolTest, LevelIsSentAndAlwaysOnTopStillWorks)
+{
+    FakeCompositor compositor;
+    base::EventLoop loop;
+    std::unique_ptr<wayland::Connection> connection = wayland::Connection::openFd(loop, compositor.clientFd);
+    ASSERT_TRUE(connection);
+    Target target;
+    auto shell = std::make_unique<wayland::ShellSurface>(*connection, &target);
+    shell->setLevel(WindowLevel::AboveDock);
+    shell->setLevel(WindowLevel::Floating);
+    shell->setLevel(WindowLevel::Normal);
+    shell->setAlwaysOnTop(true);
+    connection->flush();
+    settle(compositor, connection->display());
+
+    std::vector<FakeCompositor::Request> requests = compositor.hints();
+    std::erase_if(requests, [](const FakeCompositor::Request& request) {
+        return request.name != "set_level" && request.name != "set_always_on_top";
+    });
+    ASSERT_EQ(requests.size(), 4u);
+    EXPECT_EQ(requests[0].name, "set_level");
+    EXPECT_EQ(requests[0].arguments, (std::vector<int64_t>{2}));
+    EXPECT_EQ(requests[1].arguments, (std::vector<int64_t>{1}));
+    EXPECT_EQ(requests[2].arguments, (std::vector<int64_t>{0}));
+    EXPECT_EQ(requests[3].name, "set_always_on_top");
+    EXPECT_EQ(requests[3].arguments, (std::vector<int64_t>{1}));
+}
+
 TEST(WindowHintsProtocolTest, OpacityAndScreenPositionAreSent)
 {
     {

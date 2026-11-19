@@ -29,6 +29,11 @@
       <entry name="top_right" value="7"/>
       <entry name="bottom_right" value="8"/>
     </enum>
+    <enum name="level">
+      <entry name="normal" value="0" summary="among ordinary application windows"/>
+      <entry name="floating" value="1" summary="above ordinary application windows, below the dock"/>
+      <entry name="above_dock" value="2" summary="above the dock and the panels"/>
+    </enum>
     <request name="destroy" type="destructor"/>
     <request name="set_skip_taskbar">
       <description summary="exclude a surface from application presentation">
@@ -202,6 +207,22 @@
       <arg name="surface" type="object" interface="wl_surface"/>
       <arg name="height" type="int"/>
       <arg name="push" type="uint"/>
+    </request>
+    <request name="set_level">
+      <description summary="the stacking level of an application window">
+        normal stacks the window among ordinary application windows and is
+        the default. floating keeps it above them and still below the shell's
+        panels, dock and system dialogs, as set_always_on_top 1 does.
+        above_dock keeps it above the panels and the dock, still below
+        notifications and system dialogs, and its size is not confined to the
+        work area, so it may reach over the area the dock reserves; it stays
+        on its output. set_always_on_top 1 sets floating and 0 sets normal; the
+        later of the two requests applies. Only application windows are
+        affected; activation and focus are unchanged. A value outside the
+        enum is an invalid_value error.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="level" type="uint" enum="level"/>
     </request>
     <event name="interactive_resize">
       <description summary="an interactive resize started or ended">
