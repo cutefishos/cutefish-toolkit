@@ -578,6 +578,44 @@ TEST(CompositingTest, GlassBendsMostInsideItsOutlineDispersesAtItsSidesAndLiftsI
     EXPECT_GE(image.pixel(60, 121).r, image.pixel(60, 128).r + 30);
 }
 
+TEST(CompositingTest, GlassReadsAlongItsAxesAndSplitsItsSideLine)
+{
+    Window window;
+    auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+    Fill* band = root->addChild<Fill>(Color {0, 0, 0, 255});
+    band->setGeometry({0, 0, 100, 13});
+    View* pane = root->addChild<View>();
+    pane->setGeometry({10, 10, 60, 20});
+    ViewGlass glass;
+    glass.key = 1;
+    glass.rect = {0, 0, 60, 20};
+    glass.radius = 10;
+    glass.bezel = 8;
+    glass.bend = -6;
+    glass.profile = 1;
+    glass.bendAlongAxes = 1;
+    glass.sideEdge[3] = 1;
+    glass.edgeDevicePixels = 2;
+    glass.edgeSplit = 2;
+    pane->setGlass({glass});
+    window.resize({100, 40});
+    window.setContentView(std::move(root));
+    window.setScale(2);
+    window.show();
+
+    const Image image = window.grab();
+    // Reading straight up, a point 4 points in from the top shows the band
+    // above as well in the cap as in the middle.
+    EXPECT_LE(image.pixel(2 * 40, 2 * 14).r, 40);
+    EXPECT_LE(image.pixel(2 * 14, 2 * 14).r, 40);
+    // Just inside the left end the side line's red reaches in, inside the
+    // right end its blue.
+    const Color left = image.pixel(2 * 10 + 1, 2 * 20);
+    const Color right = image.pixel(2 * 70 - 2, 2 * 20);
+    EXPECT_LE(left.r + 60, left.b);
+    EXPECT_LE(right.b + 60, right.r);
+}
+
 TEST(CompositingTest, GlassKeepsItsLineOnWholePixelsTakesItsBottomLineAndMultiplies)
 {
     Window window;

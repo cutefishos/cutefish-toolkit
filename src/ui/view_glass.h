@@ -112,6 +112,13 @@ struct ViewGlass
     // The shadow eases in over this length outside the outline, so it is
     // darkest that far out rather than at the outline.
     double shadowGap = 0;
+    // How much the bend reads across by the depth from the sides and up or
+    // down by the depth from the top or bottom, as through a rectangular
+    // slab, rather than along the outline's normal, 0 to 1.
+    double bendAlongAxes = 0;
+    // The side line's red is laid this many device pixels to the left and its
+    // blue as many to the right, where they reach inside the pane.
+    double edgeSplit = 0;
 
     bool operator==(const ViewGlass&) const = default;
 };

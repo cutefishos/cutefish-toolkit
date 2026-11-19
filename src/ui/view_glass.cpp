@@ -128,6 +128,8 @@ uniform float shadowOffset;
 uniform float bendPeak;
 uniform float dispersionSides;
 uniform float shadowGap;
+uniform float bendAlongAxes;
+uniform float edgeSplit;
 
 // Signed distance to the outline of `box`, negative inside, and the corner
 // offset q.
@@ -160,6 +162,19 @@ half4 halved(float2 p) {
 // Straight colour b laid over premultiplied a.
 half4 laid(half4 a, float4 b) {
     return half4(b.rgb * b.a, b.a) + a * half(1.0 - b.a);
+}
+
+// How far in the pane reads at `d` from its outline (negative inside) within a
+// bezel `width`: largest `bendPeak` in, easing in from nothing at the
+// outline there, and falling off by the profile further in.
+float bentBy(float d, float width) {
+    if (width <= 0.0)
+        return 0.0;
+    float peak = min(bendPeak, width * 0.99);
+    float amount = bend * pow(clamp((width + d) / (width - peak), 0.0, 1.0), profile);
+    if (peak > 0.0)
+        amount *= smoothstep(0.0, peak, -d);
+    return amount;
 }
 
 half4 main(float2 p) {
@@ -224,22 +239,25 @@ half4 main(float2 p) {
     // Within the bezel the pane reads from further in, so what lies under its
     // edge shows magnified from the middle's side.
     float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
-    float amount = 0.0;
-    if (width > 0.0) {
-        float peak = min(bendPeak, width * 0.99);
-        amount = bend * pow(clamp((width + d) / (width - peak), 0.0, 1.0), profile);
-        if (peak > 0.0)
-            amount *= smoothstep(0.0, peak, -d);
+    float amount = bentBy(d, width);
+    float2 shift = normal * amount;
+    // Read across by the depth from the sides and up or down by the depth
+    // from the top or bottom, as through a rectangular slab, rather than
+    // along the turning outline at the ends.
+    if (bendAlongAxes > 0.0) {
+        float2 slab = abs(p - centre) - halfSize;
+        float2 along = side * float2(bentBy(slab.x, sideBezel >= 0.0 ? sideBezel : bezel), bentBy(slab.y, bezel));
+        shift = mix(shift, along, bendAlongAxes);
     }
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
-    half4 colour = halfResolution > 0.0 ? halved(at - normal * amount) : blurred.eval(at - normal * amount);
+    half4 colour = halfResolution > 0.0 ? halved(at - shift) : blurred.eval(at - shift);
     float spread = dispersion * mix(1.0, normal.x * normal.x, dispersionSides);
     if (spread > 0.0 && amount != 0.0) {
-        colour.r = blurred.eval(at - normal * amount * (1.0 - spread)).r;
-        colour.b = blurred.eval(at - normal * amount * (1.0 + spread)).b;
+        colour.r = blurred.eval(at - shift * (1.0 - spread)).r;
+        colour.b = blurred.eval(at - shift * (1.0 + spread)).b;
     }
     if (shown < 1.0)
-        colour = mix(backdrop.eval(at - normal * amount), colour, half(shown));
+        colour = mix(backdrop.eval(at - shift), colour, half(shown));
     // Unclamped until the end: the tint lays its colour over saturation
     // beyond the gamut, which keeps a saturated colour saturated under it.
     half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
@@ -263,6 +281,17 @@ half4 main(float2 p) {
     colour.rgb += half(alpha * normal.y * normal.y) * colour.a;
     colour = laid(colour, float4(glow.rgb, lit));
     colour = laid(colour, over);
+    // The side line's red laid a little to the left and its blue a little
+    // to the right, where they reach inside.
+    if (edgeSplit > 0.0 && sideEdge.a > 0.0) {
+        float2 sq;
+        float dr = distanceTo(p - float2(edgeSplit, 0.0), sq);
+        float db = distanceTo(p + float2(edgeSplit, 0.0), sq);
+        half ar = half(sideEdge.a * clamp(min(dr + 0.5, edgeWidth) - max(dr - 0.5, 0.0), 0.0, 1.0));
+        half ab = half(sideEdge.a * clamp(min(db + 0.5, edgeWidth) - max(db - 0.5, 0.0), 0.0, 1.0));
+        colour.r = colour.r * (1.0 - ar) + half(sideEdge.r) * ar * colour.a;
+        colour.b = colour.b * (1.0 - ab) + half(sideEdge.b) * ab * colour.a;
+    }
     colour.rgb = clamp(colour.rgb, 0.0, colour.a);
     half4 shownColour = mix(outside, colour, half(coverage * opacity));
     return edgeOnPixels > 0.0 ? laid(shownColour, line) : shownColour;
@@ -394,6 +423,8 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.bendPeak = mixed(a.bendPeak, b.bendPeak, t);
     glass.dispersionSides = mixed(a.dispersionSides, b.dispersionSides, t);
     glass.shadowGap = mixed(a.shadowGap, b.shadowGap, s);
+    glass.bendAlongAxes = mixed(a.bendAlongAxes, b.bendAlongAxes, t);
+    glass.edgeSplit = mixed(a.edgeSplit, b.edgeSplit, t);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -740,6 +771,8 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("bendPeak") = float(glass.bendPeak) * unit;
         builder.uniform("dispersionSides") = float(std::clamp(glass.dispersionSides, 0.0, 1.0));
         builder.uniform("shadowGap") = float(glass.shadowGap) * unit;
+        builder.uniform("bendAlongAxes") = float(std::clamp(glass.bendAlongAxes, 0.0, 1.0));
+        builder.uniform("edgeSplit") = float(glass.edgeSplit);
 
         const float sigma = float(glass.blur) * unit / 2;
         std::string_view children[] = {"backdrop", "blurred"};
