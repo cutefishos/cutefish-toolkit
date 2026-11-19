@@ -3,8 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdlib>
-#include <fstream>
 #include <string>
 
 #include "ui/label.h"
@@ -159,18 +157,22 @@ TEST(TextMetricsTest, SpansCountTheirTextOnce)
 
 TEST(TextMetricsTest, FallbackRunsKeepReferenceMetrics)
 {
-    // Text in other scripts comes from outside the repository, with the
-    // reference widths, heights and ascents for its lines at 12 px, scale 1.5.
-    std::ifstream file(std::string(getenv("HOME") ? getenv("HOME") : "") + "/p2/toolkit/text/cjk.txt");
-    if (!file)
-        GTEST_SKIP() << "no ~/p2/toolkit/text/cjk.txt";
-    const double expected[][3] = {{70.2969, 18, 13.9219}, {84.4062, 18, 13.9219}, {72.0, 18, 13.9219}};
-    std::string line;
-    for (const auto& values : expected) {
-        ASSERT_TRUE(std::getline(file, line));
-        Measured measured(12, 1.5, line);
-        EXPECT_NEAR(measured.label->sizeHint().width, values[0], 0.05) << line;
-        EXPECT_DOUBLE_EQ(measured.label->sizeHint().height, values[1]) << line;
-        EXPECT_NEAR(measured.label->baselineOffset(), values[2], 1e-4) << line;
+    // Han text, alone and beside Latin, set from the fallback face at 12 px,
+    // scale 1.5: the lines keep the height and baseline of Noto Sans.
+    struct Line
+    {
+        const char* text;
+        double width;
+    };
+    const Line lines[] = {
+        {"Settings \u8bbe\u7f6e", 72.7188},
+        {"\u6587\u4ef6\u7ba1\u7406\u5668 Files", 88.0156},
+        {"\u7cfb\u7edf\u8bbe\u7f6e\u4e2d\u5fc3", 72.0},
+    };
+    for (const Line& line : lines) {
+        Measured measured(12, 1.5, line.text);
+        EXPECT_NEAR(measured.label->sizeHint().width, line.width, 0.05) << line.text;
+        EXPECT_DOUBLE_EQ(measured.label->sizeHint().height, 18) << line.text;
+        EXPECT_NEAR(measured.label->baselineOffset(), 13.9219, 1e-4) << line.text;
     }
 }
