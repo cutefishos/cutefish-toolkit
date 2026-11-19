@@ -1,0 +1,17 @@
+// SPDX-FileCopyrightText: 2026 Reion Wong <reionwong@gmail.com>
+// SPDX-License-Identifier: BSD-3-Clause
+
+uniform shader source;
+uniform float2 sourceSize;
+uniform float2 outputSize;
+uniform float2 offset;
+
+half4 main(float2 p)
+{
+    float2 uv = p / outputSize;
+    float dither = 0.33;
+    return (source.eval((uv + float2(offset.x, offset.y * dither)) * sourceSize)
+            + source.eval((uv + float2(offset.x * dither, -offset.y)) * sourceSize)
+            + source.eval((uv + float2(-offset.x * dither, offset.y)) * sourceSize)
+            + source.eval((uv + float2(-offset.x, -offset.y * dither)) * sourceSize)) / 4;
+}

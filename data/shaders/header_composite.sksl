@@ -1,0 +1,20 @@
+// SPDX-FileCopyrightText: 2026 Reion Wong <reionwong@gmail.com>
+// SPDX-License-Identifier: BSD-3-Clause
+
+uniform shader blur1;
+uniform shader blur2;
+uniform shader blur3;
+uniform shader blur4;
+uniform float2 size1;
+uniform float2 size2;
+uniform float2 size3;
+uniform float2 size4;
+uniform float2 outputSize;
+uniform float4 weights;
+
+half4 main(float2 p)
+{
+    float2 uv = p / outputSize;
+    return blur1.eval(uv * size1) * weights.x + blur2.eval(uv * size2) * weights.y
+            + blur3.eval(uv * size3) * weights.z + blur4.eval(uv * size4) * weights.w;
+}

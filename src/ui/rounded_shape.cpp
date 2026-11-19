@@ -15,6 +15,8 @@
 #include "include/core/SkRegion.h"
 #include "include/effects/SkRuntimeEffect.h"
 
+#include "ui/embedded_files.h"
+
 namespace cutefish::ui {
 
 namespace {
@@ -164,104 +166,10 @@ static int cornerBlock(const RoundedShapeSpec& spec)
 
 // The rounded-rectangle coverage again, as a shader for GPU canvases, which
 // run it on the corner blocks at no CPU cost. Lengths in device pixels.
-static constexpr const char* kShader = R"(
-uniform float2 quadOrigin;
-uniform float2 size;
-uniform float radius;
-uniform float shapeInset;
-uniform float borderWidth;
-uniform float continuous;
-uniform half4 fillColor;
-uniform half4 borderColor;
-
-float2 shapeSize()
-{
-    return max(size + 2.0 * shapeInset, float2(0.0));
-}
-
-float2 cornerExtent(float2 halfSize)
-{
-    if (continuous > 0.5)
-        return clamp(float2(radius * 1.5), float2(0.0), halfSize);
-    return float2(clamp(radius, 0.0, min(halfSize.x, halfSize.y)));
-}
-
-float2 cornerNormal(float2 corner, float2 r)
-{
-    if (continuous > 0.5)
-        return normalize((corner / r) * (corner / r) / r);
-    return normalize(corner);
-}
-
-float roundedDistance(float2 p)
-{
-    float2 halfSize = shapeSize() * 0.5;
-    float2 r = cornerExtent(halfSize);
-    float2 edge = abs(p - halfSize) - halfSize;
-    float2 d = edge + r;
-    if (min(r.x, r.y) <= 0.0 || min(d.x, d.y) <= 0.0)
-        return max(edge.x, edge.y);
-    if (continuous < 0.5)
-        return length(d) - r.x;
-    float2 q = d / r;
-    float l = pow(dot(q * q, q), 1.0 / 3.0);
-    return (l - 1.0) * l * l / length(q * q / r);
-}
-
-float tangentCoverage(float2 p, float inset, float pixelSize)
-{
-    float2 halfSize = shapeSize() * 0.5;
-    float2 r = cornerExtent(halfSize);
-    float2 edge = abs(p - halfSize) - halfSize;
-    float2 corner = edge + r;
-    float2 normal = edge.x > edge.y ? float2(1.0, 0.0) : float2(0.0, 1.0);
-    if (min(r.x, r.y) > 0.0 && min(corner.x, corner.y) > 0.0)
-        normal = cornerNormal(corner, r);
-    float t = -roundedDistance(p) - inset;
-    float2 extent = abs(normal) * (0.5 * pixelSize);
-    float a = max(extent.x, extent.y);
-    float b = min(extent.x, extent.y);
-    if (b < 0.001)
-        return clamp(0.5 + t / (2.0 * a), 0.0, 1.0);
-    float u = abs(t);
-    if (u >= a + b)
-        return t > 0.0 ? 1.0 : 0.0;
-    if (u <= a - b)
-        return 0.5 + t / (2.0 * a);
-    float tail = (a + b - u) * (a + b - u) / (8.0 * a * b);
-    return t > 0.0 ? 1.0 - tail : tail;
-}
-
-float roundedCoverage(float2 p, float inset)
-{
-    float distance = roundedDistance(p) + inset;
-    if (distance < -1.0) return 1.0;
-    if (distance > 1.0) return 0.0;
-    float2 halfSize = shapeSize() * 0.5;
-    float2 r = cornerExtent(halfSize);
-    float2 corner = abs(p - halfSize) - halfSize + r;
-    if (min(r.x, r.y) <= 0.0 || min(corner.x, corner.y) < -0.5)
-        return tangentCoverage(p, inset, 1.0);
-    return 0.25 * (
-        tangentCoverage(p + float2(-0.25, -0.25), inset, 0.5) +
-        tangentCoverage(p + float2( 0.25, -0.25), inset, 0.5) +
-        tangentCoverage(p + float2(-0.25,  0.25), inset, 0.5) +
-        tangentCoverage(p + float2( 0.25,  0.25), inset, 0.5));
-}
-
-half4 main(float2 coord)
-{
-    float2 p = coord - quadOrigin + float2(shapeInset);
-    float outer = roundedCoverage(p, shapeInset);
-    float inner = borderWidth > 0.0 ? roundedCoverage(p, shapeInset + borderWidth) : outer;
-    return fillColor * half(inner) + borderColor * half(outer - inner);
-}
-)";
-
 static sk_sp<SkShader> makeShader(const RoundedShapeSpec& spec)
 {
     static const sk_sp<SkRuntimeEffect> effect = [] {
-        SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForShader(SkString(kShader));
+        SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForShader(SkString(embeddedText("rounded_shape.sksl").c_str()));
         if (!result.effect)
             fprintf(stderr, "cutefish-toolkit: %s\n", result.errorText.c_str());
         return result.effect;

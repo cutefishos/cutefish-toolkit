@@ -1,0 +1,204 @@
+// SPDX-FileCopyrightText: 2026 Reion Wong <reionwong@gmail.com>
+// SPDX-License-Identifier: BSD-3-Clause
+
+uniform shader backdrop;
+uniform shader blurred;
+uniform float4 rect;
+uniform float radius;
+uniform float opacity;
+uniform float4 tint;
+uniform float2 light[24];
+uniform float4 over;
+uniform float4 edge;
+uniform float4 bottomEdge;
+uniform float4 sideEdge;
+uniform float edgeWidth;
+uniform float edgeOnPixels;
+uniform float4 multiply;
+uniform float halfResolution;
+uniform float saturation;
+uniform float bezel;
+uniform float sideBezel;
+uniform float bend;
+uniform float profile;
+uniform float dispersion;
+uniform float zoom;
+uniform float exponent;
+uniform float4 glow;
+uniform float3 glowAt;
+uniform float glowEdge;
+uniform float2 fade;
+uniform float4 shadow;
+uniform float shadowBlur;
+uniform float shadowOffset;
+uniform float bendPeak;
+uniform float dispersionSides;
+uniform float shadowGap;
+uniform float bendAlongAxes;
+uniform float edgeSplit;
+
+// Signed distance to the outline of `box`, negative inside, and the corner
+// offset q.
+float distanceIn(float4 box, float2 p, out float2 q) {
+    float2 halfSize = (box.zw - box.xy) * 0.5;
+    float r = min(radius, min(halfSize.x, halfSize.y));
+    q = abs(p - (box.xy + halfSize)) - halfSize + r;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float distanceTo(float2 p, out float2 q) {
+    return distanceIn(rect, p, q);
+}
+
+// The blurred backdrop averaged over blocks of two by two pixels and scaled
+// back up.
+half4 halved(float2 p) {
+    float2 t = p * 0.5 - 0.5;
+    float2 j = floor(t);
+    float2 f = t - j;
+    half4 block[4];
+    for (int i = 0; i < 4; i++) {
+        float2 corner = (j + float2(float(i - (i / 2) * 2), float(i / 2))) * 2.0;
+        block[i] = (blurred.eval(corner + float2(0.5, 0.5)) + blurred.eval(corner + float2(1.5, 0.5))
+                    + blurred.eval(corner + float2(0.5, 1.5)) + blurred.eval(corner + float2(1.5, 1.5))) * 0.25;
+    }
+    return mix(mix(block[0], block[1], half(f.x)), mix(block[2], block[3], half(f.x)), half(f.y));
+}
+
+// Straight colour b laid over premultiplied a.
+half4 laid(half4 a, float4 b) {
+    return half4(b.rgb * b.a, b.a) + a * half(1.0 - b.a);
+}
+
+// How far in the pane reads at `d` from its outline (negative inside) within a
+// bezel `width`: largest `bendPeak` in, easing in from nothing at the
+// outline there, and falling off by the profile further in.
+float bentBy(float d, float width) {
+    if (width <= 0.0)
+        return 0.0;
+    float peak = min(bendPeak, width * 0.99);
+    float amount = bend * pow(clamp((width + d) / (width - peak), 0.0, 1.0), profile);
+    if (peak > 0.0)
+        amount *= smoothstep(0.0, peak, -d);
+    return amount;
+}
+
+half4 main(float2 p) {
+    half4 under = backdrop.eval(p);
+    float2 q;
+    float d = distanceTo(p, q);
+    float coverage = clamp(0.5 - d, 0.0, 1.0);
+
+    half4 outside = under;
+    if (shadow.a > 0.0 && coverage < 1.0) {
+        float2 sq;
+        float sd = distanceTo(p - float2(0.0, shadowOffset), sq);
+        float fall = 1.0 - smoothstep(-shadowBlur * 0.5, shadowBlur, sd);
+        if (shadowGap > 0.0)
+            fall *= smoothstep(0.0, shadowGap, d);
+        outside = laid(under, float4(shadow.rgb, shadow.a * fall * opacity));
+    }
+    float lit = 0.0;
+    if (glowAt.z > 0.0 && glow.a > 0.0)
+        lit = glow.a * (1.0 - smoothstep(0.0, glowAt.z, length(p - glowAt.xy)));
+    // The line lies just outside the outline: the pixel's share of the band
+    // between the outline and edgeWidth out. Kept to whole pixels, it lies
+    // outside the outline moved in to them and over what the pixel shows.
+    float2 lq = q;
+    float ld = d;
+    if (edgeOnPixels > 0.0)
+        ld = distanceIn(float4(ceil(rect.xy - 0.001), floor(rect.zw + 0.001)), p, lq);
+    float band = clamp(min(ld + 0.5, edgeWidth) - max(ld - 0.5, 0.0), 0.0, 1.0);
+    float4 line = float4(0.0);
+    if (band > 0.0) {
+        float sideways = 1.0;
+        if (lq.x > 0.0 && lq.y > 0.0)
+            sideways = lq.x * lq.x / dot(lq, lq);
+        else if (lq.y > lq.x)
+            sideways = 0.0;
+        line = mix(p.y > (rect.y + rect.w) * 0.5 ? bottomEdge : edge, sideEdge, sideways);
+        line = mix(line, float4(glow.rgb, 1.0), clamp(lit * glowEdge, 0.0, 1.0));
+        line.a *= band * opacity;
+        if (edgeOnPixels <= 0.0)
+            outside = laid(outside, line);
+    }
+    if (coverage <= 0.0)
+        return edgeOnPixels > 0.0 ? laid(outside, line) : outside;
+
+    float2 halfSize = (rect.zw - rect.xy) * 0.5;
+    float2 centre = rect.xy + halfSize;
+    float y = p.y - rect.y;
+    float shown = 1.0;
+    if (fade.x > 0.0)
+        shown = min(shown, clamp(y / fade.x, 0.0, 1.0));
+    if (fade.y > 0.0)
+        shown = min(shown, clamp((rect.w - p.y) / fade.y, 0.0, 1.0));
+
+    float2 side = sign(p - centre);
+    float2 normal;
+    if (q.x > 0.0 && q.y > 0.0)
+        normal = normalize(q) * side;
+    else if (q.x > q.y)
+        normal = float2(side.x, 0.0);
+    else
+        normal = float2(0.0, side.y);
+    // Within the bezel the pane reads from further in, so what lies under its
+    // edge shows magnified from the middle's side.
+    float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
+    float amount = bentBy(d, width);
+    float2 shift = normal * amount;
+    // Read across by the depth from the sides and up or down by the depth
+    // from the top or bottom, as through a rectangular slab, rather than
+    // along the turning outline at the ends.
+    if (bendAlongAxes > 0.0) {
+        float2 slab = abs(p - centre) - halfSize;
+        float2 along = side * float2(bentBy(slab.x, sideBezel >= 0.0 ? sideBezel : bezel), bentBy(slab.y, bezel));
+        shift = mix(shift, along, bendAlongAxes);
+    }
+    float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
+    half4 colour = halfResolution > 0.0 ? halved(at - shift) : blurred.eval(at - shift);
+    float spread = dispersion * mix(1.0, normal.x * normal.x, dispersionSides);
+    if (spread > 0.0 && amount != 0.0) {
+        colour.r = blurred.eval(at - shift * (1.0 - spread)).r;
+        colour.b = blurred.eval(at - shift * (1.0 + spread)).b;
+    }
+    if (shown < 1.0)
+        colour = mix(backdrop.eval(at - shift), colour, half(shown));
+    // Unclamped until the end: the tint lays its colour over saturation
+    // beyond the gamut, which keeps a saturated colour saturated under it.
+    half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
+    colour.rgb = mix(half3(luma), colour.rgb, half(saturation));
+
+    colour = laid(colour, tint);
+    colour.rgb *= mix(half3(1.0), half3(multiply.rgb), half(multiply.a));
+    if (exponent != 1.0 && colour.a > 0.0)
+        colour.rgb = half3(pow(clamp(colour.rgb / colour.a, 0.0, 1.0), half3(exponent))) * colour.a;
+    // The light follows the outline, from the top's stops in the upper half
+    // and the bottom's in the lower, fading towards the sides as the outline
+    // turns.
+    float ly = normal.y <= 0.0 ? -d : rect.w - rect.y + d;
+    float alpha = light[0].y;
+    for (int i = 1; i < 24; i++) {
+        float2 a = light[i - 1];
+        float2 b = light[i];
+        if (ly > a.x && b.x > a.x)
+            alpha = mix(a.y, b.y, clamp((ly - a.x) / (b.x - a.x), 0.0, 1.0));
+    }
+    colour.rgb += half(alpha * normal.y * normal.y) * colour.a;
+    colour = laid(colour, float4(glow.rgb, lit));
+    colour = laid(colour, over);
+    // The side line's red laid a little to the left and its blue a little
+    // to the right, where they reach inside.
+    if (edgeSplit > 0.0 && sideEdge.a > 0.0) {
+        float2 sq;
+        float dr = distanceTo(p - float2(edgeSplit, 0.0), sq);
+        float db = distanceTo(p + float2(edgeSplit, 0.0), sq);
+        half ar = half(sideEdge.a * clamp(min(dr + 0.5, edgeWidth) - max(dr - 0.5, 0.0), 0.0, 1.0));
+        half ab = half(sideEdge.a * clamp(min(db + 0.5, edgeWidth) - max(db - 0.5, 0.0), 0.0, 1.0));
+        colour.r = colour.r * (1.0 - ar) + half(sideEdge.r) * ar * colour.a;
+        colour.b = colour.b * (1.0 - ab) + half(sideEdge.b) * ab * colour.a;
+    }
+    colour.rgb = clamp(colour.rgb, 0.0, colour.a);
+    half4 shownColour = mix(outside, colour, half(coverage * opacity));
+    return edgeOnPixels > 0.0 ? laid(shownColour, line) : shownColour;
+}

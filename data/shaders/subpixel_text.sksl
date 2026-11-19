@@ -1,0 +1,10 @@
+// SPDX-FileCopyrightText: 2026 Reion Wong <reionwong@gmail.com>
+// SPDX-License-Identifier: BSD-3-Clause
+
+uniform half4 color;
+half4 main(half4 src, half4 dst)
+{
+    half3 m = src.rgb * color.a;
+    half average = (src.r + src.g + src.b) / 3 * color.a;
+    return half4(color.rgb * m + dst.rgb * (1 - m), average + dst.a * (1 - average));
+}

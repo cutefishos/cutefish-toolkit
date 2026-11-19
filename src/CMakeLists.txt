@@ -272,8 +272,10 @@ add_library(cutefish-toolkit SHARED
     ${cutefish-window-placement-v1_SOURCES}
 )
 
-# The glyph icons, built in so they need no install location.
-file(GLOB CUTEFISH_TOOLKIT_ICONS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/icons/*.svg)
+# The glyph icons and the runtime shaders, built in so they need no install
+# location.
+file(GLOB CUTEFISH_TOOLKIT_ICONS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/data/icons/*.svg
+    ${PROJECT_SOURCE_DIR}/data/shaders/*.sksl)
 set(CUTEFISH_TOOLKIT_EMBEDDED ${CMAKE_CURRENT_BINARY_DIR}/embedded_files.cpp)
 # A list would be split into separate arguments on the way to the script.
 string(REPLACE ";" "|" CUTEFISH_TOOLKIT_ICON_LIST "${CUTEFISH_TOOLKIT_ICONS}")

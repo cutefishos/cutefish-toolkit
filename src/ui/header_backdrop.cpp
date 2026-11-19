@@ -20,6 +20,7 @@
 #include "include/effects/SkRuntimeEffect.h"
 
 #include "ui/application.h"
+#include "ui/embedded_files.h"
 #include "ui/multi_effect_blur.h"
 #include "ui/painter.h"
 #include "ui/text_context.h"
@@ -36,44 +37,6 @@ static constexpr double kTintAlpha = 0.72;
 // A blurMax of 32 takes four blur levels.
 static constexpr int kBlurItems = 4;
 static constexpr double kBlurMax = 32;
-
-// The same passes as runtime shaders, when the window draws on the GPU.
-static const char* const kBlurItemShader = R"(
-uniform shader source;
-uniform float2 sourceSize;
-uniform float2 outputSize;
-uniform float2 offset;
-
-half4 main(float2 p)
-{
-    float2 uv = p / outputSize;
-    float dither = 0.33;
-    return (source.eval((uv + float2(offset.x, offset.y * dither)) * sourceSize)
-            + source.eval((uv + float2(offset.x * dither, -offset.y)) * sourceSize)
-            + source.eval((uv + float2(-offset.x * dither, offset.y)) * sourceSize)
-            + source.eval((uv + float2(-offset.x, -offset.y * dither)) * sourceSize)) / 4;
-}
-)";
-
-static const char* const kCompositeShader = R"(
-uniform shader blur1;
-uniform shader blur2;
-uniform shader blur3;
-uniform shader blur4;
-uniform float2 size1;
-uniform float2 size2;
-uniform float2 size3;
-uniform float2 size4;
-uniform float2 outputSize;
-uniform float4 weights;
-
-half4 main(float2 p)
-{
-    float2 uv = p / outputSize;
-    return blur1.eval(uv * size1) * weights.x + blur2.eval(uv * size2) * weights.y
-            + blur3.eval(uv * size3) * weights.z + blur4.eval(uv * size4) * weights.w;
-}
-)";
 
 // The blur as last made, and what it was made from: on the CPU the finished
 // image, on the GPU the blur items the effect draws from. Kept outside the
@@ -103,6 +66,7 @@ static bool isOpen(const Window* window)
     return std::find(windows.begin(), windows.end(), window) != windows.end();
 }
 
+// The same passes as runtime shaders, when the window draws on the GPU.
 static sk_sp<SkRuntimeEffect> makeEffect(const char* code)
 {
     SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForShader(SkString(code));
@@ -120,7 +84,7 @@ static sk_sp<SkShader> textureShader(const sk_sp<SkImage>& image)
 // shaders or the surfaces cannot be made.
 static std::vector<sk_sp<SkImage>> makeBlurItemsOnGpu(SkSurface* source, double width, double height, double scale)
 {
-    static const sk_sp<SkRuntimeEffect> blurItem = makeEffect(kBlurItemShader);
+    static const sk_sp<SkRuntimeEffect> blurItem = makeEffect(embeddedText("header_blur_item.sksl").c_str());
     if (!blurItem)
         return {};
     sk_sp<SkImage> previous = source->makeImageSnapshot();
@@ -155,7 +119,7 @@ static std::vector<sk_sp<SkImage>> makeBlurItemsOnGpu(SkSurface* source, double 
 static void drawCompositeOnGpu(SkCanvas* canvas, const std::vector<sk_sp<SkImage>>& blurs, SkISize sourceSize,
                                SkPoint origin, int firstRow, int lastRow, float opacity)
 {
-    static const sk_sp<SkRuntimeEffect> compositeEffect = makeEffect(kCompositeShader);
+    static const sk_sp<SkRuntimeEffect> compositeEffect = makeEffect(embeddedText("header_composite.sksl").c_str());
     if (!compositeEffect || blurs.empty())
         return;
     // The source's own weight is nil at blur 1.

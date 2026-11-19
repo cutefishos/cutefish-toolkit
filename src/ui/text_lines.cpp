@@ -29,6 +29,7 @@
 #include "modules/skparagraph/src/ParagraphPainterImpl.h"
 
 #include "ui/application.h"
+#include "ui/embedded_files.h"
 #include "ui/line_breaks.h"
 #include "ui/text_context.h"
 
@@ -472,15 +473,7 @@ std::vector<double> lineWidths(textlayout::Paragraph* paragraph, const AdvanceRu
 static const sk_sp<SkBlender>& subpixelBlender(SkColor color, sk_sp<SkBlender>* made)
 {
     static const sk_sp<SkRuntimeEffect> effect = [] {
-        const SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForBlender(SkString(R"(
-uniform half4 color;
-half4 main(half4 src, half4 dst)
-{
-    half3 m = src.rgb * color.a;
-    half average = (src.r + src.g + src.b) / 3 * color.a;
-    return half4(color.rgb * m + dst.rgb * (1 - m), average + dst.a * (1 - average));
-}
-)"));
+        const SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForBlender(SkString(embeddedText("subpixel_text.sksl").c_str()));
         if (!result.effect)
             fprintf(stderr, "cutefish-toolkit: %s\n", result.errorText.c_str());
         return result.effect;
