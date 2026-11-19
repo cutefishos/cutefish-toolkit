@@ -36,6 +36,7 @@ uniform float dispersionSides;
 uniform float shadowGap;
 uniform float bendAlongAxes;
 uniform float edgeSplit;
+uniform float sideBendPeak;
 
 // Signed distance to the outline of `box`, negative inside, and the corner
 // offset q.
@@ -71,12 +72,12 @@ half4 laid(half4 a, float4 b) {
 }
 
 // How far in the pane reads at `d` from its outline (negative inside) within a
-// bezel `width`: largest `bendPeak` in, easing in from nothing at the
-// outline there, and falling off by the profile further in.
-float bentBy(float d, float width) {
+// bezel `width`: largest `largest` in, easing in from nothing at the outline
+// there, and falling off by the profile further in.
+float bentBy(float d, float width, float largest) {
     if (width <= 0.0)
         return 0.0;
-    float peak = min(bendPeak, width * 0.99);
+    float peak = min(largest, width * 0.99);
     float amount = bend * pow(clamp((width + d) / (width - peak), 0.0, 1.0), profile);
     if (peak > 0.0)
         amount *= smoothstep(0.0, peak, -d);
@@ -145,14 +146,16 @@ half4 main(float2 p) {
     // Within the bezel the pane reads from further in, so what lies under its
     // edge shows magnified from the middle's side.
     float width = sideBezel >= 0.0 ? mix(sideBezel, bezel, normal.y * normal.y) : bezel;
-    float amount = bentBy(d, width);
+    float amount = bentBy(d, width, bendPeak);
     float2 shift = normal * amount;
     // Read across by the depth from the sides and up or down by the depth
     // from the top or bottom, as through a rectangular slab, rather than
     // along the turning outline at the ends.
     if (bendAlongAxes > 0.0) {
         float2 slab = abs(p - centre) - halfSize;
-        float2 along = side * float2(bentBy(slab.x, sideBezel >= 0.0 ? sideBezel : bezel), bentBy(slab.y, bezel));
+        float2 along = side * float2(bentBy(slab.x, sideBezel >= 0.0 ? sideBezel : bezel,
+                                            sideBendPeak >= 0.0 ? sideBendPeak : bendPeak),
+                                     bentBy(slab.y, bezel, bendPeak));
         shift = mix(shift, along, bendAlongAxes);
     }
     float2 at = zoom != 1.0 ? centre + (p - centre) / zoom : p;
@@ -187,16 +190,13 @@ half4 main(float2 p) {
     colour.rgb += half(alpha * normal.y * normal.y) * colour.a;
     colour = laid(colour, float4(glow.rgb, lit));
     colour = laid(colour, over);
-    // The side line's red laid a little to the left and its blue a little
-    // to the right, where they reach inside.
+    // The side line's red reaches further in, most where the outline faces
+    // sideways, at three quarters of the line's strength.
     if (edgeSplit > 0.0 && sideEdge.a > 0.0) {
-        float2 sq;
-        float dr = distanceTo(p - float2(edgeSplit, 0.0), sq);
-        float db = distanceTo(p + float2(edgeSplit, 0.0), sq);
-        half ar = half(sideEdge.a * clamp(min(dr + 0.5, edgeWidth) - max(dr - 0.5, 0.0), 0.0, 1.0));
-        half ab = half(sideEdge.a * clamp(min(db + 0.5, edgeWidth) - max(db - 0.5, 0.0), 0.0, 1.0));
+        float dr = d + edgeSplit * normal.x * normal.x;
+        half ar = half(0.75 * sideEdge.a * normal.x * normal.x
+                       * clamp(min(dr + 0.5, edgeWidth) - max(dr - 0.5, 0.0), 0.0, 1.0));
         colour.r = colour.r * (1.0 - ar) + half(sideEdge.r) * ar * colour.a;
-        colour.b = colour.b * (1.0 - ab) + half(sideEdge.b) * ab * colour.a;
     }
     colour.rgb = clamp(colour.rgb, 0.0, colour.a);
     half4 shownColour = mix(outside, colour, half(coverage * opacity));

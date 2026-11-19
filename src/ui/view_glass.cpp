@@ -220,6 +220,7 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.shadowGap = mixed(a.shadowGap, b.shadowGap, s);
     glass.bendAlongAxes = mixed(a.bendAlongAxes, b.bendAlongAxes, t);
     glass.edgeSplit = mixed(a.edgeSplit, b.edgeSplit, t);
+    glass.sideBendPeak = mixed(a.sideBendPeak, b.sideBendPeak, t);
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -571,6 +572,7 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("shadowGap") = float(glass.shadowGap) * unit;
         builder.uniform("bendAlongAxes") = float(std::clamp(glass.bendAlongAxes, 0.0, 1.0));
         builder.uniform("edgeSplit") = float(glass.edgeSplit);
+        builder.uniform("sideBendPeak") = glass.sideBendPeak < 0 ? -1.0f : float(glass.sideBendPeak) * unit;
 
         const float sigma = float(glass.blur) * unit / 2;
         std::string_view children[] = {"backdrop", "blurred"};

@@ -608,12 +608,14 @@ TEST(CompositingTest, GlassReadsAlongItsAxesAndSplitsItsSideLine)
     // above as well in the cap as in the middle.
     EXPECT_LE(image.pixel(2 * 40, 2 * 14).r, 40);
     EXPECT_LE(image.pixel(2 * 14, 2 * 14).r, 40);
-    // Just inside the left end the side line's red reaches in, inside the
-    // right end its blue.
+    // Just inside either end the side line's red reaches further in than
+    // its blue; along the top it does not.
     const Color left = image.pixel(2 * 10 + 1, 2 * 20);
     const Color right = image.pixel(2 * 70 - 2, 2 * 20);
+    const Color top = image.pixel(2 * 40, 2 * 10 + 1);
     EXPECT_LE(left.r + 60, left.b);
-    EXPECT_LE(right.b + 60, right.r);
+    EXPECT_LE(right.r + 60, right.b);
+    EXPECT_NEAR(top.r, top.b, 2);
 }
 
 TEST(CompositingTest, GlassKeepsItsLineOnWholePixelsTakesItsBottomLineAndMultiplies)

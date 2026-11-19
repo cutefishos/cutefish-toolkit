@@ -116,9 +116,12 @@ struct ViewGlass
     // down by the depth from the top or bottom, as through a rectangular
     // slab, rather than along the outline's normal, 0 to 1.
     double bendAlongAxes = 0;
-    // The side line's red is laid this many device pixels to the left and its
-    // blue as many to the right, where they reach inside the pane.
+    // The side line's red reaches this many device pixels further in than
+    // its other colours, most where the outline faces sideways.
     double edgeSplit = 0;
+    // How far inside the sides the bend along the axes is largest; negative:
+    // `bendPeak`.
+    double sideBendPeak = -1;
 
     bool operator==(const ViewGlass&) const = default;
 };
