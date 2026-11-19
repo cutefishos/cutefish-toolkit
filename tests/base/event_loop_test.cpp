@@ -4,9 +4,13 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <fcntl.h>
 #include <memory>
 #include <poll.h>
+#include <string>
+#include <sys/epoll.h>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 
 #include "base/event_loop.h"
@@ -109,6 +113,36 @@ TEST(EventLoopTest, DispatchesFromAnotherLoop)
     loop.post([&loop, &ran] { loop.post([&ran] { ++ran; }); });
     loop.dispatch();
     EXPECT_EQ(ran, 2);
+}
+
+// A host that queues the input a descriptor delivers handles it before what
+// the same read posted, such as a frame, runs.
+TEST(EventLoopTest, DispatchReceivedLeavesWhatTheDescriptorsPostForTheNextDispatch)
+{
+    EventLoop loop;
+    int pipe[2];
+    ASSERT_EQ(pipe2(pipe, O_NONBLOCK | O_CLOEXEC), 0);
+    std::string order;
+    const int watch = loop.watch(pipe[0], EPOLLIN, [&](uint32_t) {
+        char byte;
+        while (read(pipe[0], &byte, 1) == 1) {
+        }
+        order += 'r';
+        loop.post([&order] { order += 'p'; });
+    });
+    loop.post([&order] { order += 'b'; });
+    ASSERT_EQ(write(pipe[1], "x", 1), 1);
+    ASSERT_TRUE(waitReadable(loop.fd(), 1000));
+    loop.dispatchReceived();
+    EXPECT_EQ(order, "br");
+    order += 'h';
+    EXPECT_TRUE(waitReadable(loop.fd(), 0));
+    loop.dispatchReceived();
+    EXPECT_EQ(order, "brhp");
+    EXPECT_FALSE(waitReadable(loop.fd(), 0));
+    loop.unwatch(watch);
+    close(pipe[0]);
+    close(pipe[1]);
 }
 
 TEST(EventLoopTest, DispatchRunsDueTimersAtOnce)

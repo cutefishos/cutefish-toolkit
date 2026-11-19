@@ -92,6 +92,11 @@ public:
     // tasks included, and dispatch() does that work without blocking.
     int fd() const { return m_epoll; }
     void dispatch();
+    // Like dispatch(), but the tasks posted while the descriptors are read
+    // wait for the next dispatch, which the descriptor stays readable for: a
+    // host that queues the input it is handed handles it before, say, a frame
+    // posted from the same read is drawn.
+    void dispatchReceived();
 
 private:
     struct Watch

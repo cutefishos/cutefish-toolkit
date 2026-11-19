@@ -304,6 +304,18 @@ void EventLoop::dispatch()
     runPrepareHooks();
 }
 
+void EventLoop::dispatchReceived()
+{
+    runPosted();
+    dispatchEvents(0);
+    runPrepareHooks();
+    // The wake descriptor may have been drained after the tasks were posted.
+    if (hasPosted()) {
+        const uint64_t one = 1;
+        [[maybe_unused]] const auto written = write(m_wakeFd, &one, sizeof(one));
+    }
+}
+
 void EventLoop::runPrepareHooks()
 {
     // A hook may remove hooks; one removed before its turn does not run.
