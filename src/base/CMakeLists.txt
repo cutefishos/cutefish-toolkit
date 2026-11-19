@@ -85,7 +85,7 @@ set_target_properties(cutefish-toolkit-base PROPERTIES
 target_include_directories(cutefish-toolkit-base
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/cutefish-toolkit>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/cutefish-toolkit-base>
 )
 
 target_compile_definitions(cutefish-toolkit-base PRIVATE
@@ -104,5 +104,5 @@ install(TARGETS cutefish-toolkit-base EXPORT CutefishToolkitTargets
 )
 
 install(FILES ${CUTEFISH_TOOLKIT_BASE_PUBLIC_HEADERS}
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cutefish-toolkit/base
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cutefish-toolkit-base/base
 )
