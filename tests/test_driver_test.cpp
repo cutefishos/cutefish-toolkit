@@ -10,10 +10,14 @@
 #include "test_views.h"
 #include "ui/application.h"
 #include "ui/button.h"
+#include "ui/dialog_window.h"
+#include "ui/drag.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/menu.h"
+#include "ui/segmented_control.h"
+#include "ui/slider.h"
 #include "ui/test_driver.h"
 #include "ui/text_field.h"
 #include "ui/window.h"
@@ -33,6 +37,84 @@ public:
     }
 
     bool acceptsPointer() const override { return true; }
+};
+
+// Takes plain text dropped on it and wheel turns over it.
+class Well : public test::Box
+{
+public:
+    Well()
+        : Box({100, 40})
+    {
+    }
+
+    bool acceptsPointer() const override { return true; }
+
+    bool scroll(const ScrollEvent& event) override
+    {
+        turns += event.value120Y;
+        return true;
+    }
+
+    bool canDrop(const DropOffer& offer) const override { return offer.hasMimeType("text/plain"); }
+    uint32_t dragUpdate(const DragEvent&) override { return CopyAction; }
+    uint32_t drop(const DragEvent& event) override
+    {
+        event.offer->read("text/plain", [this](std::string data) { dropped.push_back(std::move(data)); });
+        return CopyAction;
+    }
+
+    int turns = 0;
+    std::vector<std::string> dropped;
+};
+
+// The button of the last press over it.
+class Pad : public test::Box
+{
+public:
+    Pad()
+        : Box({100, 20})
+    {
+    }
+
+    bool acceptsPointer() const override { return true; }
+    void pointerPress(const PointerEvent& event) override
+    {
+        ++presses;
+        button = event.button;
+    }
+
+    int presses = 0;
+    MouseButton button = MouseButton::Left;
+};
+
+// Reads plain text when a drag enters, as a window does to tell whether
+// it takes it, and takes the drop only once the text came.
+class Tray : public test::Box
+{
+public:
+    Tray()
+        : Box({100, 40})
+    {
+    }
+
+    bool acceptsPointer() const override { return true; }
+    bool canDrop(const DropOffer& offer) const override { return offer.hasMimeType("text/plain"); }
+    void dragEnter(const DragEvent& event) override
+    {
+        event.offer->read("text/plain", [this](std::string data) { entered = std::move(data); });
+    }
+    uint32_t dragUpdate(const DragEvent&) override { return entered.empty() ? NoAction : CopyAction; }
+    uint32_t drop(const DragEvent&) override
+    {
+        if (entered.empty())
+            return NoAction;
+        dropped = entered;
+        return CopyAction;
+    }
+
+    std::string entered;
+    std::string dropped;
 };
 
 struct Fixture
@@ -270,4 +352,162 @@ TEST(TestDriverTest, WaitsForTheLoop)
     timer.start(std::chrono::milliseconds(20));
     EXPECT_TRUE(TestDriver::waitFor([&] { return fired; }));
     EXPECT_FALSE(TestDriver::waitFor([] { return false; }, std::chrono::milliseconds(30)));
+}
+
+TEST(TestDriverTest, ScrollsAndDrops)
+{
+    Fixture fixture;
+    Well* well = static_cast<Column*>(fixture.window.contentView())->addChild<Well>();
+    well->setName("form:well");
+
+    ScrollEvent turn;
+    turn.value120Y = -120;
+    EXPECT_TRUE(fixture.driver.scroll("form:well", turn));
+    EXPECT_EQ(well->turns, -120);
+
+    // The data comes on the loop, not inside the drop.
+    EXPECT_TRUE(fixture.driver.drop("form:well", {{"text/html", "<b>no</b>"}, {"text/plain", "yes"}}));
+    EXPECT_TRUE(well->dropped.empty());
+    EXPECT_TRUE(TestDriver::waitFor([&] { return !well->dropped.empty(); }));
+    EXPECT_EQ(well->dropped, std::vector<std::string>{"yes"});
+    EXPECT_TRUE(fixture.failures.empty());
+
+    EXPECT_FALSE(fixture.driver.drop("form:ok", {{"text/plain", "no"}}));
+    EXPECT_TRUE(fixture.failed("nothing at the middle of \"form:ok\" takes the drop"));
+    EXPECT_FALSE(fixture.driver.scroll("form:hidden", turn));
+    EXPECT_TRUE(fixture.failed("\"form:hidden\" is hidden"));
+    EXPECT_EQ(well->dropped.size(), 1u);
+}
+
+TEST(TestDriverTest, ReadsWhatShows)
+{
+    Fixture fixture;
+    EXPECT_EQ(fixture.driver.countShown("form:twin"), 2u);
+    EXPECT_EQ(fixture.driver.countShown("form:hidden"), 0u);
+    EXPECT_EQ(fixture.driver.countShown("form:inner"), 0u);
+    EXPECT_EQ(fixture.driver.texts("form:status"), std::vector<std::string>{"Ready"});
+    EXPECT_EQ(fixture.driver.texts("form:ok"), std::vector<std::string>{"OK"});
+    EXPECT_TRUE(fixture.driver.texts("form:folded").empty());
+    fixture.clip->setName("strip");
+    EXPECT_EQ(fixture.driver.texts("strip"), (std::vector<std::string>{"Partly", "Outside"}));
+    EXPECT_TRUE(fixture.driver.showsText("Ready"));
+    EXPECT_TRUE(fixture.driver.showsText("Two"));
+    EXPECT_FALSE(fixture.driver.showsText("Hidden"));
+    EXPECT_FALSE(fixture.driver.showsText("Inner"));
+    EXPECT_TRUE(fixture.failures.empty());
+}
+
+TEST(TestDriverTest, WorksSegmentsAndSliders)
+{
+    Fixture fixture;
+    auto* column = static_cast<Column*>(fixture.window.contentView());
+    auto* segments = column->addChild<SegmentedControl>(std::vector<std::string>{"One", "Two", "Three"});
+    segments->setName("form:segments");
+    int picked = -1;
+    segments->onCurrentChanged = [&](int index) { picked = index; };
+    View* row = column->addChild<test::Box>(SizeF{122, 27});
+    row->setName("form:row");
+    auto* slider = row->addChild<Slider>();
+    double moved = -1;
+    slider->onMoved = [&](double value) { moved = value; };
+    fixture.driver.layout();
+    slider->setGeometry({0, 0, 122, 27});
+
+    EXPECT_TRUE(fixture.driver.chooseSegment("form:segments", 2));
+    EXPECT_EQ(picked, 2);
+    EXPECT_EQ(segments->currentIndex(), 2);
+    EXPECT_TRUE(fixture.driver.chooseSegment("form:segments", 0));
+    EXPECT_EQ(picked, 0);
+
+    // Through the row holding it, pressed off the handle so that it jumps there.
+    EXPECT_TRUE(fixture.driver.dragSlider("form:row", 0.5, 0.75));
+    EXPECT_DOUBLE_EQ(moved, 0.75);
+    EXPECT_DOUBLE_EQ(slider->value(), 0.75);
+    EXPECT_FALSE(slider->isPressed());
+    EXPECT_TRUE(fixture.failures.empty());
+
+    EXPECT_FALSE(fixture.driver.chooseSegment("form:segments", 3));
+    EXPECT_TRUE(fixture.failed("\"form:segments\" has no segment 3"));
+    EXPECT_FALSE(fixture.driver.dragSlider("form:ok", 0, 1));
+    EXPECT_TRUE(fixture.failed("\"form:ok\" holds no one slider"));
+}
+
+TEST(TestDriverTest, ChoosesPopupRowsAndFindsDialogs)
+{
+    Fixture fixture;
+    Menu menu;
+    std::string chosen;
+    menu.addItem("Small", [&] { chosen = "Small"; });
+    menu.addItem("Large", [&] { chosen = "Large"; });
+    fixture.ok->onClicked = [&] { menu.popupFor(fixture.ok); };
+
+    EXPECT_FALSE(fixture.driver.choosePopupItem("Large"));
+    EXPECT_TRUE(fixture.failed("no menu open over the window for \"Large\""));
+    EXPECT_TRUE(fixture.driver.click("form:ok"));
+    ASSERT_TRUE(menu.isOpen());
+    EXPECT_FALSE(fixture.driver.choosePopupItem("Huge"));
+    EXPECT_TRUE(fixture.failed("no row \"Huge\" in the open menu"));
+    EXPECT_TRUE(fixture.driver.choosePopupItem("Large"));
+    EXPECT_EQ(chosen, "Large");
+    EXPECT_FALSE(menu.isOpen());
+
+    EXPECT_EQ(fixture.driver.dialog(), nullptr);
+    {
+        DialogWindow dialog(&fixture.window, "Dialog");
+        dialog.setContent<Label>("Inside");
+        dialog.show();
+        ASSERT_EQ(fixture.driver.dialog(), dialog.window());
+        TestDriver inside(*dialog.window(), [&](const std::string& message) { fixture.failures.push_back(message); });
+        EXPECT_TRUE(inside.showsText("Inside"));
+        EXPECT_FALSE(fixture.driver.showsText("Inside"));
+    }
+    EXPECT_EQ(fixture.driver.dialog(), nullptr);
+}
+
+TEST(TestDriverTest, ClicksTheShownOneAndDropsAfterHovering)
+{
+    Fixture fixture;
+    auto* content = static_cast<Column*>(fixture.window.contentView());
+    View* page = content->addChild<test::Box>(SizeF{100, 20});
+    page->setVisible(false);
+    Pad* hidden = page->addChild<Pad>();
+    hidden->setName("page:pad");
+    Pad* shown = content->addChild<Pad>();
+    shown->setName("page:pad");
+    Tray* tray = content->addChild<Tray>();
+    tray->setName("page:tray");
+
+    // The hidden view of the name is left out.
+    EXPECT_TRUE(fixture.driver.click("page:pad", MouseButton::Right));
+    EXPECT_EQ(shown->presses, 1);
+    EXPECT_EQ(shown->button, MouseButton::Right);
+    EXPECT_EQ(hidden->presses, 0);
+    EXPECT_TRUE(fixture.failures.empty());
+    EXPECT_FALSE(fixture.driver.click("form:twin"));
+    EXPECT_TRUE(fixture.failed("2 shown views named \"form:twin\""));
+    hidden->setName("page:hidden");
+    EXPECT_FALSE(fixture.driver.click("page:hidden"));
+    EXPECT_TRUE(fixture.failed("\"page:hidden\" is hidden"));
+
+    // The text read on entering came before the release.
+    EXPECT_TRUE(fixture.driver.drop("page:tray", {{"text/plain", "yes"}}));
+    EXPECT_EQ(tray->dropped, "yes");
+    EXPECT_FALSE(fixture.driver.drop("form:ok", {{"text/plain", "no"}}));
+    EXPECT_TRUE(fixture.failed("nothing at the middle of \"form:ok\" takes the drop"));
+}
+
+TEST(TestDriverTest, ClicksByText)
+{
+    Fixture fixture;
+    EXPECT_TRUE(fixture.driver.clickText("OK"));
+    EXPECT_EQ(fixture.okClicks, 1);
+    EXPECT_TRUE(fixture.failures.empty());
+
+    EXPECT_FALSE(fixture.driver.clickText("Hidden"));
+    EXPECT_TRUE(fixture.failed("0 labels show \"Hidden\", not one"));
+    EXPECT_EQ(fixture.hiddenClicks, 0);
+    static_cast<Column*>(fixture.window.contentView())->addChild<Label>("OK");
+    EXPECT_FALSE(fixture.driver.clickText("OK"));
+    EXPECT_TRUE(fixture.failed("2 labels show \"OK\", not one"));
+    EXPECT_EQ(fixture.okClicks, 1);
 }

@@ -61,6 +61,8 @@ protected:
     bool keyPress(const KeyEvent& event) override;
 
 private:
+    friend class TestDriver;
+
     double position() const;
     // Where the handle shows: under the pointer while dragged.
     double visualPosition() const;

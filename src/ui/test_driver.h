@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ui/event.h"
@@ -68,11 +69,46 @@ public:
     // view, the text of the one such view inside it, as a button's label.
     std::string text(const std::string& name);
     bool hasFocus(const std::string& name);
+    // How many views of the name show, as shows() asks of one.
+    size_t countShown(const std::string& name) const;
+    // The texts of the shown labels, text fields, text areas and check boxes
+    // inside the view, or its own, in tree order; none while it is hidden.
+    std::vector<std::string> texts(const std::string& name);
+    // A shown label, text field, text area or check box of the window reads
+    // the text.
+    bool showsText(const std::string& text) const;
 
-    // A left click at the middle of what shows of the view, which must take
-    // the pointer there itself or through a view inside or around it.
-    bool click(const std::string& name);
+    // A click at the middle of what shows of the one view of the name that
+    // shows, hidden views of the name left out, which must take the pointer
+    // there itself or through a view inside or around it.
+    bool click(const std::string& name, MouseButton button = MouseButton::Left);
     bool focus(const std::string& name);
+    // A wheel or touchpad scroll over the middle of what shows of the view,
+    // reached as for a click.
+    bool scroll(const std::string& name, const ScrollEvent& event);
+    // Another client's drag of the data, by MIME type, over the middle of
+    // what shows of the view, reached as for a click: it rests there until
+    // the loop has answered what the window read of the data on its entry,
+    // then is let go. The dropped data is read on the next pass of the loop;
+    // something under the pointer must take the drop.
+    bool drop(const std::string& name, const std::vector<std::pair<std::string, std::string>>& data);
+    // A click on the middle of a segment of the segmented control, the view
+    // named or the one inside it, reached as for a click.
+    bool chooseSegment(const std::string& name, size_t index);
+    // A press on the slider's track at one fraction of the handle's travel,
+    // a move to another and the release there; the slider is the view named
+    // or the one inside it, reached as for a click.
+    bool dragSlider(const std::string& name, double from, double to);
+    // A click on the row with the text of the menu or drop-down open over
+    // the window, which must show it; a disabled row does nothing.
+    bool choosePopupItem(const std::string& item);
+    // The newest shown window kept over this one, such as a dialog; null
+    // while there is none. A driver of its own works it.
+    Window* dialog() const;
+    // A left click at the middle of the one shown label of the window that
+    // reads the text, for a button whose view has no name, such as an
+    // alert's, reached as for a click.
+    bool clickText(const std::string& text);
 
     // The window's keyboard focus, and the compositor activating it.
     void setKeyboardFocus(bool focused);
@@ -96,6 +132,9 @@ public:
 private:
     View* findOne(const std::string& name);
     std::vector<View*> named(const std::string& name) const;
+    // The one shown view of the name and where a click on it lands, or null
+    // after a failure.
+    View* reach(const std::string& name, PointF& point);
     void fail(const std::string& message) const;
 
     Window& m_window;
