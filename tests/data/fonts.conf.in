@@ -2,6 +2,9 @@
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <!-- The desktop's default font settings, which the text tests measure against. -->
 <fontconfig>
+    <!-- Noto Sans weights the text tests measure that a minimal install lacks. -->
+    <dir>@CMAKE_CURRENT_SOURCE_DIR@/data/fonts</dir>
+    <cachedir>@CMAKE_CURRENT_BINARY_DIR@/fontconfig</cachedir>
     <match target="pattern">
         <test qual="any" name="family">
             <string>sans-serif</string>

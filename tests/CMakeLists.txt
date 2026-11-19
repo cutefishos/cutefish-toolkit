@@ -84,12 +84,15 @@ add_executable(cutefish-toolkit-tests
     test_views.h
 )
 
+configure_file(data/fonts.conf.in ${CMAKE_CURRENT_BINARY_DIR}/fonts.conf @ONLY)
+
 # The image tests write their files with the codecs' own encoders.
 pkg_check_modules(ImageTestEncoders REQUIRED IMPORTED_TARGET libjpeg libpng libwebp libtiff-4 libjxl libheif zlib)
 target_link_libraries(cutefish-toolkit-tests PRIVATE cutefish-toolkit GTest::gtest PkgConfig::ImageTestEncoders)
 target_compile_definitions(cutefish-toolkit-tests
     PRIVATE CUTEFISH_TOOLKIT_PROTOCOL_DIR="${PROJECT_SOURCE_DIR}/protocols"
-    CUTEFISH_TOOLKIT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+    CUTEFISH_TOOLKIT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+    CUTEFISH_TOOLKIT_TEST_FONTS_CONF="${CMAKE_CURRENT_BINARY_DIR}/fonts.conf")
 
 gtest_discover_tests(cutefish-toolkit-tests)
 # Read after the discovered tests, which it needs to exist.
@@ -107,7 +110,7 @@ add_executable(cutefish-toolkit-embedded-tests
 target_link_libraries(cutefish-toolkit-embedded-tests PRIVATE cutefish-toolkit GTest::gtest PkgConfig::Xkbcommon
     PkgConfig::Egl PkgConfig::GlesV2)
 target_compile_definitions(cutefish-toolkit-embedded-tests
-    PRIVATE CUTEFISH_TOOLKIT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+    PRIVATE CUTEFISH_TOOLKIT_TEST_FONTS_CONF="${CMAKE_CURRENT_BINARY_DIR}/fonts.conf")
 
 gtest_discover_tests(cutefish-toolkit-embedded-tests)
 

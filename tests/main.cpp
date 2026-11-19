@@ -13,7 +13,7 @@
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    cutefish::ui::setTextConfigurationFile(CUTEFISH_TOOLKIT_TEST_DATA_DIR "/fonts.conf");
+    cutefish::ui::setTextConfigurationFile(CUTEFISH_TOOLKIT_TEST_FONTS_CONF);
     // --verify-layout: every pass is checked against a full one.
     bool verifiesLayout = false;
     for (int i = 1; i < argc; ++i) {
