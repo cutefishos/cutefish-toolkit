@@ -78,9 +78,9 @@ static double edgeLightAt(const EdgeLight (&table)[N], double depth)
 
 // The dark plate's edge, worked out per device pixel from its distance to the
 // outline so it follows the curve smoothly at any scale: a half point dark
-// line just outside the sides, fading to none at the top and bottom as the outline turns, and light
-// just inside the top and, brighter, the bottom, fading to none at the sides
-// and gone a few points in.
+// line just outside the sides, fading to none at the top and bottom as the
+// outline turns, and light just inside the top and, brighter, the bottom,
+// fading to none at the sides and gone a few points in.
 static void paintDarkEdge(Painter& painter, const RectF& plate)
 {
     const double scale = painter.scale();
@@ -124,7 +124,7 @@ static void paintDarkEdge(Painter& painter, const RectF& plate)
             const double light = inside * upright
                     * (py < 0 ? edgeLightAt(kDarkTopLight, depth) / (255 - 50)
                               : edgeLightAt(kDarkBottomLight, depth) / (255 - 67));
-            const double dark = band * 0.51 * (1 - upright);
+            const double dark = band * 0.65 * (1 - upright);
             // The line laid over the light.
             const double alpha = dark + light * (1 - dark);
             const double white = light * (1 - dark);
