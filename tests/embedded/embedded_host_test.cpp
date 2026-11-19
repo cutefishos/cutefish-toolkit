@@ -1159,9 +1159,8 @@ TEST(EmbeddedHostTest, TextFieldsCarryInputHints)
     EXPECT_EQ(host.textInput.back()->hints, uint32_t(SensitiveDataHint));
 }
 
-// fontconfig's rgba=rgb, as Cutefish's own fontconfig file sets it on the
-// test machine: text over a translucent window gets the per-channel
-// subpixel blend, coloured fringes and the average coverage as alpha.
+// fontconfig's rgba=rgb, as the tests' fontconfig file sets it: text over a
+// translucent window gets the per-channel subpixel blend, coloured fringes and the average coverage as alpha.
 TEST(EmbeddedHostTest, SubpixelTextOverTranslucentWindows)
 {    EmbeddedWindow window;
     auto content = std::make_unique<Free>();

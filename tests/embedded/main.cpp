@@ -5,12 +5,14 @@
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/text_configuration.h"
 
 cutefish::base::EventLoop* g_hostLoop = nullptr;
 
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    cutefish::ui::setTextConfigurationFile(CUTEFISH_TOOLKIT_TEST_DATA_DIR "/fonts.conf");
     // As the compositor does: the host's loop exists first and is shared.
     cutefish::base::EventLoop hostLoop;
     g_hostLoop = &hostLoop;

@@ -26,6 +26,7 @@
 #include "modules/skunicode/include/SkUnicode_icu.h"
 
 #include "ui/line_break_unicode.h"
+#include "ui/text_configuration.h"
 #include "ui/theme.h"
 
 namespace cutefish::ui {
@@ -452,6 +453,17 @@ static std::string localeName(const std::string& ctypeLocale)
     return locale;
 }
 
+static std::string& configurationFile()
+{
+    static std::string path;
+    return path;
+}
+
+void setTextConfigurationFile(const std::string& path)
+{
+    configurationFile() = path;
+}
+
 TextContext::TextContext(const std::string& ctypeLocale)
     : m_locale(localeName(ctypeLocale))
 {
@@ -461,7 +473,12 @@ TextContext::TextContext(const std::string& ctypeLocale)
     // list stays empty, and nothing here enumerates families through it. The
     // same configuration becomes the current one, which the other fontconfig
     // calls would otherwise load again.
+    const std::string& file = configurationFile();
+    if (!file.empty())
+        FcConfigEnableHome(FcFalse);
     FcConfig* config = FcInitLoadConfig();
+    if (config && !file.empty())
+        FcConfigParseAndLoad(config, reinterpret_cast<const FcChar8*>(file.c_str()), FcTrue);
     if (config) {
         m_fontManager = sk_make_sp<FallbackCachingFontMgr>(
             SkFontMgr_New_FontConfig(FcConfigReference(config), SkFontScanner_Make_FreeType()));

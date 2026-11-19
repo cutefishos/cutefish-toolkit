@@ -105,6 +105,8 @@ add_executable(cutefish-toolkit-embedded-tests
 
 target_link_libraries(cutefish-toolkit-embedded-tests PRIVATE cutefish-toolkit GTest::gtest PkgConfig::Xkbcommon
     PkgConfig::Egl PkgConfig::GlesV2)
+target_compile_definitions(cutefish-toolkit-embedded-tests
+    PRIVATE CUTEFISH_TOOLKIT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 gtest_discover_tests(cutefish-toolkit-embedded-tests)
 
