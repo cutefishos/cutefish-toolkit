@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 
 #include "base/application_bundle.h"
@@ -324,6 +325,34 @@ TEST(ApplicationBundleTest, ListsBundlesOfEveryApplicationsFolder)
                                                 system.path() + "/Later/Viewer.app"}));
     EXPECT_EQ(registry->applications().size(), 3u);
     EXPECT_TRUE(registry->installedById(system.path() + "/Later/Viewer.app"));
+}
+
+TEST(ApplicationBundleTest, ListsABundleWrittenInPlaceOnceItsInfoAppears)
+{
+    file::TemporaryDirectory applications(fs::temp_directory_path().string(), "cutefish-test-");
+    file::TemporaryDirectory bundles(fs::temp_directory_path().string(), "cutefish-test-");
+    ASSERT_TRUE(applications.isValid() && bundles.isValid());
+    ASSERT_TRUE(file::writeAtomically(applications.path() + "/runner.desktop", kHandler));
+
+    EventLoop loop;
+    std::unique_ptr<ApplicationRegistry> registry =
+            ApplicationRegistry::create(loop, {applications.path()}, {bundles.path()});
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+    EXPECT_TRUE(registry->applications().empty());
+
+    // As a recursive copy writes it: the folders first, the files into them.
+    const std::string copied = bundles.path() + "/Copied.app";
+    ASSERT_TRUE(fs::create_directory(copied));
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+    EXPECT_TRUE(registry->applications().empty());
+    ASSERT_TRUE(fs::create_directory(copied + "/Contents"));
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+    EXPECT_TRUE(registry->applications().empty());
+    std::ofstream(copied + "/Contents/Info.plist") << infoPlist("Copied", "AppIcon");
+    ASSERT_TRUE(waitForChange(loop, *registry, 5s));
+    ASSERT_EQ(registry->applications().size(), 1u);
+    EXPECT_EQ(registry->applications().front()->path, copied);
+    EXPECT_EQ(registry->applications().front()->name, "Copied");
 }
 
 TEST(ApplicationBundleTest, ReadsOtherBundlesOnAThread)

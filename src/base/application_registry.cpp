@@ -348,6 +348,19 @@ void ApplicationRegistry::monitorPaths()
         std::error_code error;
         if (fs::is_directory(bundleDirectory, error)) {
             watch(bundleDirectory);
+            // A bundle written in place, by an archive tool or a recursive
+            // copy, shows its folder before its Info.plist.
+            for (auto it = fs::directory_iterator(bundleDirectory, fs::directory_options::skip_permission_denied, error);
+                 it != fs::directory_iterator(); it.increment(error)) {
+                if (error)
+                    break;
+                const std::string path = fs::absolute(it->path(), error).lexically_normal().string();
+                if (bundle::bundlePath(path).empty() || !it->is_directory(error) || m_byPath.contains(path))
+                    continue;
+                watch(path);
+                if (fs::is_directory(path + "/Contents", error))
+                    watch(path + "/Contents");
+            }
         } else {
             const fs::path directory(bundleDirectory);
             const std::string name = directory.filename().string();
