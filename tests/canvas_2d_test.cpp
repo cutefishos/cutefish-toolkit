@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -364,6 +365,35 @@ TEST(Canvas2DTest, DmaBufImagesNeedAGpuCanvas)
     }
     EXPECT_TRUE(ui::DmaBufImage().isNull());
     EXPECT_TRUE(ui::DmaBufImage(4, 2, 0x34325258, 0, {}).isNull());
+}
+
+TEST(Canvas2DTest, DmaBufImagesTakeTheirReadyFence)
+{
+    int pipes[2];
+    ASSERT_EQ(pipe(pipes), 0);
+    close(pipes[1]);
+    ui::DmaBufImage().setReadyFence(pipes[0]);
+    EXPECT_EQ(fcntl(pipes[0], F_GETFD), -1);
+
+    const int fd = memfd_create("canvas-2d-test", MFD_CLOEXEC);
+    ASSERT_GE(fd, 0);
+    int first[2];
+    int second[2];
+    ASSERT_EQ(pipe(first), 0);
+    ASSERT_EQ(pipe(second), 0);
+    close(first[1]);
+    close(second[1]);
+    {
+        ui::DmaBufImage image(4, 2, 0x34325258, 0, {{fd, 0, 16}});
+        image.setReadyFence(first[0]);
+        EXPECT_NE(fcntl(first[0], F_GETFD), -1);
+        // A newer fence replaces the one not yet waited for.
+        image.setReadyFence(second[0]);
+        EXPECT_EQ(fcntl(first[0], F_GETFD), -1);
+        EXPECT_NE(fcntl(second[0], F_GETFD), -1);
+    }
+    EXPECT_EQ(fcntl(second[0], F_GETFD), -1);
+    close(fd);
 }
 
 TEST(Canvas2DTest, ClipsSavesAndAlpha)

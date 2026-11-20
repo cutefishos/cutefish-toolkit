@@ -75,6 +75,11 @@ public:
     int width() const;
     int height() const;
 
+    // The owner's drawing into the buffer is done once the sync file
+    // signals; the next draw has the GPU wait for it. The descriptor is
+    // taken, and one set before replaces the earlier.
+    void setReadyFence(int fd);
+
 private:
     friend class Canvas2D;
     struct Data;

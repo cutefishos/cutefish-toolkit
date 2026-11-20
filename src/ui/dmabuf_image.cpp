@@ -7,6 +7,7 @@
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 #include <GLES2/gl2ext.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include "include/core/SkCanvas.h"
@@ -77,12 +78,42 @@ struct DmaBufImage::Data
     GLuint texture = 0;
     sk_sp<SkImage> image;
     bool failed = false;
+    int readyFence = -1;
 
     ~Data()
     {
         retire();
         for (const Plane& plane : planes)
             close(plane.fd);
+        if (readyFence >= 0)
+            close(readyFence);
+    }
+
+    // The GPU waits for the owner's drawing before it reads the buffer; the
+    // CPU waits where the driver cannot take the fence.
+    void waitForReadyFence()
+    {
+        if (readyFence < 0)
+            return;
+        static const auto createSync = reinterpret_cast<PFNEGLCREATESYNCKHRPROC>(eglGetProcAddress("eglCreateSyncKHR"));
+        static const auto waitSync = reinterpret_cast<PFNEGLWAITSYNCKHRPROC>(eglGetProcAddress("eglWaitSyncKHR"));
+        static const auto destroySync = reinterpret_cast<PFNEGLDESTROYSYNCKHRPROC>(eglGetProcAddress("eglDestroySyncKHR"));
+        const int fence = readyFence;
+        readyFence = -1;
+        EGLDisplay current = eglGetCurrentDisplay();
+        if (createSync && waitSync && destroySync && current != EGL_NO_DISPLAY) {
+            const EGLint attributes[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fence, EGL_NONE};
+            EGLSyncKHR sync = createSync(current, EGL_SYNC_NATIVE_FENCE_ANDROID, attributes);
+            if (sync != EGL_NO_SYNC_KHR) {
+                // The sync owns the descriptor now.
+                waitSync(current, sync, 0);
+                destroySync(current, sync);
+                return;
+            }
+        }
+        pollfd ready = {fence, POLLIN, 0};
+        poll(&ready, 1, 1000);
+        close(fence);
     }
 
     void retire()
@@ -203,6 +234,18 @@ int DmaBufImage::height() const
     return d ? d->height : 0;
 }
 
+void DmaBufImage::setReadyFence(int fd)
+{
+    if (!d) {
+        if (fd >= 0)
+            close(fd);
+        return;
+    }
+    if (d->readyFence >= 0)
+        close(d->readyFence);
+    d->readyFence = fd;
+}
+
 bool Canvas2D::drawDmaBufImage(const DmaBufImage& image, const RectF& rect, bool mirrored)
 {
     if (!m_canvas || image.isNull())
@@ -214,6 +257,7 @@ bool Canvas2D::drawDmaBufImage(const DmaBufImage& image, const RectF& rect, bool
     SkImage* texture = image.d->textureImage(context);
     if (!texture)
         return false;
+    image.d->waitForReadyFence();
     drawImage(texture, rect, mirrored);
     return true;
 }
