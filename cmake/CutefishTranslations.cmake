@@ -88,7 +88,7 @@ function(cutefish_add_translations domain)
         VERBATIM)
     if(BUILD_TESTING AND po_files)
         add_test(NAME translations
-            COMMAND ${CMAKE_COMMAND} -DPO_FILES=${po_list} -DMSGFMT=${CUTEFISH_MSGFMT}
+            COMMAND ${CMAKE_TEST_LAUNCHER} ${CMAKE_COMMAND} -DPO_FILES=${po_list} -DMSGFMT=${CUTEFISH_MSGFMT}
                     -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CutefishTranslationsCheck.cmake)
     endif()
 endfunction()

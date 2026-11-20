@@ -32,7 +32,7 @@ add_executable(cutefish-toolkit-base-tests
 
 target_link_libraries(cutefish-toolkit-base-tests PRIVATE cutefish-toolkit-base GTest::gtest_main)
 
-gtest_discover_tests(cutefish-toolkit-base-tests)
+gtest_discover_tests(cutefish-toolkit-base-tests PROPERTIES FIXTURES_REQUIRED isolation)
 
 add_executable(cutefish-toolkit-tests
     main.cpp
@@ -94,7 +94,7 @@ target_compile_definitions(cutefish-toolkit-tests
     CUTEFISH_TOOLKIT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
     CUTEFISH_TOOLKIT_TEST_FONTS_CONF="${CMAKE_CURRENT_BINARY_DIR}/fonts.conf")
 
-gtest_discover_tests(cutefish-toolkit-tests)
+gtest_discover_tests(cutefish-toolkit-tests PROPERTIES FIXTURES_REQUIRED isolation)
 # Read after the discovered tests, which it needs to exist.
 set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/serial_tests.cmake)
 
@@ -112,7 +112,7 @@ target_link_libraries(cutefish-toolkit-embedded-tests PRIVATE cutefish-toolkit G
 target_compile_definitions(cutefish-toolkit-embedded-tests
     PRIVATE CUTEFISH_TOOLKIT_TEST_FONTS_CONF="${CMAKE_CURRENT_BINARY_DIR}/fonts.conf")
 
-gtest_discover_tests(cutefish-toolkit-embedded-tests)
+gtest_discover_tests(cutefish-toolkit-embedded-tests PROPERTIES FIXTURES_REQUIRED isolation)
 
 # A connection against a minimal compositor in the test, on libwayland-server.
 pkg_check_modules(WaylandServer REQUIRED IMPORTED_TARGET wayland-server)
@@ -166,4 +166,15 @@ target_include_directories(cutefish-toolkit-wayland-tests PRIVATE ${TEST_PROTOCO
 target_link_libraries(cutefish-toolkit-wayland-tests PRIVATE cutefish-toolkit GTest::gtest_main
     PkgConfig::WaylandServer PkgConfig::WaylandClient PkgConfig::Xkbcommon Threads::Threads)
 
-gtest_discover_tests(cutefish-toolkit-wayland-tests)
+gtest_discover_tests(cutefish-toolkit-wayland-tests PROPERTIES FIXTURES_REQUIRED isolation)
+
+# The last test fails when a test left a process behind or ran outside the
+# launcher; ctest runs it after every other test, also when only some are
+# chosen.
+add_test(NAME isolation-start COMMAND ${CUTEFISH_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/isolate.py
+    --start ${CUTEFISH_TEST_RECORD})
+add_test(NAME isolation-check
+    COMMAND ${CUTEFISH_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/isolate.py --check ${CUTEFISH_TEST_RECORD}/writes.log
+        --since ${CUTEFISH_TEST_RECORD}/since --ctest ${CMAKE_CTEST_COMMAND} ${CMAKE_BINARY_DIR})
+set_tests_properties(isolation-start PROPERTIES FIXTURES_SETUP isolation)
+set_tests_properties(isolation-check PROPERTIES FIXTURES_CLEANUP isolation)

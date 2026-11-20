@@ -55,6 +55,15 @@ add_subdirectory(src)
 add_subdirectory(examples)
 if(BUILD_TESTING)
     enable_testing()
+    # Each test runs apart from the running desktop (tests/isolate.py): its
+    # own session bus, runtime directory and home, with the account's home
+    # out of reach.
+    find_program(CUTEFISH_PYTHON python3 REQUIRED)
+    find_program(CUTEFISH_DBUS_RUN_SESSION dbus-run-session REQUIRED)
+    set(CUTEFISH_TEST_RECORD ${CMAKE_BINARY_DIR}/Testing/isolation)
+    set(CMAKE_TEST_LAUNCHER ${CUTEFISH_PYTHON} ${CMAKE_SOURCE_DIR}/tests/isolate.py
+        --keep ${CMAKE_SOURCE_DIR} --keep ${CMAKE_BINARY_DIR}
+        --record ${CUTEFISH_TEST_RECORD}/writes.log -- ${CUTEFISH_DBUS_RUN_SESSION} --)
     add_subdirectory(tests)
 endif()
 
