@@ -12,6 +12,8 @@
 #include <unordered_map>
 
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColorFilter.h"
+#include "include/core/SkData.h"
 #include "include/core/SkMatrix.h"
 #include "include/core/SkRegion.h"
 #include "include/effects/SkImageFilters.h"
@@ -221,6 +223,15 @@ static ViewGlass between(const ViewGlass& a, const ViewGlass& b, double t, doubl
     glass.bendAlongAxes = mixed(a.bendAlongAxes, b.bendAlongAxes, t);
     glass.edgeSplit = mixed(a.edgeSplit, b.edgeSplit, t);
     glass.sideBendPeak = mixed(a.sideBendPeak, b.sideBendPeak, t);
+    for (int i = 0; i < 2; ++i)
+        glass.exponentSlopes[i] = mixed(a.exponentSlopes[i], b.exponentSlopes[i], t);
+    glass.blurPower = mixed(a.blurPower, b.blurPower, t);
+    glass.fadeBlur = mixed(a.fadeBlur, b.fadeBlur, t);
+    if (a.fadeProfile.size() == b.fadeProfile.size()) {
+        for (size_t i = 0; i < b.fadeProfile.size(); ++i)
+            glass.fadeProfile[i] = {mixed(a.fadeProfile[i].x, b.fadeProfile[i].x, t),
+                                    mixed(a.fadeProfile[i].y, b.fadeProfile[i].y, t)};
+    }
     mixColour(glass.glow, a.glow, b.glow, t);
     glass.glowRadius = mixed(a.glowRadius, b.glowRadius, t);
     glass.glowEdge = mixed(a.glowEdge, b.glowEdge, t);
@@ -573,13 +584,47 @@ void View::paintGlass(Painter& painter, double opacity) const
         builder.uniform("bendAlongAxes") = float(std::clamp(glass.bendAlongAxes, 0.0, 1.0));
         builder.uniform("edgeSplit") = float(glass.edgeSplit);
         builder.uniform("sideBendPeak") = glass.sideBendPeak < 0 ? -1.0f : float(glass.sideBendPeak) * unit;
+        builder.uniform("exponentSlopes") = SkV2 {float(std::max(glass.exponentSlopes[0], 0.0)),
+                                                  float(std::max(glass.exponentSlopes[1], 0.0))};
+        const float power = float(std::max(glass.blurPower, 0.01));
+        builder.uniform("blurPower") = power;
+        float profile[16];
+        const size_t stops = std::min<size_t>(glass.fadeProfile.size(), 8);
+        for (size_t i = 0; i < 8; ++i) {
+            const PointF stop = stops ? glass.fadeProfile[std::min(i, stops - 1)] : PointF {0, 0};
+            profile[2 * i] = float(stop.x);
+            profile[2 * i + 1] = float(stop.y);
+        }
+        builder.uniform("fadeProfile").set(profile, 16);
+        builder.uniform("fadeStops") = float(stops);
+        builder.uniform("blurs") = SkV2 {float(glass.blur), float(std::min(glass.fadeBlur, glass.blur))};
 
         const float sigma = float(glass.blur) * unit / 2;
-        std::string_view children[] = {"backdrop", "blurred"};
+        const float softSigma = float(std::min(glass.fadeBlur, glass.blur)) * unit / 2;
+        std::string_view children[] = {"backdrop", "blurred", "softened"};
+        sk_sp<SkImageFilter> raised;
+        if (power != 1 && sigma > 0) {
+            static const sk_sp<SkRuntimeEffect> raising = [] {
+                SkRuntimeEffect::Result result = SkRuntimeEffect::MakeForColorFilter(SkString(
+                    "uniform half power;"
+                    "half4 main(half4 c) {"
+                    "    if (c.a <= 0.0) return c;"
+                    "    return half4(pow(clamp(c.rgb / c.a, 0.0, 1.0), half3(power)) * c.a, c.a);"
+                    "}"));
+                if (!result.effect)
+                    fprintf(stderr, "cutefish-toolkit: %s\n", result.errorText.c_str());
+                return result.effect;
+            }();
+            if (raising) {
+                const sk_sp<SkData> data = SkData::MakeWithCopy(&power, sizeof(power));
+                raised = SkImageFilters::ColorFilter(raising->makeColorFilter(data), nullptr);
+            }
+        }
         const sk_sp<SkImageFilter> inputs[] = {
-            nullptr, sigma > 0 ? SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, nullptr) : nullptr};
+            nullptr, sigma > 0 ? SkImageFilters::Blur(sigma, sigma, SkTileMode::kClamp, raised) : nullptr,
+            stops && softSigma > 0 ? SkImageFilters::Blur(softSigma, softSigma, SkTileMode::kClamp, raised) : nullptr};
         const float reach = float(reachOf(glass)) * unit;
-        const sk_sp<SkImageFilter> filter = SkImageFilters::RuntimeShader(builder, reach, children, inputs, 2);
+        const sk_sp<SkImageFilter> filter = SkImageFilters::RuntimeShader(builder, reach, children, inputs, 3);
         const SkRect bounds = device.makeOutset(reach, reach);
         // The shader gives what lies outside the pane back as it is, so its
         // result replaces what it read.

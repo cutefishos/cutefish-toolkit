@@ -12,6 +12,7 @@
 #include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
+#include "include/core/SkPaint.h"
 
 #include "ui/bitmap_private.h"
 #include "ui/color_provider.h"
@@ -89,7 +90,7 @@ struct EdgePixel
 // the top and bottom, none at the sides) and how far down the plate the pixel
 // lies (0 to 1); pixels more than `reach` device pixels inside are left alone.
 template<typename Shade>
-static void paintEdge(Painter& painter, const RectF& plate, double reach, Shade shade)
+static void paintEdge(Painter& painter, const RectF& plate, double reach, SkBlendMode mode, Shade shade)
 {
     const Rect device = painter.deviceRect(plate);
     const int width = device.width + 2, height = device.height + 2;
@@ -126,31 +127,51 @@ static void paintEdge(Painter& painter, const RectF& plate, double reach, Shade 
         }
     }
     edge.setImmutable();
-    painter.drawImage(edge.asImage().get(), device.x - 1, device.y - 1);
+    SkPaint paint;
+    paint.setAlphaf(float(painter.opacity()));
+    paint.setBlendMode(mode);
+    painter.canvas()->drawImage(edge.asImage().get(), SkScalar(device.x - 1), SkScalar(device.y - 1),
+                                SkSamplingOptions(), &paint);
 }
 
 // The dark plate's edge: a half point dark line just outside the sides,
 // fading to none at the top and bottom as the outline turns, and light just
 // inside the top and, brighter, the bottom, fading to none at the sides and
-// gone a few points in.
-static void paintDarkEdge(Painter& painter, const RectF& plate)
+// gone a few points in. `added`: the light is added to what lies under it,
+// else laid as white that adds as much to the body over a dark title bar.
+static void paintDarkEdge(Painter& painter, const RectF& plate, bool added)
 {
     const double scale = painter.scale();
     const double reach = kDarkBottomLight[std::size(kDarkBottomLight) - 1].depth * scale;
     const double lineWidth = 0.5 * scale;
-    paintEdge(painter, plate, reach, [scale, lineWidth](double distance, double upright, double down) {
-        // The line covers the band from the outline to half a point out; the
-        // light, what lies inside the outline.
+    const auto lineAt = [lineWidth](double distance, double upright) {
+        // The line covers the band from the outline to half a point out.
         const double band
                 = std::clamp(std::min(distance + 0.5, lineWidth) - std::max(distance - 0.5, 0.0), 0.0, 1.0);
+        return band * 0.65 * (1 - upright);
+    };
+    // Laid white adds as much to the body over `top` and `bottom` near there.
+    const auto lightAt = [scale](double distance, double upright, double down, double top, double bottom) {
         const double inside = std::clamp(0.5 - distance, 0.0, 1.0);
         const double depth = std::max(-distance, 0.0) / scale;
-        // Laid white adds what is asked to the body over a dark title bar,
-        // about 50 near the top and 67 near the bottom.
-        const double light = inside * upright
-                * (down < 0.5 ? edgeLightAt(kDarkTopLight, depth) / (255 - 50)
-                              : edgeLightAt(kDarkBottomLight, depth) / (255 - 67));
-        const double dark = band * 0.65 * (1 - upright);
+        return inside * upright
+                * (down < 0.5 ? edgeLightAt(kDarkTopLight, depth) / (255 - top)
+                              : edgeLightAt(kDarkBottomLight, depth) / (255 - bottom));
+    };
+    if (added) {
+        paintEdge(painter, plate, reach, SkBlendMode::kPlus, [&](double distance, double upright, double down) {
+            const double light = lightAt(distance, upright, down, 0, 0);
+            return EdgePixel {light, light};
+        });
+        paintEdge(painter, plate, reach, SkBlendMode::kSrcOver, [&](double distance, double upright, double) {
+            return EdgePixel {0, lineAt(distance, upright)};
+        });
+        return;
+    }
+    paintEdge(painter, plate, reach, SkBlendMode::kSrcOver, [&](double distance, double upright, double down) {
+        // A dark title bar's body: about 50 near the top, 67 near the bottom.
+        const double light = lightAt(distance, upright, down, 50, 67);
+        const double dark = lineAt(distance, upright);
         // The line laid over the light.
         return EdgePixel {light * (1 - dark), dark + light * (1 - dark)};
     });
@@ -161,7 +182,7 @@ static void paintDarkEdge(Painter& painter, const RectF& plate)
 static void paintLightRim(Painter& painter, const RectF& plate)
 {
     const double lineWidth = 0.5 * painter.scale();
-    paintEdge(painter, plate, lineWidth + 1, [lineWidth](double distance, double, double down) {
+    paintEdge(painter, plate, lineWidth + 1, SkBlendMode::kSrcOver, [lineWidth](double distance, double, double down) {
         const double band
                 = std::clamp(std::min(distance + 0.5, 0.0) - std::max(distance - 0.5, -lineWidth), 0.0, 1.0);
         const double alpha = down < 0.5 ? 0.1 + (0.32 - 0.1) * down / 0.5 : 0.32 + (0.14 - 0.32) * (down - 0.5) / 0.5;
@@ -174,7 +195,7 @@ static void paintLightRim(Painter& painter, const RectF& plate)
 // of its top and bottom edges, has a hairline rim darkest at the sides and a
 // faint shadow under it; in the dark it takes paintDarkEdge's edge and no
 // shadow. `overlay` darkens it, or lightens it in dark mode, by that alpha.
-static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, double overlay)
+static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, double overlay, bool added)
 {
     const double radius = plate.height / 2;
     const Color white = Color::rgb(0xFFFFFF);
@@ -221,7 +242,7 @@ static void paintPlateBody(Painter& painter, const RectF& plate, bool dark, doub
     painter.restore();
 
     if (dark)
-        paintDarkEdge(painter, plate);
+        paintDarkEdge(painter, plate, added);
     else
         paintLightRim(painter, plate);
 }
@@ -235,7 +256,7 @@ static RectF snappedPlate(Painter& painter, const RectF& bounds)
     return {device.x / scale - offset.x, device.y / scale - offset.y, device.width / scale, device.height / scale};
 }
 
-static void paintPlate(Painter& painter, const RectF& bounds, const State& state)
+static void paintPlate(Painter& painter, const RectF& bounds, const State& state, bool added)
 {
     // A square of whole device pixels, so the plate comes out round.
     const double side = sideOf(bounds);
@@ -246,7 +267,7 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
     painter.save();
     painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
     const bool lit = state.enabled && (state.hovered || state.pressed);
-    paintPlateBody(painter, plate, state.dark, lit ? (state.pressed ? 0.08 : 0.04) : 0);
+    paintPlateBody(painter, plate, state.dark, lit ? (state.pressed ? 0.08 : 0.04) : 0, added);
 
     const Color ink = inkColor(state.dark, state.active || state.hovered);
     if (state.artwork == "dialog-close") {
@@ -297,12 +318,19 @@ static void paintColored(Painter& painter, const RectF& bounds, const State& sta
     painter.restore();
 }
 
-void paint(Painter& painter, const RectF& bounds, const State& state)
+// `added`: the dark plate's light is added to what is already drawn, which
+// takes an opaque backdrop under it.
+static void paintControl(Painter& painter, const RectF& bounds, const State& state, bool added)
 {
     if (state.colored && state.artwork != "dialog-close")
         paintColored(painter, bounds, state);
     else
-        paintPlate(painter, bounds, state);
+        paintPlate(painter, bounds, state, added);
+}
+
+void paint(Painter& painter, const RectF& bounds, const State& state)
+{
+    paintControl(painter, bounds, state, true);
 }
 
 Color inkColor(bool dark, bool strong)
@@ -312,7 +340,7 @@ Color inkColor(bool dark, bool strong)
 
 void paintGroupPlate(Painter& painter, const RectF& bounds, bool dark)
 {
-    paintPlateBody(painter, snappedPlate(painter, bounds), dark, 0);
+    paintPlateBody(painter, snappedPlate(painter, bounds), dark, 0, true);
 }
 
 RectF visualRect(const RectF& bounds, const State& state)
@@ -339,7 +367,8 @@ Bitmap render(const State& state, double scale, Bitmap::Format format)
         return {};
     SkCanvas canvas(target);
     Painter painter(&canvas, scale);
-    paint(painter, {kShadowMargin, kShadowMargin, kButton, kButton}, state);
+    // Nothing lies under it to add the light to.
+    paintControl(painter, {kShadowMargin, kShadowMargin, kButton, kButton}, state, false);
     return bitmap;
 }
 

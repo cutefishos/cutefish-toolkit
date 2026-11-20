@@ -122,6 +122,20 @@ struct ViewGlass
     // How far inside the sides the bend along the axes is largest; negative:
     // `bendPeak`.
     double sideBendPeak = -1;
+    // Past what black and white under the pane come to after the tint and
+    // `multiply`, the power's curve goes on as straight lines of these
+    // slopes, below and above; 0 leaves the curve as it is there.
+    double exponentSlopes[2] = {0, 0};
+    // What lies under the pane is blurred raised to this power and the blur
+    // raised back, so where light and dark are averaged a power above 1
+    // leans to the light.
+    double blurPower = 1;
+    // With a profile, the blur within fadeTop and fadeBottom follows it
+    // rather than fading out evenly: points of the share of the way from the
+    // edge (0) to where the fade ends (1) and the blur shown there, in
+    // order, at most 8. It is shown as none, `fadeBlur` and `blur` mixed.
+    double fadeBlur = 0;
+    std::vector<PointF> fadeProfile;
 
     bool operator==(const ViewGlass&) const = default;
 };

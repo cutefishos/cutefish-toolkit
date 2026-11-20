@@ -20,6 +20,7 @@
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/menu.h"
+#include "ui/painter.h"
 #include "ui/segmented_control.h"
 #include "ui/slider.h"
 #include "ui/switch.h"
@@ -490,6 +491,47 @@ TEST(ControlsTest, DarkWindowControlPlateEdge)
     EXPECT_LE(over(9, 32), 38 - 15);
     EXPECT_LE(over(54, 32), 38 - 15);
     EXPECT_NEAR(over(10, 32), over(14, 32), 4);
+}
+
+// A dark plate painted over a title bar, at 2 pixels a point.
+class DarkPlateOnBar : public View
+{
+public:
+    explicit DarkPlateOnBar(int bar)
+        : m_bar(bar)
+    {
+    }
+
+    void paint(Painter& painter) override
+    {
+        painter.fillRect(localRect(), Color {uint8_t(m_bar), uint8_t(m_bar), uint8_t(m_bar), 255});
+        window_controls::State state;
+        state.dark = true;
+        window_controls::paint(painter, {5, 5, window_controls::kButton, window_controls::kButton}, state);
+    }
+
+private:
+    int m_bar;
+};
+
+// Painted in a window the dark plate's light is added to what lies under it,
+// so it brightens the top as much over a black title bar as over a grey one.
+TEST(ControlsTest, DarkWindowControlPlateLightIsAdded)
+{
+    int gain[2] = {};
+    const int bars[2] = {4, 90};
+    for (int i = 0; i < 2; ++i) {
+        Window window;
+        window.resize({32, 32});
+        window.setContentView(std::make_unique<DarkPlateOnBar>(bars[i]));
+        window.setScale(2);
+        window.show();
+        const Image image = window.grab();
+        // The plate covers device pixels 10 to 53 both ways.
+        gain[i] = int(image.pixel(32, 10).g) - int(image.pixel(32, 18).g);
+    }
+    EXPECT_GE(gain[0], 45);
+    EXPECT_NEAR(gain[0], gain[1], 3);
 }
 
 // The pressed plate while checked, as while the button's menu is open, in

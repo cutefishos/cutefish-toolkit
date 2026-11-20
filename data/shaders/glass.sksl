@@ -3,6 +3,7 @@
 
 uniform shader backdrop;
 uniform shader blurred;
+uniform shader softened;
 uniform float4 rect;
 uniform float radius;
 uniform float opacity;
@@ -37,6 +38,12 @@ uniform float shadowGap;
 uniform float bendAlongAxes;
 uniform float edgeSplit;
 uniform float sideBendPeak;
+uniform float2 exponentSlopes;
+uniform float blurPower;
+uniform float2 fadeProfile[8];
+uniform float fadeStops;
+// `blur` and `fadeBlur`.
+uniform float2 blurs;
 
 // Signed distance to the outline of `box`, negative inside, and the corner
 // offset q.
@@ -64,6 +71,13 @@ half4 halved(float2 p) {
                     + blurred.eval(corner + float2(0.5, 1.5)) + blurred.eval(corner + float2(1.5, 1.5))) * 0.25;
     }
     return mix(mix(block[0], block[1], half(f.x)), mix(block[2], block[3], half(f.x)), half(f.y));
+}
+
+// A blurred colour back from the power the blur averaged in.
+half4 unraised(half4 c) {
+    if (blurPower == 1.0 || c.a <= 0.0)
+        return c;
+    return half4(half3(pow(clamp(c.rgb / c.a, 0.0, 1.0), half3(1.0 / blurPower))) * c.a, c.a);
 }
 
 // Straight colour b laid over premultiplied a.
@@ -165,8 +179,28 @@ half4 main(float2 p) {
         colour.r = blurred.eval(at - shift * (1.0 - spread)).r;
         colour.b = blurred.eval(at - shift * (1.0 + spread)).b;
     }
-    if (shown < 1.0)
-        colour = mix(backdrop.eval(at - shift), colour, half(shown));
+    colour = unraised(colour);
+    if (shown < 1.0) {
+        half4 sharp = backdrop.eval(at - shift);
+        if (fadeStops > 0.0) {
+            // The blur the profile asks for here, from none, the lesser blur
+            // and the full one mixed.
+            float asked = fadeProfile[0].y;
+            for (int i = 1; i < 8; i++) {
+                float2 a = fadeProfile[i - 1];
+                float2 b = fadeProfile[i];
+                if (shown > a.x && b.x > a.x)
+                    asked = mix(a.y, b.y, clamp((shown - a.x) / (b.x - a.x), 0.0, 1.0));
+            }
+            half4 soft = blurs.y > 0.0 ? unraised(softened.eval(at - shift)) : sharp;
+            if (asked <= blurs.y)
+                colour = mix(sharp, soft, half(blurs.y > 0.0 ? asked / blurs.y : 1.0));
+            else
+                colour = mix(soft, colour, half(clamp((asked - blurs.y) / max(blurs.x - blurs.y, 0.0001), 0.0, 1.0)));
+        } else {
+            colour = mix(sharp, colour, half(shown));
+        }
+    }
     // Unclamped until the end: the tint lays its colour over saturation
     // beyond the gamut, which keeps a saturated colour saturated under it.
     half luma = dot(colour.rgb, half3(0.2126, 0.7152, 0.0722));
@@ -174,8 +208,22 @@ half4 main(float2 p) {
 
     colour = laid(colour, tint);
     colour.rgb *= mix(half3(1.0), half3(multiply.rgb), half(multiply.a));
-    if (exponent != 1.0 && colour.a > 0.0)
-        colour.rgb = half3(pow(clamp(colour.rgb / colour.a, 0.0, 1.0), half3(exponent))) * colour.a;
+    if (exponent != 1.0 && colour.a > 0.0) {
+        float3 c = float3(colour.rgb / colour.a);
+        float3 raised = pow(clamp(c, 0.0, 1.0), float3(exponent));
+        // Past what black and white come to after the tint and the multiply
+        // the curve goes on straight.
+        if (exponentSlopes.x > 0.0 || exponentSlopes.y > 0.0) {
+            float3 scaled = mix(float3(1.0), multiply.rgb, multiply.a);
+            float3 low = tint.rgb * tint.a * scaled;
+            float3 high = (1.0 - tint.a + tint.rgb * tint.a) * scaled;
+            if (exponentSlopes.x > 0.0)
+                raised = mix(raised, pow(low, float3(exponent)) + exponentSlopes.x * (c - low), step(c, low));
+            if (exponentSlopes.y > 0.0)
+                raised = mix(raised, pow(high, float3(exponent)) + exponentSlopes.y * (c - high), step(high, c));
+        }
+        colour.rgb = half3(raised) * colour.a;
+    }
     // The light follows the outline, from the top's stops in the upper half
     // and the bottom's in the lower, fading towards the sides as the outline
     // turns.

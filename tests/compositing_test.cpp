@@ -709,6 +709,74 @@ TEST(CompositingTest, GlassBlurredAtHalfTheResolutionShowsAFineLineWiderAndShall
     }
 }
 
+TEST(CompositingTest, GlassCurveGoesOnStraightPastBlackAndWhiteAndBlursLeaningToTheLight)
+{
+    for (const bool straight : {false, true}) {
+        Window window;
+        auto root = std::make_unique<Fill>(Color {128, 128, 128, 255});
+        Fill* red = root->addChild<Fill>(Color {255, 0, 0, 255});
+        red->setGeometry({40, 0, 40, 40});
+        View* pane = root->addChild<View>();
+        pane->setGeometry({0, 0, 80, 40});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 80, 40};
+        glass.tint[0] = glass.tint[1] = glass.tint[2] = 0.029;
+        glass.tint[3] = 0.5;
+        glass.saturation = 1.9;
+        glass.exponent = 0.49;
+        if (straight) {
+            glass.exponentSlopes[0] = 0.7;
+            glass.exponentSlopes[1] = 1.53;
+        }
+        pane->setGlass({glass});
+        window.resize({80, 40});
+        window.setContentView(std::move(root));
+        window.setScale(2);
+        window.show();
+
+        const Image image = window.grab();
+        // Grey keeps the curve either way.
+        EXPECT_NEAR(image.pixel(40, 40).g, 133, 3);
+        // Red's other channels go below black after the saturation: flat,
+        // they are black; straight, they lie below the black's 32.
+        if (!straight) {
+            EXPECT_LE(image.pixel(120, 40).g, 2);
+        } else {
+            EXPECT_GE(image.pixel(120, 40).r, 253);
+            EXPECT_NEAR(image.pixel(120, 40).g, 15, 4);
+            EXPECT_NEAR(image.pixel(120, 40).b, 15, 4);
+        }
+    }
+
+    int darkest[2] = {};
+    for (const bool leaning : {false, true}) {
+        Window window;
+        auto root = std::make_unique<Fill>(Color {255, 255, 255, 255});
+        Fill* line = root->addChild<Fill>(Color {0, 0, 0, 255});
+        line->setGeometry({40, 0, 2, 40});
+        View* pane = root->addChild<View>();
+        pane->setGeometry({20, 10, 40, 20});
+        ViewGlass glass;
+        glass.key = 1;
+        glass.rect = {0, 0, 40, 20};
+        glass.blur = 4;
+        glass.blurPower = leaning ? 1.4 : 1;
+        pane->setGlass({glass});
+        window.resize({80, 40});
+        window.setContentView(std::move(root));
+        window.setScale(2);
+        window.show();
+
+        const Image image = window.grab();
+        darkest[leaning] = 255;
+        for (int x = 70; x < 94; ++x)
+            darkest[leaning] = std::min<int>(darkest[leaning], image.pixel(x, 40).r);
+    }
+    EXPECT_LT(darkest[0], 230);
+    EXPECT_GE(darkest[1], darkest[0] + 10);
+}
+
 TEST(CompositingTest, GlassMovesToNewValuesOnFramesWithoutRepaintingItsView)
 {
     Window window;
