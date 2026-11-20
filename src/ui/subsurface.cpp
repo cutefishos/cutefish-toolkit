@@ -32,7 +32,7 @@ struct SubsurfacePrivate final : wayland::SubsurfaceClient
     void parentCommitting() override;
     void parentCommitted() override;
     void parentGone() override;
-    // The device size the geometry takes at the window's scale.
+    // The device size the geometry takes at the buffer scale.
     base::Size targetSize() const;
 
     static void frameDone(void* data, wl_callback* callback, uint32_t);
@@ -64,6 +64,8 @@ struct SubsurfacePrivate final : wayland::SubsurfaceClient
     // UI thread state.
     Subsurface::Stacking stacking = Subsurface::Stacking::Below;
     RectF geometry;
+    // Device pixels per logical pixel, the window's scale while 0.
+    double bufferScale = 0;
     PointF placedPosition = {-1e9, -1e9};
     // Synchronised for the window's commit under way.
     bool synchronized = false;
@@ -97,7 +99,7 @@ void SubsurfacePrivate::frameDone(void* data, wl_callback* callback, uint32_t)
 
 base::Size SubsurfacePrivate::targetSize() const
 {
-    const double scale = window ? window->scale() : 1.0;
+    const double scale = bufferScale > 0 ? bufferScale : window ? window->scale() : 1.0;
     return {int(std::lround(geometry.width * scale)), int(std::lround(geometry.height * scale))};
 }
 
@@ -260,6 +262,15 @@ void Subsurface::setStacking(Stacking stacking)
     else
         wl_subsurface_place_above(d->subsurface, parentSurface);
     // The order lands with the window's next commit.
+    if (d->window)
+        d->window->scheduleFrame();
+}
+
+void Subsurface::setBufferScale(double scale)
+{
+    if (scale == d->bufferScale)
+        return;
+    d->bufferScale = scale;
     if (d->window)
         d->window->scheduleFrame();
 }

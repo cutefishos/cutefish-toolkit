@@ -52,6 +52,10 @@ public:
     // Above or below the window, from the window's next frame on; the
     // surface and what it shows stay.
     void setStacking(Stacking stacking);
+    // Device pixels per logical pixel of its buffers, the window's scale
+    // while 0. The compositor shows them at the geometry's size. Lands with
+    // the window's next frame.
+    void setBufferScale(double scale);
 
     // Buffers show as soon as they are swapped, except across a size change:
     // the window frame that changes the subsurface's size first calls this

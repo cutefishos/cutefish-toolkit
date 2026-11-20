@@ -32,6 +32,8 @@ TEST(SubsurfaceTest, HeadlessWindowsHaveNone)
     EXPECT_FALSE(subsurface.waitForFrame(0));
     EXPECT_FALSE(subsurface.makeCurrent());
     subsurface.setStacking(Subsurface::Stacking::Above);
+    subsurface.setBufferScale(2);
+    EXPECT_TRUE(subsurface.beginFrame().isEmpty());
     EXPECT_FALSE(subsurface.isValid());
     EXPECT_EQ(Subsurface::waylandDisplay(), nullptr);
     // A frame of the window still renders.
