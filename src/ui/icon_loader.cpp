@@ -1558,6 +1558,12 @@ void IconLoader::preloadThemeIcons(const std::vector<std::string>& names, int si
                 + std::to_string(device);
         if (cached(key) || std::any_of(pending->begin(), pending->end(), [&key](const Pending& p) { return p.key == key; }))
             continue;
+        // A file named by its path may sit on a mount whose reads hang; the
+        // pool finds out whether it is there.
+        if (name.starts_with('/')) {
+            pending->push_back({key, name, {}, nullptr});
+            continue;
+        }
         Resolved resolved = resolve(name, size, scale);
         // Text is drawn on this thread.
         if (datedIcon(resolved, key, size, device))

@@ -1114,6 +1114,23 @@ TEST(EmbeddedHostTest, ThemeIconsPreloadOnThePool)
     EXPECT_TRUE(themeIconBitmap("no-such-icon-at-all", 105, 1.5).isNull());
 }
 
+TEST(EmbeddedHostTest, IconFilesPreloadOnThePool)
+{
+    const std::string file = themeIconPath("utilities-terminal", 64, 2);
+    if (file.empty())
+        GTEST_SKIP() << "no utilities-terminal in the theme";
+    bool done = false;
+    preloadThemeIcons({file, "/no/such/folder/AppIcon.icns"}, 64, 2, [&done] { done = true; });
+    for (int i = 0; i < 400 && !done; ++i)
+        runLoop(5ms);
+    EXPECT_TRUE(done);
+    const Bitmap bitmap = themeIconBitmap(file, 64, 2);
+    ASSERT_FALSE(bitmap.isNull());
+    EXPECT_EQ(bitmap.width(), 128);
+    EXPECT_GT(bitmap.alpha(64, 64), 0);
+    EXPECT_TRUE(themeIconBitmap("/no/such/folder/AppIcon.icns", 64, 2).isNull());
+}
+
 TEST(EmbeddedHostTest, LabelWrapsAnywhereWithFixedLineHeight)
 {
     EmbeddedWindow window;
