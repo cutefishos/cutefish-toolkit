@@ -15,6 +15,7 @@
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/menu.h"
+#include "ui/scroll_view.h"
 #include "ui/test_input.h"
 #include "ui/text_field.h"
 #include "ui/theme.h"
@@ -22,6 +23,8 @@
 #include "ui/window.h"
 #include "ui/window_header.h"
 #include "ui/window_tab_bar.h"
+
+#include "test_views.h"
 
 using namespace cutefish::ui;
 
@@ -527,6 +530,65 @@ TEST(WindowTest, DialogOfAFixedHeightGivesTheRestToItsContent)
     EXPECT_EQ(dialog.window()->size().height, 400);
     EXPECT_EQ(content->geometry().y, 44);
     EXPECT_EQ(content->geometry().height, 400 - 44 - 16);
+}
+
+TEST(WindowTest, EdgeToEdgeDialogContentReachesTheSidesAndBottom)
+{
+    Window parent;
+    parent.resize({400, 300});
+    parent.setContentView(std::make_unique<View>());
+    parent.show();
+
+    DialogWindow dialog(&parent, "Details", 320);
+    auto column = std::make_unique<Column>();
+    View* content = column.get();
+    column->addChild<View>()->setLayoutHints({.preferredHeight = 100});
+    dialog.setContentView(std::move(column));
+    dialog.setEdgeToEdge(true);
+    dialog.show();
+    dialog.window()->grab();
+    EXPECT_EQ(dialog.window()->size().height, 42 + 100);
+    EXPECT_EQ(content->geometry(), RectF(0, 42, 320, 100));
+
+    dialog.setHeight(400);
+    dialog.window()->grab();
+    EXPECT_EQ(content->geometry(), RectF(0, 42, 320, 400 - 42));
+
+    dialog.setEdgeToEdge(false);
+    dialog.window()->grab();
+    EXPECT_EQ(content->geometry(), RectF(16, 42, 320 - 32, 400 - 42 - 16));
+}
+
+// The bar of an edge-to-edge scroll view runs at the window's right edge and
+// takes presses and the wheel there.
+TEST(WindowTest, EdgeToEdgeDialogScrollBarTakesThePointerAtTheEdge)
+{
+    Window parent;
+    parent.resize({400, 300});
+    parent.setContentView(std::make_unique<View>());
+    parent.show();
+
+    DialogWindow dialog(&parent, "Details", 320);
+    auto* scroll = dialog.setContent<ScrollView>();
+    scroll->setVerticalBarPolicy(ScrollView::BarPolicy::AlwaysOn);
+    scroll->setContent<test::Box>(SizeF{320, 2000});
+    dialog.setEdgeToEdge(true);
+    dialog.setHeight(400);
+    dialog.show();
+    Window& window = *dialog.window();
+    window.grab();
+    ASSERT_EQ(scroll->scrollPosition().y, 0);
+
+    // A press on the track under the handle turns a page.
+    TestInput::press(window, {319, 380});
+    TestInput::release(window, {319, 380});
+    window.grab();
+    EXPECT_GT(scroll->scrollPosition().y, 0);
+
+    const double paged = scroll->scrollPosition().y;
+    TestInput::scroll(window, {319, 200}, {.deltaY = 40, .value120Y = 120});
+    window.grab();
+    EXPECT_GT(scroll->scrollPosition().y, paged);
 }
 
 TEST(WindowTest, ThemeChangesReachLabels)

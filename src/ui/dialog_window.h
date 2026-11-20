@@ -121,6 +121,10 @@ public:
     // The whole window's height, the content taking what the header and the
     // padding leave; 0, the default, takes the content's own height.
     void setHeight(double height);
+    // The content reaching the window's sides and bottom, for a scroll view
+    // whose bar runs at the dialog's edge; the content then keeps its own
+    // margins.
+    void setEdgeToEdge(bool edgeToEdge);
 
     void show();
     // Goes once the event being handled is over.

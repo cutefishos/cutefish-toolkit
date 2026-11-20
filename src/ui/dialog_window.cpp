@@ -241,6 +241,11 @@ public:
         m_height = height;
         requestLayout();
     }
+    void setEdgeToEdge(bool edgeToEdge)
+    {
+        m_edgeToEdge = edgeToEdge;
+        requestLayout();
+    }
 
     void setContent(std::unique_ptr<View> view)
     {
@@ -254,8 +259,9 @@ public:
     {
         if (m_height > 0)
             return m_height;
-        const double content = m_content ? m_content->heightForWidth(width - 2 * kContentPadding) : 0;
-        return contentTop() + content + kContentPadding;
+        const double padding = contentPadding();
+        const double content = m_content ? m_content->heightForWidth(width - 2 * padding) : 0;
+        return contentTop() + content + padding;
     }
 
     bool acceptsPointer() const override { return true; }
@@ -284,8 +290,9 @@ protected:
         m_title->setGeometry({left, line, std::max(0.0, width - left - right), kButton});
         if (m_content) {
             const double top = contentTop();
-            m_content->setGeometry({kContentPadding, top, width - 2 * kContentPadding,
-                                    std::max(0.0, geometry().height - top - kContentPadding)});
+            const double padding = contentPadding();
+            m_content->setGeometry({padding, top, width - 2 * padding,
+                                    std::max(0.0, geometry().height - top - padding)});
         }
     }
 
@@ -299,6 +306,7 @@ protected:
 private:
     double headerHeight() const { return m_controlsVisible ? kControlsHeaderHeight : kHeaderHeight; }
     double contentTop() const { return headerHeight(); }
+    double contentPadding() const { return m_edgeToEdge ? 0 : kContentPadding; }
 
     DialogWindow* m_dialog;
     WindowHeader* m_header;
@@ -307,6 +315,7 @@ private:
     View* m_content = nullptr;
     bool m_controlsVisible = true;
     double m_height = 0;
+    bool m_edgeToEdge = false;
 };
 
 DialogWindow::DialogWindow(Window* parent, std::string title, double width)
@@ -348,6 +357,11 @@ void DialogWindow::setCloseVisible(bool visible)
 void DialogWindow::setHeight(double height)
 {
     m_root->setHeight(height);
+}
+
+void DialogWindow::setEdgeToEdge(bool edgeToEdge)
+{
+    m_root->setEdgeToEdge(edgeToEdge);
 }
 
 void DialogWindow::show()
