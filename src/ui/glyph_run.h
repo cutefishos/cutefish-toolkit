@@ -92,8 +92,8 @@ struct GlyphCluster
 // kerning off) with fontconfig's fallback for what the family lacks, its
 // origin and baseline on whole device pixels, greyscale antialiased and
 // hinted as labels are. Colour glyphs, such as emoji, keep their colours.
-// Bold and italic take the family's faces, else synthetic ones:
-// oblique always, emboldening only for proportional faces under 64 px.
+// Bold and italic take the family's faces, else synthetic ones, as the face's
+// own file says it is: an oblique shear, and emboldening under 64 px.
 // Shaped clusters are cached for the renderer's life, so a frame only
 // places glyphs.
 class GlyphRenderer

@@ -104,6 +104,24 @@ static std::vector<uint8_t> tableData(const SkTypeface* typeface, const char tag
     return data;
 }
 
+// Whether the face in the file is bold and italic, from its OS/2 table (the
+// head table's macStyle without one). fontconfig reports the style it was
+// asked for when it synthesises one, and the file's bytes carry none of that.
+static void fileStyle(const SkTypeface* typeface, bool* bold, bool* italic)
+{
+    const std::vector<uint8_t> os2 = tableData(typeface, "OS/2");
+    if (os2.size() >= 64) {
+        const uint16_t selection = readUint16(os2.data() + 62);
+        *bold = readUint16(os2.data() + 4) >= 600;
+        *italic = (selection & 0x0001) || (selection & 0x0200);
+        return;
+    }
+    const std::vector<uint8_t> head = tableData(typeface, "head");
+    const uint16_t macStyle = head.size() >= 46 ? readUint16(head.data() + 44) : 0;
+    *bold = macStyle & 0x0001;
+    *italic = macStyle & 0x0002;
+}
+
 struct GlyphRendererPrivate
 {
     struct Face
@@ -235,13 +253,15 @@ int GlyphRendererPrivate::faceFor(sk_sp<SkTypeface> typeface)
     font.setHinting(text.hinting());
     font.setSubpixel(false);
     font.setBaselineSnap(true);
-    const SkFontStyle actual = typeface->fontStyle();
-    const bool oblique = spec.italic && actual.slant() == SkFontStyle::kUpright_Slant;
+    bool boldFace = false;
+    bool italicFace = false;
+    fileStyle(typeface.get(), &boldFace, &italicFace);
+    const bool oblique = spec.italic && !italicFace;
     if (oblique)
         font.setSkewX(kObliqueSkew);
-    // Fixed-width faces and sizes of 64 px or more are never emboldened.
-    const bool embolden = spec.bold && actual.weight() < SkFontStyle::kBold_Weight && !typeface->isFixedPitch()
-            && devicePixelSize < 64;
+    // Sizes of 64 px or more are never emboldened. Clusters are placed one by
+    // one, so the wider advance of an emboldened glyph moves nothing.
+    const bool embolden = spec.bold && !boldFace && devicePixelSize < 64;
     if (embolden)
         font.setEmbolden(true);
     const auto hasTable = [&typeface](const char tag[4]) {
