@@ -29,6 +29,7 @@ namespace cutefish::ui {
 static Application* s_instance = nullptr;
 static bool s_wholeScaleRendering = false;
 static bool s_outputScaleComposition = false;
+static bool s_headlessSessionBus = false;
 
 Application::Application(int argc, char** argv, Platform platform)
     : m_arguments(argv, argv + argc)
@@ -78,11 +79,13 @@ Application::Application(int argc, char** argv, Platform platform)
         };
         if (m_appearance)
             m_appearance->advance();
+    } else if (platform == Platform::Headless && s_headlessSessionBus) {
+        m_sessionBus = base::dbus::Connection::session(m_loop);
     }
     if (m_appearance)
         m_appearance->waitForSettings();
 
-    if (m_sessionBus)
+    if (m_sessionBus && platform == Platform::Wayland)
         followSessionLanguage(m_sessionBus);
 }
 
@@ -123,6 +126,11 @@ void Application::setWholeScaleRendering(bool enabled)
 bool Application::wholeScaleRendering()
 {
     return s_wholeScaleRendering;
+}
+
+void Application::setHeadlessSessionBus(bool enabled)
+{
+    s_headlessSessionBus = enabled;
 }
 
 void Application::setOutputScaleComposition(bool enabled)

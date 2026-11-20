@@ -78,6 +78,10 @@ public:
     // the first window shows.
     static void setOutputScaleComposition(bool enabled);
     static bool outputScaleComposition();
+    // A headless application connects to the session bus as well, for tests
+    // that run on a private one; it follows no appearance or language there.
+    // Set before the application is made.
+    static void setHeadlessSessionBus(bool enabled);
 
     const std::vector<std::string>& arguments() const { return m_arguments; }
     Platform platform() const { return m_platform; }

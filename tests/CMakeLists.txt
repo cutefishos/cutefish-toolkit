@@ -114,6 +114,11 @@ target_compile_definitions(cutefish-toolkit-embedded-tests
 
 gtest_discover_tests(cutefish-toolkit-embedded-tests PROPERTIES FIXTURES_REQUIRED isolation)
 
+# A headless application on the test's session bus, in a process of its own.
+add_executable(cutefish-toolkit-headless-bus-tests headless_bus/headless_bus_test.cpp)
+target_link_libraries(cutefish-toolkit-headless-bus-tests PRIVATE cutefish-toolkit GTest::gtest)
+gtest_discover_tests(cutefish-toolkit-headless-bus-tests PROPERTIES FIXTURES_REQUIRED isolation)
+
 # A connection against a minimal compositor in the test, on libwayland-server.
 pkg_check_modules(WaylandServer REQUIRED IMPORTED_TARGET wayland-server)
 set(TEST_PROTOCOL_DIR ${CMAKE_CURRENT_BINARY_DIR}/wayland-protocols)
