@@ -58,12 +58,13 @@ public:
     void setBufferScale(double scale);
 
     // Buffers show as soon as they are swapped, except across a size change:
-    // the window frame that changes the subsurface's size first calls this
-    // on the UI thread, then waits up to `resizeTimeoutMs` for the drawing
-    // thread to swap a buffer of that size, so the window and the subsurface
-    // change size in the same commit. The drawing thread must not wait for
-    // the UI thread meanwhile. Without it, a new size shows with the first
-    // buffer drawn after that frame.
+    // setGeometry() with a new size (or the window frame, for a new scale)
+    // calls this on the UI thread, so the drawing thread can draw that size
+    // while the window paints; the window's next commit then waits up to
+    // `resizeTimeoutMs` for a buffer of that size to be swapped, so the
+    // window and the subsurface change size in the same commit. The drawing
+    // thread must not wait for the UI thread meanwhile. Without it, a new
+    // size shows with the first buffer drawn after the window's frame.
     std::function<void(base::Size deviceSize)> onResize;
     int resizeTimeoutMs = 100;
 

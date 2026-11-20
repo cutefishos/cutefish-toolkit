@@ -34,6 +34,8 @@ struct SubsurfacePrivate final : wayland::SubsurfaceClient
     void parentGone() override;
     // The device size the geometry takes at the buffer scale.
     base::Size targetSize() const;
+    // UI thread: hands a size the drawing thread has not had yet over to it.
+    void handOverSize();
 
     static void frameDone(void* data, wl_callback* callback, uint32_t);
     static constexpr wl_callback_listener frameListener = {frameDone};
@@ -69,6 +71,8 @@ struct SubsurfacePrivate final : wayland::SubsurfaceClient
     PointF placedPosition = {-1e9, -1e9};
     // Synchronised for the window's commit under way.
     bool synchronized = false;
+    // The size the window's next commit waits for a buffer of.
+    uint64_t awaitedSerial = 0;
 
     // Shared with the drawing thread.
     mutable std::mutex mutex;
@@ -103,18 +107,8 @@ base::Size SubsurfacePrivate::targetSize() const
     return {int(std::lround(geometry.width * scale)), int(std::lround(geometry.height * scale))};
 }
 
-void SubsurfacePrivate::parentCommitting()
+void SubsurfacePrivate::handOverSize()
 {
-    if (!subsurface)
-        return;
-    if (geometry.x != placedPosition.x || geometry.y != placedPosition.y) {
-        wl_subsurface_set_position(subsurface, int(std::lround(geometry.x)), int(std::lround(geometry.y)));
-        placedPosition = {geometry.x, geometry.y};
-    }
-
-    // Sizes reach the drawing thread only here, so a buffer of a new size
-    // shows with the window's commit of that size, never before it. A scale
-    // change moves the device size too.
     const base::Size target = targetSize();
     const SizeF logical = {geometry.width, geometry.height};
     std::unique_lock lock(mutex);
@@ -132,9 +126,30 @@ void SubsurfacePrivate::parentCommitting()
     const uint64_t serial = ++wantedSerial;
     if (!waits)
         return;
+    awaitedSerial = serial;
     lock.unlock();
     q->onResize(target);
-    lock.lock();
+}
+
+void SubsurfacePrivate::parentCommitting()
+{
+    if (!subsurface)
+        return;
+    if (geometry.x != placedPosition.x || geometry.y != placedPosition.y) {
+        wl_subsurface_set_position(subsurface, int(std::lround(geometry.x)), int(std::lround(geometry.y)));
+        placedPosition = {geometry.x, geometry.y};
+    }
+
+    // Without onResize, sizes reach the drawing thread only here, so a
+    // buffer of a new size shows with the window's commit of that size,
+    // never before it. A scale change moves the device size too.
+    handOverSize();
+    const uint64_t serial = awaitedSerial;
+    awaitedSerial = 0;
+    // A drawing thread that stopped listening will not draw it.
+    if (!serial || !q->onResize)
+        return;
+    std::unique_lock lock(mutex);
     swapped.wait_for(lock, std::chrono::milliseconds(q->resizeTimeoutMs),
                      [&] { return swappedSerial >= serial; });
 }
@@ -241,7 +256,12 @@ void Subsurface::setGeometry(const RectF& rect)
     if (rect == d->geometry)
         return;
     d->geometry = rect;
-    // Position and size land with the window's next commit.
+    // With onResize, the drawing thread starts on a new size while the
+    // window still paints; the subsurface is synchronised meanwhile, so its
+    // buffer still shows with the window's commit. Position and size land
+    // with the window's next commit.
+    if (d->subsurface && d->window && onResize)
+        d->handOverSize();
     if (d->window)
         d->window->scheduleFrame();
 }
