@@ -184,6 +184,16 @@ Menu* Application::dockMenu() const
     return s_dockMenu;
 }
 
+bool Application::canSendKeys() const
+{
+    return m_connection && m_connection->canSendKeys();
+}
+
+bool Application::sendKey(uint32_t evdevCode, bool pressed)
+{
+    return m_connection && m_connection->sendKey(evdevCode, pressed);
+}
+
 void Application::setApplicationId(std::string applicationId)
 {
     m_applicationId = std::move(applicationId);

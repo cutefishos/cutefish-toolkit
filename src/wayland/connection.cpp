@@ -11,6 +11,7 @@
 #include <linux/input-event-codes.h>
 #include <sys/epoll.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 #include <utility>
 #include <wayland-client.h>
@@ -28,6 +29,7 @@
 #include <presentation-time-client-protocol.h>
 #include <primary-selection-unstable-v1-client-protocol.h>
 #include <viewporter-client-protocol.h>
+#include <virtual-keyboard-unstable-v1-client-protocol.h>
 #include <xdg-activation-v1-client-protocol.h>
 #include <xdg-dialog-v1-client-protocol.h>
 #include <xdg-foreign-unstable-v2-client-protocol.h>
@@ -121,6 +123,9 @@ struct ConnectionListeners
             self->m_windowPlacement = bind<cutefish_window_placement_v1>(
                 registry, name, &cutefish_window_placement_v1_interface, version, 1);
             cutefish_window_placement_v1_add_listener(self->m_windowPlacement, &windowPlacement, self);
+        } else if (strcmp(interface, zwp_virtual_keyboard_manager_v1_interface.name) == 0) {
+            self->m_virtualKeyboards = bind<zwp_virtual_keyboard_manager_v1>(
+                registry, name, &zwp_virtual_keyboard_manager_v1_interface, version, 1);
         } else if (strcmp(interface, zxdg_output_manager_v1_interface.name) == 0) {
             self->m_outputManager = bind<zxdg_output_manager_v1>(
                 registry, name, &zxdg_output_manager_v1_interface, version, 3);
@@ -737,6 +742,10 @@ Connection::~Connection()
         cutefish_window_hints_v1_destroy(m_windowHints);
     if (m_windowPlacement)
         cutefish_window_placement_v1_destroy(m_windowPlacement);
+    if (m_virtualKeyboard)
+        zwp_virtual_keyboard_v1_destroy(m_virtualKeyboard);
+    if (m_virtualKeyboards)
+        zwp_virtual_keyboard_manager_v1_destroy(m_virtualKeyboards);
     if (m_surfaceBlur)
         cutefish_surface_blur_v1_destroy(m_surfaceBlur);
     if (m_statusItems)
@@ -842,6 +851,33 @@ void Connection::handleConnectionLost()
 uint32_t Connection::keyboardModifiers() const
 {
     return m_keyboard ? m_keyboard->modifiers() : 0;
+}
+
+bool Connection::sendKey(uint32_t evdevCode, bool pressed)
+{
+    if (!canSendKeys() || m_keyboard->keymapText().empty())
+        return false;
+    if (!m_virtualKeyboard) {
+        const std::string& keymap = m_keyboard->keymapText();
+        const int fd = memfd_create("cutefish-keymap", MFD_CLOEXEC);
+        if (fd < 0)
+            return false;
+        if (write(fd, keymap.c_str(), keymap.size() + 1) != ssize_t(keymap.size() + 1)) {
+            close(fd);
+            return false;
+        }
+        m_virtualKeyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(m_virtualKeyboards, m_seat);
+        zwp_virtual_keyboard_v1_keymap(m_virtualKeyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd,
+                                       uint32_t(keymap.size() + 1));
+        close(fd);
+    }
+    timespec now {};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    const uint32_t time = uint32_t(now.tv_sec * 1000 + now.tv_nsec / 1000000);
+    zwp_virtual_keyboard_v1_key(m_virtualKeyboard, time, evdevCode,
+                                pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
+    wl_display_flush(m_display);
+    return true;
 }
 
 void Connection::setCursorShape(ShellSurface* shell, CursorShape shape)

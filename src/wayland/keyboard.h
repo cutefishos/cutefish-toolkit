@@ -41,6 +41,8 @@ public:
     uint32_t modifiers() const { return m_modifiers; }
     std::function<void(uint32_t serial)> onKeyPressSerial;
     ShellSurface* focus() const { return m_focus; }
+    // The compositor's keymap as it sent it; empty until it has.
+    const std::string& keymapText() const { return m_keymapText; }
     void forget(ShellSurface* shell);
 
 private:
@@ -61,6 +63,7 @@ private:
 
     base::EventLoop& m_loop;
     wl_keyboard* m_keyboard;
+    std::string m_keymapText;
     xkb_keymap* m_keymap = nullptr;
     xkb_state* m_state = nullptr;
     xkb_compose_table* m_composeTable = nullptr;

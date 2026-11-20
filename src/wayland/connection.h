@@ -51,6 +51,8 @@ struct zwp_text_input_manager_v3;
 struct zwp_primary_selection_device_manager_v1;
 struct zxdg_output_manager_v1;
 struct zxdg_output_v1;
+struct zwp_virtual_keyboard_manager_v1;
+struct zwp_virtual_keyboard_v1;
 
 namespace cutefish::base {
 class EventLoop;
@@ -119,6 +121,13 @@ public:
     xdg_wm_dialog_v1* dialogManager() const { return m_dialogManager; }
     zxdg_importer_v2* importer() const { return m_importer; }
     wl_seat* seat() const { return m_seat; }
+    // Whether the compositor lets this client type into other clients'
+    // windows.
+    bool canSendKeys() const { return m_virtualKeyboards && m_keyboard; }
+    // A key typed into the window holding the keyboard, whichever client's,
+    // as if pressed on the keyboard; false, and nothing sent, unless
+    // canSendKeys().
+    bool sendKey(uint32_t evdevCode, bool pressed);
 
     // The serial of the last button press or touch down, for move and resize
     // requests.
@@ -268,6 +277,8 @@ private:
     zwp_pointer_gesture_pinch_v1* m_pinch = nullptr;
     wl_touch* m_touch = nullptr;
     std::unique_ptr<Keyboard> m_keyboard;
+    zwp_virtual_keyboard_manager_v1* m_virtualKeyboards = nullptr;
+    zwp_virtual_keyboard_v1* m_virtualKeyboard = nullptr;
     wl_data_device_manager* m_dataDeviceManager = nullptr;
     std::unique_ptr<DataDevice> m_dataDevice;
     zwp_primary_selection_device_manager_v1* m_primarySelectionManager = nullptr;

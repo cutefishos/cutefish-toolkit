@@ -43,6 +43,9 @@ cutefish_wayland_protocol(xdg-output-unstable-v1
 # cursor-shape-v1 refers to the tablet tool interface.
 cutefish_wayland_protocol(tablet-unstable-v2
     ${WAYLAND_PROTOCOLS_DATADIR}/unstable/tablet/tablet-unstable-v2.xml)
+# Not in wayland-protocols; the same copy as cutefish-compositor's.
+cutefish_wayland_protocol(virtual-keyboard-unstable-v1
+    ${PROJECT_SOURCE_DIR}/protocols/virtual-keyboard-unstable-v1.xml)
 # Copies of cutefish-compositor's protocols; the copies must stay identical.
 cutefish_wayland_protocol(cutefish-window-hints-v1
     ${PROJECT_SOURCE_DIR}/protocols/cutefish-window-hints-v1.xml)
@@ -266,6 +269,7 @@ add_library(cutefish-toolkit SHARED
     ${xdg-foreign-unstable-v2_SOURCES}
     ${xdg-output-unstable-v1_SOURCES}
     ${tablet-unstable-v2_SOURCES}
+    ${virtual-keyboard-unstable-v1_SOURCES}
     ${cutefish-window-hints-v1_SOURCES}
     ${cutefish-surface-blur-v1_SOURCES}
     ${cutefish-shell-v1_SOURCES}

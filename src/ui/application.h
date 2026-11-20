@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -119,6 +120,14 @@ public:
     // windows. Not owned; it stays while it is the dock menu.
     void setDockMenu(Menu* menu);
     Menu* dockMenu() const;
+
+    // Whether the compositor lets the application type into other
+    // applications' windows; Wayland only.
+    bool canSendKeys() const;
+    // Types an evdev key into the window holding the keyboard, whichever
+    // application's, as if pressed on the keyboard; false, and nothing sent,
+    // unless canSendKeys().
+    bool sendKey(uint32_t evdevCode, bool pressed);
 
     struct Screen
     {

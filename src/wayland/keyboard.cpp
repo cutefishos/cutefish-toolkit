@@ -122,6 +122,7 @@ Keyboard::~Keyboard()
 
 void Keyboard::compileKeymap(std::string text)
 {
+    m_keymapText = text;
     m_keymapJob = base::runInThread(
         [text = std::move(text)] {
             xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
