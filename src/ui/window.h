@@ -283,6 +283,11 @@ public:
     // ticked and before it lays out: what the handler changes in the tree
     // lands in that frame.
     void setPrepareFrameHandler(std::function<void()> handler);
+    // While held, the window presents nothing new, so a change made in steps
+    // (one of them drawn by another process) shows in one frame. A hold
+    // lapses after a second; releasing it draws what changed meanwhile.
+    void holdPresentation();
+    void releasePresentation();
     // Puts the window's top left at a point in the compositor's global
     // logical coordinates (Application::screens()): before show() it opens
     // there, afterwards it moves there; the compositor keeps it reachable.

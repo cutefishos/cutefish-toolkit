@@ -158,6 +158,25 @@ TEST(WindowTest, HeadlessMaximizeKeepsTheStateAndTheSize)
     EXPECT_EQ(window.size().height, 300);
 }
 
+// A held window presents nothing until the hold is released, or lapses.
+TEST(WindowTest, HeldPresentationShowsNothingNew)
+{
+    Window window;
+    window.setContentView(std::make_unique<View>());
+    window.resize({40, 30});
+    window.show();
+    const uint64_t start = uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count());
+    EXPECT_FALSE(TestInput::presentFrame(window, start).isNull());
+    window.holdPresentation();
+    window.requestPaint();
+    EXPECT_TRUE(TestInput::presentFrame(window, start + 16'000'000).isNull());
+    window.releasePresentation();
+    window.requestPaint();
+    EXPECT_FALSE(TestInput::presentFrame(window, start + 32'000'000).isNull());
+}
+
 // FishUI puts the buttons' row in a RowLayout cell after a start margin item:
 // the row starts on a whole logical pixel, a half rounding up, while the
 // buttons keep the fractional top margin. Plates sit 6 apart, colored dots 1.

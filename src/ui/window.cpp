@@ -232,8 +232,29 @@ std::unique_ptr<Window> Window::createPopup(Window* parent, const PopupPlacement
     return std::make_unique<Window>(parent, placement, grab);
 }
 
+// When each held window's hold began; a side table keeps the class layout.
+static std::unordered_map<const Window*, uint64_t>& presentationHolds()
+{
+    static std::unordered_map<const Window*, uint64_t> holds;
+    return holds;
+}
+
+static constexpr uint64_t presentationHoldLimitNs = 1'000'000'000;
+
+void Window::holdPresentation()
+{
+    presentationHolds().try_emplace(this, monotonicNs());
+}
+
+void Window::releasePresentation()
+{
+    if (presentationHolds().erase(this))
+        scheduleFrame();
+}
+
 Window::~Window()
 {
+    presentationHolds().erase(this);
     // A window closed right after a resize still keeps it.
     if (m_saveTimer) {
         Application::instance()->loop().stopTimer(m_saveTimer);
@@ -1750,6 +1771,13 @@ void Window::render()
 
 bool Window::renderFrame(uint64_t frameTimeNs, bool prepared)
 {
+    if (auto hold = presentationHolds().find(this); hold != presentationHolds().end()) {
+        if (monotonicNs() - hold->second < presentationHoldLimitNs) {
+            m_needsFrame = true;
+            return false;
+        }
+        presentationHolds().erase(hold);
+    }
     m_rendering = true;
     // Nothing of the window is left to touch when it went away in the ticks.
     if (!prepared && !prepareFrame(frameTimeNs))
