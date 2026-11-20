@@ -3,6 +3,7 @@
 
 #include "ui/application.h"
 
+#include <algorithm>
 #include <clocale>
 #include <cstdlib>
 #include <filesystem>
@@ -246,8 +247,12 @@ void Application::scheduleActiveUpdate()
     m_activeUpdatePending = true;
     const auto update = [this] {
         m_activeUpdatePending = false;
-        for (Window* window : std::vector<Window*>(m_windows))
-            window->updateActive();
+        // A window's handler may close others, as a menu closes when its
+        // window goes inactive.
+        for (Window* window : std::vector<Window*>(m_windows)) {
+            if (std::find(m_windows.begin(), m_windows.end(), window) != m_windows.end())
+                window->updateActive();
+        }
     };
     // Headless windows have no compositor to wait for.
     if (m_connection)

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -777,6 +778,28 @@ TEST(WindowTest, DialogShowsItsParentsMainMenu)
 
     dialog.setTransientParent(nullptr, false);
     EXPECT_EQ(dialog.mainMenu(), nullptr);
+}
+
+// A window closed by another's activation handler hears nothing more.
+TEST(WindowTest, WindowClosedByAnActivationHandlerIsNotUpdated)
+{
+    Window parent;
+    parent.resize({200, 100});
+    parent.show();
+    auto dialog = std::make_unique<Window>();
+    dialog->setTransientParent(&parent, false);
+    dialog->resize({100, 50});
+    dialog->show();
+    TestInput::configure(parent, 200, 100, {});
+    TestInput::configure(*dialog, 100, 50, {});
+    int dialogUpdates = 0;
+    dialog->onActiveChanged = [&dialogUpdates] { ++dialogUpdates; };
+    parent.onActiveChanged = [&dialog] { dialog.reset(); };
+
+    TestInput::configure(parent, 200, 100, {.activated = true});
+    EXPECT_TRUE(parent.isActive());
+    EXPECT_EQ(dialog, nullptr);
+    EXPECT_EQ(dialogUpdates, 0);
 }
 
 // A window stays active while its dialog has the focus.
