@@ -55,8 +55,10 @@ public:
     // as the file's EXIF orientation says. Null when the file cannot be read.
     static Bitmap decodeFile(const std::string& path, base::Size box = {}, Scaling scaling = Scaling::Fit,
                              bool autoTransform = false);
-    // From encoded PNG, JPEG, BMP or ICO bytes in memory.
+    // The same from a file's bytes in memory.
     static Bitmap decode(std::string_view bytes);
+    static Bitmap decode(std::string_view bytes, base::Size box, Scaling scaling = Scaling::Fit,
+                         bool autoTransform = false);
 
     bool isNull() const { return !m_pixels; }
     int width() const { return m_width; }

@@ -5,14 +5,8 @@
 
 #include <cstring>
 
-#include "include/codec/SkBmpDecoder.h"
-#include "include/codec/SkCodec.h"
-#include "include/codec/SkIcoDecoder.h"
-#include "include/codec/SkJpegDecoder.h"
-#include "include/codec/SkPngDecoder.h"
 #include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
-#include "include/core/SkColorSpace.h"
 #include "include/core/SkData.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkPixmap.h"
@@ -107,47 +101,40 @@ static Bitmap fromSkImage(const SkImage* image)
     return bitmap;
 }
 
-Bitmap Bitmap::decodeFile(const std::string& path, base::Size box, Scaling scaling, bool autoTransform)
+static Bitmap decodeRequest(ImageRequest request, base::Size box, Bitmap::Scaling scaling, bool autoTransform)
 {
-    ImageRequest request;
-    request.path = path;
     if (!box.isEmpty()) {
         request.width = box.width();
         request.height = box.height();
         request.enlarge = true;
     }
-    request.scaling = scaling == Scaling::Stretch ? ImageScaling::Stretch
-            : scaling == Scaling::Cover          ? ImageScaling::Cover
-                                                 : ImageScaling::Fit;
+    request.scaling = scaling == Bitmap::Scaling::Stretch ? ImageScaling::Stretch
+            : scaling == Bitmap::Scaling::Cover          ? ImageScaling::Cover
+                                                         : ImageScaling::Fit;
     request.autoTransform = autoTransform;
     const DecodedImage decoded = decodeImage(request);
     return fromSkImage(decoded.image.get());
 }
 
+Bitmap Bitmap::decodeFile(const std::string& path, base::Size box, Scaling scaling, bool autoTransform)
+{
+    ImageRequest request;
+    request.path = path;
+    return decodeRequest(std::move(request), box, scaling, autoTransform);
+}
+
 Bitmap Bitmap::decode(std::string_view bytes)
+{
+    return decode(bytes, {});
+}
+
+Bitmap Bitmap::decode(std::string_view bytes, base::Size box, Scaling scaling, bool autoTransform)
 {
     if (bytes.empty())
         return {};
-    static const SkCodecs::Decoder decoders[] = {SkPngDecoder::Decoder(), SkJpegDecoder::Decoder(),
-                                                 SkBmpDecoder::Decoder(), SkIcoDecoder::Decoder()};
-    std::unique_ptr<SkCodec> codec =
-            SkCodec::MakeFromData(SkData::MakeWithCopy(bytes.data(), bytes.size()), decoders);
-    if (!codec)
-        return {};
-    const SkImageInfo size = codec->getInfo();
-    if (size.width() <= 0 || size.height() <= 0
-        || size_t(size.width()) * size_t(size.height()) * 4 > kMaxBytes)
-        return {};
-    Bitmap bitmap(size.width(), size.height(), Format::Argb32Premultiplied);
-    if (bitmap.isNull())
-        return {};
-    // Converted from the file's colour profile, as decodeImage() does.
-    const SkImageInfo info = SkImageInfo::Make(size.width(), size.height(), kBGRA_8888_SkColorType,
-                                               kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
-    const SkCodec::Result result = codec->getPixels(info, bitmap.bits(), bitmap.stride());
-    if (result != SkCodec::kSuccess && result != SkCodec::kIncompleteInput)
-        return {};
-    return bitmap;
+    ImageRequest request;
+    request.data = bytes;
+    return decodeRequest(std::move(request), box, scaling, autoTransform);
 }
 
 void Bitmap::detach()

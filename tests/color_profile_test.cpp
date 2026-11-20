@@ -330,6 +330,9 @@ TEST_F(ColorProfileTest, ConvertsTaggedImagesToSrgb)
         ASSERT_FALSE(bitmap.isNull()) << test.path;
         EXPECT_TRUE(isColor(bitmap.pixel(8, 8), kColorInSrgb, test.tolerance))
                 << test.path << ": " << describe(bitmap.pixel(8, 8));
+        const Bitmap fromBytes = Bitmap::decode(readFile(test.path));
+        ASSERT_FALSE(fromBytes.isNull()) << test.path;
+        EXPECT_EQ(fromBytes, bitmap) << test.path;
     }
 
     // Scaled while decoding, as thumbnails are.

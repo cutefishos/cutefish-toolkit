@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "include/core/SkData.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkRefCnt.h"
 
@@ -56,6 +57,8 @@ public:
     sk_sp<SkImage> svg(const std::string& path, int width, int height, const Color* tint);
     // The same drawing, uncached, on any thread, as image views decode files.
     static sk_sp<SkImage> renderSvgFile(const std::string& path, int width, int height);
+    // From an SVG file's bytes.
+    static sk_sp<SkImage> renderSvgData(sk_sp<SkData> data, int width, int height);
     // An application's own single-colour glyph, drawn as the built-in ones.
     void registerGlyph(const std::string& name, std::string svg);
     // Reads the themes again at the next lookup; rasterised images stay.

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 #include "include/core/SkImage.h"
 #include "include/core/SkRefCnt.h"
@@ -22,6 +23,9 @@ enum class ImageScaling {
 struct ImageRequest
 {
     std::string path;
+    // The file's bytes instead of the path, which may still name the type by
+    // its extension. Must outlive the call.
+    std::string_view data;
     // The box in device pixels; 0 x 0 keeps the image's own size.
     int width = 0;
     int height = 0;

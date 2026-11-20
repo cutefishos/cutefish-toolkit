@@ -123,6 +123,25 @@ TEST(BitmapTest, PngRoundTrip)
               base::Size(133, 100));
 }
 
+TEST(BitmapTest, DecodesEveryFormatFromBytes)
+{
+    // One red pixel.
+    const std::string gif("GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\x00"
+                          "\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b",
+                          35);
+    const Bitmap fromGif = Bitmap::decode(gif);
+    ASSERT_EQ(fromGif.size(), base::Size(1, 1));
+    EXPECT_EQ(fromGif.pixel(0, 0), kOpaqueRed);
+
+    // Drawn at the box it is decoded into.
+    const std::string svg = "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='5'>"
+                            "<rect width='10' height='5' fill='#ff0000'/></svg>";
+    EXPECT_EQ(Bitmap::decode(svg).size(), base::Size(10, 5));
+    const Bitmap fromSvg = Bitmap::decode(svg, base::Size(40, 40));
+    ASSERT_EQ(fromSvg.size(), base::Size(40, 20));
+    EXPECT_EQ(fromSvg.pixel(20, 10), kOpaqueRed);
+}
+
 TEST(PathTest, ElementsFollowTheCommonLayout)
 {
     Path path;

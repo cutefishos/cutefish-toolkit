@@ -1452,9 +1452,13 @@ void IconLoader::registerGlyph(const std::string& name, std::string svg)
 
 sk_sp<SkImage> IconLoader::renderSvgFile(const std::string& path, int width, int height)
 {
+    return renderSvgData(SkData::MakeFromFileName(path.c_str()), width, height);
+}
+
+sk_sp<SkImage> IconLoader::renderSvgData(sk_sp<SkData> data, int width, int height)
+{
     // The codecs for data URIs register with the loader.
     instance();
-    sk_sp<SkData> data = SkData::MakeFromFileName(path.c_str());
     return data ? renderSvg(loadSvg(std::move(data)), width, nullptr, height) : nullptr;
 }
 

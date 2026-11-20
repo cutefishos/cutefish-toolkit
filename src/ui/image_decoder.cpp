@@ -165,12 +165,57 @@ static Source decodeWebp(const std::string& data)
     return source;
 }
 
-static Source decodeTiff(const std::string& path)
+// The file's bytes as libtiff reads a file.
+struct TiffMemory
+{
+    std::string_view data;
+    toff_t offset = 0;
+};
+
+static tmsize_t tiffRead(thandle_t handle, void* buffer, tmsize_t size)
+{
+    auto* memory = static_cast<TiffMemory*>(handle);
+    if (size < 0 || memory->offset >= memory->data.size())
+        return 0;
+    const size_t count = std::min<size_t>(size_t(size), memory->data.size() - memory->offset);
+    std::memcpy(buffer, memory->data.data() + memory->offset, count);
+    memory->offset += count;
+    return tmsize_t(count);
+}
+
+static tmsize_t tiffWrite(thandle_t, void*, tmsize_t)
+{
+    return 0;
+}
+
+static toff_t tiffSeek(thandle_t handle, toff_t offset, int whence)
+{
+    auto* memory = static_cast<TiffMemory*>(handle);
+    const toff_t base = whence == SEEK_CUR ? memory->offset : whence == SEEK_END ? memory->data.size() : 0;
+    memory->offset = base + offset;
+    return memory->offset;
+}
+
+static int tiffClose(thandle_t)
+{
+    return 0;
+}
+
+static toff_t tiffSize(thandle_t handle)
+{
+    return static_cast<TiffMemory*>(handle)->data.size();
+}
+
+static Source decodeTiff(const std::string& data)
 {
     // Unknown tags and the like are not worth a line on stderr.
     TIFFSetWarningHandler(nullptr);
     TIFFSetErrorHandler(nullptr);
-    std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(path.c_str(), "r"), TIFFClose);
+    TiffMemory memory{data};
+    std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(
+            TIFFClientOpen("image", "rm", &memory, tiffRead, tiffWrite, tiffSeek, tiffClose, tiffSize, nullptr,
+                           nullptr),
+            TIFFClose);
     if (!tiff)
         return {};
     uint32_t width = 0;
@@ -375,8 +420,7 @@ static Source decodeJxl(const std::string& data)
     return source;
 }
 
-static Source decodeSvg(const std::string& path, const std::string& data, int boxWidth, int boxHeight,
-                        ImageScaling scaling)
+static Source decodeSvg(const std::string& data, int boxWidth, int boxHeight, ImageScaling scaling)
 {
     // Read for its size only; the drawing is the icon loader's, which knows
     // the style sheets and data URIs themes use.
@@ -397,7 +441,7 @@ static Source decodeSvg(const std::string& path, const std::string& data, int bo
         scaledSize(width, height, boxWidth, boxHeight, scaling, &width, &height);
     if (!withinLimit(width, height))
         return {};
-    source.image = IconLoader::renderSvgFile(path, width, height);
+    source.image = IconLoader::renderSvgData(SkData::MakeWithCopy(data.data(), data.size()), width, height);
     return source;
 }
 
@@ -433,7 +477,8 @@ static bool looksLikeSvg(const std::string& data, const std::string& path)
 
 DecodedImage decodeImage(const ImageRequest& request)
 {
-    const std::optional<std::string> data = base::file::read(request.path);
+    const std::optional<std::string> data =
+            request.data.empty() ? base::file::read(request.path) : std::string(request.data);
     if (!data || data->empty())
         return {};
 
@@ -441,7 +486,7 @@ DecodedImage decodeImage(const ImageRequest& request)
     if (startsWith(*data, 0, "RIFF") && startsWith(*data, 8, "WEBP")) {
         source = decodeWebp(*data);
     } else if (startsWith(*data, 0, std::string_view("II*\0", 4)) || startsWith(*data, 0, std::string_view("MM\0*", 4))) {
-        source = decodeTiff(request.path);
+        source = decodeTiff(*data);
     } else if (heif_check_filetype(reinterpret_cast<const uint8_t*>(data->data()), int(std::min<size_t>(data->size(), 64)))
                == heif_filetype_yes_supported) {
         source = decodeHeif(*data);
@@ -461,7 +506,7 @@ DecodedImage decodeImage(const ImageRequest& request)
     } else if (image_formats::isTga(*data, request.path)) {
         source = fromRaw(image_formats::decodeTga(*data));
     } else if (looksLikeSvg(*data, request.path)) {
-        source = decodeSvg(request.path, *data, request.width, request.height, request.scaling);
+        source = decodeSvg(*data, request.width, request.height, request.scaling);
     } else {
         source = decodeWithSkia(SkData::MakeWithCopy(data->data(), data->size()), request.width, request.height);
     }
