@@ -7,13 +7,16 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <numbers>
 
 #include "base/event_loop.h"
 #include "ui/application.h"
+#include "ui/frame_client.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
+#include "ui/window.h"
 
 namespace cutefish::ui {
 
@@ -24,6 +27,11 @@ static constexpr double kTabHeight = 38;
 static constexpr double kSegmentedPadding = 2;
 static constexpr double kPlateInset = 2;
 static constexpr std::chrono::milliseconds kPressDelay{50};
+// The plate's spring: the period it would swing at undamped, in seconds.
+static constexpr double kGlideResponse = 0.3;
+// How much wider the plate grows at the top speed of a glide of a button, and
+// at any faster.
+static constexpr double kStretch = 0.08;
 
 class SegmentedControl::Segment : public View
 {
@@ -78,6 +86,62 @@ private:
     Label* m_label;
 };
 
+class SegmentedControl::Glide : public FrameClient
+{
+public:
+    Glide(SegmentedControl* control, Window* window)
+        : FrameClient(window)
+        , m_control(control)
+    {
+    }
+
+    bool isRunning() const { return isTicking(); }
+
+    void start(double target)
+    {
+        m_target = target;
+        if (!isTicking()) {
+            m_lastFrameNs = 0;
+            startTicking();
+        }
+    }
+
+    void stop()
+    {
+        m_velocity = 0;
+        stopTicking();
+    }
+
+protected:
+    void tick(uint64_t frameTimeNs) override
+    {
+        const double seconds = m_lastFrameNs && frameTimeNs > m_lastFrameNs
+                                   ? double(frameTimeNs - m_lastFrameNs) / 1e9
+                                   : 0;
+        m_lastFrameNs = frameTimeNs;
+        const double omega = 2 * std::numbers::pi / kGlideResponse;
+        const double offset = m_control->m_platePosition - m_target;
+        const double coefficient = m_velocity + omega * offset;
+        const double decay = std::exp(-omega * seconds);
+        const double next = (offset + coefficient * seconds) * decay;
+        m_velocity = (coefficient - omega * (offset + coefficient * seconds)) * decay;
+        if (std::abs(next) < 1e-3 && std::abs(m_velocity) < 1e-2) {
+            stop();
+            m_control->setPlatePosition(m_target, 0);
+            return;
+        }
+        // From rest, a glide of one button peaks at omega / e buttons a second.
+        const double topSpeed = omega / std::numbers::e;
+        m_control->setPlatePosition(m_target + next, kStretch * std::min(1.0, std::abs(m_velocity) / topSpeed));
+    }
+
+private:
+    SegmentedControl* m_control;
+    double m_target = 0;
+    double m_velocity = 0;
+    uint64_t m_lastFrameNs = 0;
+};
+
 SegmentedControl::SegmentedControl(std::vector<std::string> items, Style style)
     : m_style(style)
     , m_contentHeight(style == Style::Segmented ? kSegmentedHeight : kTabHeight)
@@ -103,15 +167,44 @@ void SegmentedControl::setItems(std::vector<std::string> items)
     }
     m_current = std::clamp(m_current, 0, std::max(0, int(m_segments.size()) - 1));
     m_pressed = -1;
+    if (m_glide)
+        m_glide->stop();
+    setPlatePosition(m_current, 0);
     updateColors();
     requestLayout();
 }
 
-void SegmentedControl::setCurrentIndex(int index)
+void SegmentedControl::setCurrentIndex(int index, bool animated)
 {
     if (index < 0 || index >= int(m_segments.size()) || index == m_current)
         return;
+    moveTo(index, animated);
+}
+
+bool SegmentedControl::isGliding() const
+{
+    return m_glide && m_glide->isRunning();
+}
+
+void SegmentedControl::moveTo(int index, bool animated)
+{
     m_current = index;
+    Window* window = this->window();
+    if (!animated || !window || std::abs(m_platePosition - index) < 1e-6) {
+        if (m_glide)
+            m_glide->stop();
+        setPlatePosition(index, 0);
+        return;
+    }
+    if (!m_glide)
+        m_glide = std::make_unique<Glide>(this, window);
+    m_glide->start(index);
+}
+
+void SegmentedControl::setPlatePosition(double position, double stretch)
+{
+    m_platePosition = position;
+    m_plateStretch = std::max(0.0, stretch);
     requestPaint();
 }
 
@@ -165,6 +258,19 @@ RectF SegmentedControl::itemRect(size_t index) const
     return {inner.x + width * double(index), inner.y, width, inner.height};
 }
 
+RectF SegmentedControl::plateRect() const
+{
+    if (m_segments.empty())
+        return {};
+    const RectF inner = localRect().adjusted(padding(), padding(), -padding(), -padding());
+    const double width = inner.width / double(m_segments.size());
+    const double grown = width * (1 + m_plateStretch);
+    // Kept inside the track while it stretches at an end button.
+    const double x = std::max(inner.x, std::min(inner.x + width * m_platePosition - (grown - width) / 2,
+                                                inner.right() - grown));
+    return RectF{x, inner.y, grown, inner.height}.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset);
+}
+
 int SegmentedControl::itemAt(PointF point) const
 {
     for (size_t i = 0; i < m_segments.size(); ++i) {
@@ -195,10 +301,9 @@ void SegmentedControl::paint(Painter& painter)
     if (m_current < 0 || m_current >= int(m_segments.size()))
         return;
 
-    const RectF item = itemRect(size_t(m_current));
+    const RectF highlight = plateRect();
     if (m_style == Style::Segmented) {
         // A plain rectangle with a drop shadow: Gaussian deviation (radius + 1) / 3.33.
-        const RectF highlight = item.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset);
         painter.drawShadow(highlight, highlight.height / 2, 1.2, color(ColorId::SegmentedControlPlateShadow),
                            {0, 1});
         painter.drawSmoothRectangle(highlight, highlight.height / 2, plate);
@@ -206,10 +311,8 @@ void SegmentedControl::paint(Painter& painter)
         // Concentric with the bar through the inset.
         const Color shadow = color(ColorId::SegmentedTabPlateShadow);
         if (shadow.a > 0)
-            painter.drawShadow(item.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset), theme.smallRadius,
-                               0.9, shadow);
-        painter.drawRoundedRect(item.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset),
-                                {tabRadius, kPlateInset, themeCorners()}, plate);
+            painter.drawShadow(highlight, theme.smallRadius, 0.9, shadow);
+        painter.drawRoundedRect(highlight, {tabRadius, kPlateInset, themeCorners()}, plate);
     }
 }
 
@@ -257,8 +360,7 @@ void SegmentedControl::pick(int index)
 {
     if (index < 0 || index >= int(m_segments.size()) || index == m_current)
         return;
-    m_current = index;
-    requestPaint();
+    moveTo(index, true);
     if (onCurrentChanged)
         onCurrentChanged(index);
 }

@@ -251,6 +251,69 @@ TEST(ControlsTest, SegmentedControlPicksByPointerAndSpace)
     EXPECT_EQ(picked, 1);
 }
 
+// A pick glides the plate to the button without passing it, wider on the way;
+// a set index jumps unless asked to glide.
+TEST(ControlsTest, SegmentedControlPlateGlides)
+{
+    Window window;
+    SegmentedControl* control =
+        host(window, std::make_unique<SegmentedControl>(std::vector<std::string>{"A", "B", "C"}));
+    uint64_t time = 1000000000;
+    const auto frames = [&](int count) {
+        for (int i = 0; i < count; ++i) {
+            time += 16666667;
+            window.grab(time);
+        }
+    };
+    std::vector<RectF> rest;
+    for (int i : {0, 1, 2, 0}) {
+        control->setCurrentIndex(i);
+        EXPECT_FALSE(control->isGliding());
+        if (rest.size() < 3)
+            rest.push_back(control->plateRect());
+    }
+    frames(1);
+
+    const RectF bounds = control->geometry();
+    TestInput::click(window, {bounds.x + bounds.width * 5 / 6, bounds.y + 10});
+    EXPECT_EQ(control->currentIndex(), 2);
+    EXPECT_TRUE(control->isGliding());
+    double widest = 0;
+    double furthest = 0;
+    for (int i = 0; i < 60 && control->isGliding(); ++i) {
+        frames(1);
+        widest = std::max(widest, control->plateRect().width);
+        furthest = std::max(furthest, control->plateRect().x);
+    }
+    EXPECT_FALSE(control->isGliding());
+    EXPECT_GT(widest, rest[0].width * 1.04);
+    EXPECT_NEAR(furthest, rest[2].x, 1e-9);
+    EXPECT_NEAR(control->plateRect().x, rest[2].x, 1e-9);
+    EXPECT_NEAR(control->plateRect().width, rest[2].width, 1e-9);
+
+    // From the last button to the middle one the plate stops at it.
+    TestInput::click(window, {bounds.x + bounds.width / 2, bounds.y + 10});
+    double nearest = rest[2].x;
+    for (int i = 0; i < 60 && control->isGliding(); ++i) {
+        frames(1);
+        nearest = std::min(nearest, control->plateRect().x);
+    }
+    EXPECT_GE(nearest, rest[1].x - 1e-9);
+    EXPECT_NEAR(control->plateRect().x, rest[1].x, 1e-9);
+
+    // A pick during a glide carries on from where the plate is.
+    control->setCurrentIndex(0, true);
+    frames(5);
+    const double midway = control->plateRect().x;
+    EXPECT_LT(midway, rest[1].x);
+    EXPECT_GT(midway, rest[0].x);
+    control->setCurrentIndex(2, true);
+    frames(1);
+    EXPECT_LT(std::abs(control->plateRect().x - midway), (rest[1].x - rest[0].x) / 2);
+    frames(60);
+    EXPECT_NEAR(control->plateRect().x, rest[2].x, 1e-9);
+}
+
 TEST(ControlsTest, ComboBoxMenuChecksTheCurrentItem)
 {
     Window window;

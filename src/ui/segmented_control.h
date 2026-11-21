@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -16,7 +17,9 @@ namespace cutefish::ui {
 
 // A row of equal buttons, one of them current: a segmented control, a pill, or
 // its tab bar, a rounded box. Each button is a Tab stop of its own; Space
-// presses it and picks it on release.
+// presses it and picks it on release. The plate glides to a picked button on a
+// critically damped spring, stretching a little with its speed; a pick during
+// the glide carries on from where the plate is and how fast it moves.
 class SegmentedControl : public View
 {
 public:
@@ -32,7 +35,10 @@ public:
     size_t count() const { return m_segments.size(); }
     int currentIndex() const { return m_current; }
     // Does not call onCurrentChanged.
-    void setCurrentIndex(int index);
+    void setCurrentIndex(int index, bool animated = false);
+    bool isGliding() const;
+    // The plate's rect as now drawn, in local coordinates.
+    RectF plateRect() const;
     // The buttons' height inside the padding: 32 for a segmented control, 38
     // for a tab bar.
     void setContentHeight(double height);
@@ -62,10 +68,13 @@ protected:
 
 private:
     class Segment;
+    class Glide;
 
     RectF itemRect(size_t index) const;
     int itemAt(PointF point) const;
     void pick(int index);
+    void moveTo(int index, bool animated);
+    void setPlatePosition(double position, double stretch);
     void setPressed(int index);
     void updateColors();
 
@@ -78,6 +87,10 @@ private:
     double m_contentHeight;
     double m_fontSize = 0;
     std::optional<ColorRecipe> m_trackColor;
+    // In buttons: the current index at rest.
+    double m_platePosition = 0;
+    double m_plateStretch = 0;
+    std::unique_ptr<Glide> m_glide;
 };
 
 // A tab bar.
