@@ -252,6 +252,7 @@ add_library(cutefish-toolkit SHARED
     ui/window_compositing.cpp
     ui/window_controls.cpp
     ui/window_restore.cpp
+    ui/window_shell.cpp
     ui/window_header.cpp
     ui/window_tab_bar.cpp
     ui/zoomable_image_view.cpp
