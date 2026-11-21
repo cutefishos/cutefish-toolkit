@@ -80,14 +80,6 @@ void HeaderButton::setWindowControl(bool windowControl)
     requestPaint();
 }
 
-void HeaderButton::setGroupHovered(bool hovered)
-{
-    if (m_groupHovered == hovered)
-        return;
-    m_groupHovered = hovered;
-    requestPaint();
-}
-
 void HeaderButton::setSegment(bool segment)
 {
     if (m_segment == segment)
@@ -102,7 +94,6 @@ RectF HeaderButton::visualRect() const
         return View::visualRect();
     window_controls::State state;
     state.artwork = currentArtwork();
-    state.colored = Theme::current().coloredWindowControls;
     return window_controls::visualRect(localRect(), state);
 }
 
@@ -114,8 +105,7 @@ void HeaderButton::paintWindowControl(Painter& painter)
     state.dark = window ? window->headerDarkMode() : Theme::current().darkMode;
     state.active = window && window->isActive();
     state.enabled = isEnabled();
-    state.colored = Theme::current().coloredWindowControls;
-    state.hovered = m_hovered || (state.colored && m_groupHovered);
+    state.hovered = m_hovered;
     state.pressed = m_pressed || m_checked;
     window_controls::paint(painter, localRect(), state);
 }

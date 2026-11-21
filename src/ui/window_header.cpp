@@ -5,11 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 
 #include "ui/application.h"
 #include "ui/header_button.h"
-#include "ui/theme.h"
 #include "ui/window.h"
 #include "ui/window_controls.h"
 
@@ -20,26 +18,6 @@ static constexpr double kButton = window_controls::kButton;
 static constexpr double kSlot = 32;
 
 namespace {
-
-// Holds the controls, so the pointer over any of them or the gaps between
-// them hovers the row as one.
-class ControlsZone final : public View
-{
-public:
-    ControlsZone()
-    {
-        setTracksHover(true);
-    }
-
-    std::function<void(bool)> onHoverChanged;
-
-protected:
-    void hoverChanged() override
-    {
-        if (onHoverChanged)
-            onHoverChanged(isHovered());
-    }
-};
 
 // Restore while the window is maximized, maximize otherwise.
 class MaximizeButton final : public HeaderButton
@@ -62,17 +40,13 @@ protected:
 
 WindowHeader::WindowHeader(double height)
     : m_height(height)
-    , m_zone(addChild<ControlsZone>())
+    , m_zone(addChild<View>())
     , m_close(m_zone->addChild<HeaderButton>("close", kButton))
     , m_minimize(m_zone->addChild<HeaderButton>("minimize", kButton))
     , m_maximize(m_zone->addChild<MaximizeButton>())
 {
     for (HeaderButton* button : {m_close, m_minimize, m_maximize})
         button->setWindowControl(true);
-    static_cast<ControlsZone*>(m_zone)->onHoverChanged = [this](bool hovered) {
-        for (HeaderButton* control : {m_close, m_minimize, m_maximize})
-            control->setGroupHovered(hovered);
-    };
     m_minimize->onClicked = [this] {
         if (Window* window = this->window())
             window->minimize();
@@ -180,8 +154,7 @@ void WindowHeader::layout()
     const double slotInset = (kSlot - size) / 2;
     // A RowLayout centres on whole pixels.
     double top = m_buttonsCentered ? std::floor((geometry().height - size) / 2) : m_buttonMargin + slotInset;
-    const double spacing = Theme::current().coloredWindowControls ? window_controls::kColoredSpacing
-                                                                  : window_controls::kSpacing;
+    const double spacing = window_controls::kSpacing;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())

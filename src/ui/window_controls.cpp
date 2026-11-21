@@ -15,19 +15,16 @@
 #include "include/core/SkPaint.h"
 
 #include "ui/bitmap_private.h"
-#include "ui/color_provider.h"
 #include "ui/icon_loader.h"
 #include "ui/painter.h"
 #include "ui/path.h"
 
 namespace cutefish::ui::window_controls {
 
-static constexpr double kColoredPlate = 14;
 static constexpr double kArtwork = 14;
 static constexpr double kRim = 0.5;
 
-// The shadow, the glyph and the coloured dot keep their proportions to a
-// control's side.
+// The shadow and the glyph keep their proportions to a control's side.
 static double shadowSigma(double side)
 {
     return side * 0.1;
@@ -256,6 +253,8 @@ static RectF snappedPlate(Painter& painter, const RectF& bounds)
     return {device.x / scale - offset.x, device.y / scale - offset.y, device.width / scale, device.height / scale};
 }
 
+// `added`: the dark plate's light is added to what is already drawn, which
+// takes an opaque backdrop under it.
 static void paintPlate(Painter& painter, const RectF& bounds, const State& state, bool added)
 {
     // A square of whole device pixels, so the plate comes out round.
@@ -284,53 +283,9 @@ static void paintPlate(Painter& painter, const RectF& bounds, const State& state
     painter.restore();
 }
 
-static void paintColored(Painter& painter, const RectF& bounds, const State& state)
-{
-    const Color tint = ColorProvider::forMode(state.dark).get(ColorId::HeaderButtonTint);
-    const auto centred = [&](double side) {
-        return painter.snappedRect({bounds.x + std::round((bounds.width - side) / 2),
-                                    bounds.y + std::round((bounds.height - side) / 2), side, side});
-    };
-    const double side = sideOf(bounds);
-    const Rect plate = centred(scaled(kColoredPlate, side));
-    // Coloured while the window is active or the pointer is on the row, grey
-    // otherwise.
-    Color fill = tint.withAlpha((state.dark ? 0.30 : 0.20) + (state.pressed ? 0.12 : 0));
-    Color ink = tint;
-    if ((state.active || state.hovered || state.pressed) && state.enabled) {
-        const Color base = state.artwork == "close" ? Color::rgb(0xEE5A6A)
-                : state.artwork == "minimize" ? Color::rgb(0xF4B63F)
-                                              : Color::rgb(0x3CC68A);
-        fill = state.pressed ? Color{uint8_t(base.r * 0.8), uint8_t(base.g * 0.8), uint8_t(base.b * 0.8), 255}
-                             : base;
-        ink = Color::rgb(0x000000).withAlpha(0.6);
-    }
-    painter.save();
-    painter.multiplyOpacity(state.enabled ? 1.0 : 0.35);
-    painter.fillDeviceRoundedRect(plate, plate.width / 2.0, fill);
-    painter.strokeDeviceRoundedRect(plate, plate.width / 2.0, Color::rgb(0x000000).withAlpha(0.12),
-                                    kRim * painter.scale());
-    if (state.enabled && !state.artwork.empty() && (state.hovered || state.pressed)) {
-        const Rect icon = centred(scaled(kArtwork, side));
-        sk_sp<SkImage> image = IconLoader::instance().glyph("window-control-" + state.artwork, icon.width, ink);
-        painter.drawImage(image.get(), icon.x, icon.y);
-    }
-    painter.restore();
-}
-
-// `added`: the dark plate's light is added to what is already drawn, which
-// takes an opaque backdrop under it.
-static void paintControl(Painter& painter, const RectF& bounds, const State& state, bool added)
-{
-    if (state.colored && state.artwork != "dialog-close")
-        paintColored(painter, bounds, state);
-    else
-        paintPlate(painter, bounds, state, added);
-}
-
 void paint(Painter& painter, const RectF& bounds, const State& state)
 {
-    paintControl(painter, bounds, state, true);
+    paintPlate(painter, bounds, state, true);
 }
 
 Color inkColor(bool dark, bool strong)
@@ -345,8 +300,6 @@ void paintGroupPlate(Painter& painter, const RectF& bounds, bool dark)
 
 RectF visualRect(const RectF& bounds, const State& state)
 {
-    if (state.colored && state.artwork != "dialog-close")
-        return bounds;
     // A sigma and a half, past which the shadow is under a level; it stays
     // inside the gap to the next control.
     const double side = sideOf(bounds);
@@ -368,7 +321,7 @@ Bitmap render(const State& state, double scale, Bitmap::Format format)
     SkCanvas canvas(target);
     Painter painter(&canvas, scale);
     // Nothing lies under it to add the light to.
-    paintControl(painter, {kShadowMargin, kShadowMargin, kButton, kButton}, state, false);
+    paintPlate(painter, {kShadowMargin, kShadowMargin, kButton, kButton}, state, false);
     return bitmap;
 }
 

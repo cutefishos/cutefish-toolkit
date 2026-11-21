@@ -183,17 +183,12 @@ TEST(WindowTest, HeldPresentationShowsNothingNew)
 
 // FishUI puts the buttons' row in a RowLayout cell after a start margin item:
 // the row starts on a whole logical pixel, a half rounding up, while the
-// buttons keep the fractional top margin. Plates sit 6 apart, colored dots 1.
+// buttons keep the fractional top margin. Plates sit 6 apart.
 TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
 {
-    const Theme saved = Theme::current();
-    for (const bool colored : {false, true})
     for (const auto& [margin, rowX] : {std::pair{4.0, 9.0}, std::pair{9.375, 14.0}, std::pair{8.6, 14.0},
                                        std::pair{8.5, 14.0}, std::pair{8.4, 13.0}}) {
-        Theme theme = saved;
-        theme.coloredWindowControls = colored;
-        Theme::setCurrent(theme);
-        const double spacing = colored ? 1 : 6;
+        const double spacing = 6;
         const double row = 3 * 22 + 2 * spacing;
         Window window;
         auto column = std::make_unique<Column>();
@@ -205,7 +200,7 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
         window.setContentView(std::move(column));
         window.show();
         window.grab();
-        // The buttons sit in one row that is hovered as a whole.
+        // The buttons sit in one row.
         std::vector<const View*> rows;
         for (const auto& child : header->children()) {
             if (child.get() != content)
@@ -217,7 +212,6 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
             buttons.push_back(child->geometry());
         ASSERT_EQ(buttons.size(), 3u);
         SCOPED_TRACE(margin);
-        SCOPED_TRACE(colored);
         EXPECT_EQ(rows[0]->geometry(), (RectF{rowX, margin + 5, row, 22}));
         EXPECT_EQ(buttons[0], (RectF{0, 0, 22, 22}));
         EXPECT_EQ(buttons[1].x, 22 + spacing);
@@ -225,7 +219,6 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
         EXPECT_EQ(content->geometry().x, rowX + row + spacing);
         EXPECT_EQ(content->geometry().width, 1100 - (rowX + row + spacing));
     }
-    Theme::setCurrent(saved);
 }
 
 // As Qt's ShortcutOverride: a focused text field keeps plain and Shift keys

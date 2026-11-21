@@ -18,7 +18,6 @@ namespace window_controls {
 
 inline constexpr double kButton = 22;
 inline constexpr double kSpacing = 6;
-inline constexpr double kColoredSpacing = 1;
 // Room around a control's square for a plate's shadow.
 inline constexpr double kShadowMargin = 5;
 // A dialog's lone close control sits as far from the top as from the start,
@@ -31,15 +30,11 @@ struct State
     // "close", "minimize", "maximize" or "restore"; "dialog-close" is a
     // dialog's only control. Each is a light plate always showing its glyph.
     std::string artwork;
-    // A small dot instead, red, yellow or green while the window is active
-    // or the pointer is on the row, its glyph only under the pointer; never
-    // for "dialog-close".
-    bool colored = false;
     // The header's mode.
     bool dark = false;
     bool active = false;
     bool enabled = true;
-    // The pointer over the control, or, when colored, over the row it sits in.
+    // The pointer over the control.
     bool hovered = false;
     bool pressed = false;
 };

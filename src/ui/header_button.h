@@ -42,9 +42,6 @@ public:
     void setGlyphColor(std::optional<Color> color);
     // A window control, drawn by window_controls in the theme's style.
     void setWindowControl(bool windowControl);
-    // The group's hover, set by the owner of the neighbouring controls; only
-    // colored controls light up with their row.
-    void setGroupHovered(bool hovered);
     // One square of the plate its parent paints, as in NavigationButtons:
     // shaded under the pointer within the plate's round ends, its glyph in
     // the window controls' ink.
@@ -77,7 +74,6 @@ private:
     bool m_checked = false;
     bool m_highlighted = false;
     bool m_windowControl = false;
-    bool m_groupHovered = false;
     bool m_segment = false;
     std::optional<Color> m_glyphColor;
     PlateAlphas m_light = {0.11, 0.21};
