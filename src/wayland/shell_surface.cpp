@@ -627,6 +627,17 @@ void ShellSurface::setOpacity(double opacity)
                                              wl_fixed_from_double(std::clamp(opacity, 0.0, 1.0)));
 }
 
+void ShellSurface::setInputTransparent(bool transparent)
+{
+    if (!transparent) {
+        wl_surface_set_input_region(m_surface, nullptr);
+        return;
+    }
+    wl_region* empty = wl_compositor_create_region(m_connection.compositor());
+    wl_surface_set_input_region(m_surface, empty);
+    wl_region_destroy(empty);
+}
+
 void ShellSurface::setFullScreenBars(int height, bool push)
 {
     if (m_connection.windowHints())

@@ -87,6 +87,7 @@ public:
     void setBodyShape(const Path& path) override;
     void setCastsShadow(bool castsShadow) override;
     void setOpacity(double opacity) override;
+    void setInputTransparent(bool transparent) override;
     void setFullScreenBars(int height, bool push) override;
     bool setScreenPosition(PointF position) override;
     void setUserResizable(bool resizable) override;
@@ -166,6 +167,7 @@ private:
     BackdropFill m_subsurfaceBlurFill;
     std::optional<GlassMaterial> m_glass;
     double m_opacity = 1;
+    bool m_inputTransparent = false;
     // The compositor's preferred scale, which buffers composed at the
     // output's scale take; 0 until it is known.
     double m_outputScale = 0;

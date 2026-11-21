@@ -124,6 +124,7 @@ public:
     virtual void setBodyShape(const Path&) {}
     virtual void setCastsShadow(bool) {}
     virtual void setOpacity(double) {}
+    virtual void setInputTransparent(bool) {}
     // See Window::setFullScreenBars().
     virtual void setFullScreenBars(int, bool) {}
     // A toplevel's top left in the compositor's global logical coordinates;

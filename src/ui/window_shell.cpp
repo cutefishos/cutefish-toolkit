@@ -130,6 +130,12 @@ void Window::setOpacity(double opacity)
     m_platform->setOpacity(opacity);
 }
 
+void Window::setInputTransparent(bool transparent)
+{
+    m_platform->setInputTransparent(transparent);
+    scheduleFrame();
+}
+
 void Window::setFullScreenBars(int height, bool push)
 {
     m_platform->setFullScreenBars(height, push);

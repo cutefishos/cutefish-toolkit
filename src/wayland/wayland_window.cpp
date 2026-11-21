@@ -189,6 +189,8 @@ void WaylandWindow::show(int width, int height)
             m_shell->setGlass(m_glass);
         if (m_opacity < 1)
             m_shell->setOpacity(m_opacity);
+        if (m_inputTransparent)
+            m_shell->setInputTransparent(true);
     }
     m_shell->map();
 }
@@ -456,6 +458,13 @@ void WaylandWindow::setOpacity(double opacity)
     m_opacity = opacity;
     if (m_shell)
         m_shell->setOpacity(opacity);
+}
+
+void WaylandWindow::setInputTransparent(bool transparent)
+{
+    m_inputTransparent = transparent;
+    if (m_shell)
+        m_shell->setInputTransparent(transparent);
 }
 
 void WaylandWindow::setFullScreenBars(int height, bool push)

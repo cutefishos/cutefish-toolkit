@@ -182,6 +182,9 @@ public:
     void setCastsShadow(bool castsShadow);
     // See cutefish_window_hints_v1.set_opacity.
     void setOpacity(double opacity);
+    // An empty input region, or the whole surface; lands with the next
+    // commit.
+    void setInputTransparent(bool transparent);
     // See cutefish_window_hints_v1.set_fullscreen_bars.
     void setFullScreenBars(int height, bool push);
     // A toplevel's top left at a point in the compositor's global logical

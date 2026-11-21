@@ -269,6 +269,9 @@ public:
     // to 1 (the default 1). At 0 it is unseen but still takes the pointer.
     // At once.
     void setOpacity(double opacity);
+    // Whether the pointer passes through the window to what is below it;
+    // off by default. With the next frame.
+    void setInputTransparent(bool transparent);
     // While full screen: the bars the window draws along its top, `height`
     // logical pixels tall. While the panel along the top of the screen is
     // over the window the pointer on them keeps it there, and with `push`
