@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fontconfig/fontconfig.h>
+#include <fontconfig/fcfreetype.h>
 #include <optional>
 
 #include "include/core/SkBitmap.h"
