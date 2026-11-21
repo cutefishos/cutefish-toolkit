@@ -88,6 +88,7 @@ Gallery::Gallery(Window& window)
     title->setVerticallyCentered(true);
     ScrollView* scroll = root->addChild<ScrollView>();
     scroll->setLayoutHints({.fillWidth = true, .fillHeight = true});
+    scroll->setBottomCornerRadius(Theme::current().windowRadius);
     Column* page = scroll->setContent<Column>();
     m_page = page;
     page->setMargins(Margins::all(24));

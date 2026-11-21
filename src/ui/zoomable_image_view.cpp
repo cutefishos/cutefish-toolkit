@@ -9,6 +9,7 @@
 #include "ui/animated_image.h"
 #include "ui/animation.h"
 #include "ui/image_view.h"
+#include "ui/scroll_bar.h"
 #include "ui/window.h"
 
 namespace cutefish::ui {
@@ -262,7 +263,7 @@ void ZoomableImageView::setTopInset(double inset)
     if (inset == m_topInset)
         return;
     m_topInset = inset;
-    setVerticalBarPadding(inset, 0);
+    setVerticalBarPadding(inset + ScrollBar::inset, ScrollBar::inset);
     // A new viewport, as a resize is.
     m_lastSize = {};
     m_canvas->requestLayout();

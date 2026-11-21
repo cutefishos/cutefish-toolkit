@@ -201,9 +201,9 @@ public:
         addChild<TitleBar>();
 
         auto* content = addChild<Column>();
-        content->setMargins({24, 16, 24, 24});
+        content->setMargins({24, 16, 24, 0});
         content->setSpacing(12);
-        content->setLayoutHints({.fillWidth = true, .fillHeight = true});
+        content->setLayoutHints({.fillWidth = true});
 
         auto* heading = content->addChild<Label>("cutefish-toolkit");
         heading->setFontSize(24);
@@ -230,15 +230,19 @@ public:
         m_status->setColor(Theme::current().disabledText);
         m_status->setLayoutHints({.fillWidth = true});
 
-        auto* list = content->addChild<ListView>();
+        auto* list = addChild<ListView>();
         list->setLayoutHints({.fillWidth = true, .fillHeight = true});
+        list->setMargins({24, 12, 24, 12});
         list->setRowHeight(32);
         list->setRowCount(200);
         list->createItem = [] { return std::make_unique<ListRow>(); };
         list->bindItem = [](View* item, size_t row) {
             static_cast<ListRow*>(item)->setText("Row " + std::to_string(row + 1));
         };
-        content->addChild<HairlineBox>();
+        auto* footer = addChild<Column>();
+        footer->setMargins({24, 0, 24, 24});
+        footer->setLayoutHints({.fillWidth = true});
+        footer->addChild<HairlineBox>();
 
         m_animation.setDuration(std::chrono::milliseconds(1200));
         m_animation.setEasing(Animation::Easing::InOutCubic);
