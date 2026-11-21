@@ -15,6 +15,7 @@
 #include "ui/layout.h"
 #include "ui/menu.h"
 #include "ui/popup_glass.h"
+#include "ui/scroll_bar.h"
 #include "ui/test_input.h"
 #include "ui/text_field.h"
 #include "ui/theme.h"
@@ -290,6 +291,93 @@ TEST(MenuTest, SubmenusStayWhileThePointerIsInADeeperOne)
     EXPECT_FALSE(more->isOpen());
     EXPECT_FALSE(deeper->isOpen());
     EXPECT_TRUE(f.menu.isOpen());
+}
+
+TEST(MenuTest, WheelScrollsALongMenu)
+{
+    Window window;
+    window.setScreenSize({1280, 300});
+    window.setContentView(std::make_unique<View>());
+    window.resize({400, 200});
+    window.show();
+    Menu menu;
+    std::vector<std::string> chosen;
+    for (int i = 0; i < 60; ++i) {
+        const std::string text = "Row " + std::to_string(i);
+        menu.addItem(text, [&chosen, text] { chosen.push_back(text); });
+    }
+    menu.popup(&window, {10, 10});
+    Window* popup = menu.window();
+    popup->grab();
+    ASSERT_LT(popup->size().height, 300);
+    const PointF row {40, 100};
+    TestInput::click(*popup, row);
+    ASSERT_EQ(chosen.size(), 1u);
+
+    menu.popup(&window, {10, 10});
+    popup = menu.window();
+    popup->grab();
+    TestInput::movePointer(*popup, row);
+    ScrollEvent wheel;
+    wheel.deltaY = 10;
+    wheel.value120Y = 120;
+    for (int i = 0; i < 5; ++i)
+        TestInput::scroll(*popup, row, wheel);
+    TestInput::click(*popup, row);
+    ASSERT_EQ(chosen.size(), 2u);
+    EXPECT_NE(chosen[1], chosen[0]);
+}
+
+static View* findScrollBar(View* view)
+{
+    if (dynamic_cast<ScrollBar*>(view) && view->isVisible())
+        return view;
+    for (const auto& child : view->children()) {
+        if (View* found = findScrollBar(child.get()))
+            return found;
+    }
+    return nullptr;
+}
+
+// A drop-down's scroll bar and a desktop menu's indicator both run along the
+// menu's right edge, their ends clear of its rounded corners.
+TEST(MenuTest, ScrollBarsRunAlongTheEdgeClearOfTheCorners)
+{
+    Window window;
+    window.setScreenSize({1280, 300});
+    window.setContentView(std::make_unique<View>());
+    window.resize({400, 200});
+    window.show();
+    const double corner = ScrollBar::cornerPadding(Theme::current().windowRadius);
+    for (const bool dropDown : {true, false}) {
+        SCOPED_TRACE(dropDown ? "drop-down" : "desktop menu");
+        Menu menu;
+        menu.setDropDown(dropDown);
+        for (int i = 0; i < 60; ++i)
+            menu.addItem("Row " + std::to_string(i), [] {});
+        menu.popup(&window, {10, 10});
+        Window* popup = menu.window();
+        for (uint64_t frame = 1; frame <= 60; ++frame)
+            TestInput::presentFrame(*popup, frame * 16'000'000);
+        View* surface = popup->contentView();
+        const double edge = surface->geometry().width;
+        if (dropDown) {
+            View* bar = findScrollBar(surface);
+            ASSERT_NE(bar, nullptr);
+            const Rect ink = TestInput::inkRect(*bar, 1);
+            const PointF origin = bar->mapToWindow({0, 0}) - surface->mapToWindow({0, 0});
+            EXPECT_EQ(origin.x + bar->geometry().width, edge);
+            // The handle's smooth ends ink one pixel past it.
+            EXPECT_EQ(origin.x + ink.x + ink.width, edge - ScrollBar::inset + 1);
+            EXPECT_EQ(origin.y + ink.y, corner - 1);
+        } else {
+            const RectF indicator = surface->children().back()->geometry();
+            EXPECT_EQ(indicator.right(), edge - ScrollBar::inset);
+            EXPECT_EQ(indicator.y, corner);
+            EXPECT_EQ(indicator.bottom(), surface->geometry().height - corner);
+        }
+        menu.close();
+    }
 }
 
 TEST(MenuTest, EscapeAndDismissalClose)

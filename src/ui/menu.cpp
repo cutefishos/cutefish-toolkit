@@ -18,6 +18,7 @@
 #include "ui/label.h"
 #include "ui/painter.h"
 #include "ui/popup_glass.h"
+#include "ui/scroll_bar.h"
 #include "ui/scroll_view.h"
 #include "ui/theme.h"
 #include "ui/view.h"
@@ -114,6 +115,8 @@ public:
     }
 
     void setScrollView(ScrollView* view) { m_scrollView = view; }
+    // Room kept clear after the rows, where the scroll bar runs along the menu's edge.
+    void setTrailingInset(double inset) { m_trailingInset = inset; }
 
     SizeF sizeHint() const override
     {
@@ -276,7 +279,7 @@ protected:
     void layout() override
     {
         double y = 0;
-        const double width = geometry().width;
+        const double width = geometry().width - m_trailingInset;
         for (Row& row : m_rows) {
             if (!row.label) {
                 row.rect = {0, y, width, kSeparatorHeight};
@@ -422,7 +425,7 @@ private:
         if (!localRect().contains(point))
             return -1;
         for (size_t i = 0; i < m_rows.size(); ++i) {
-            if (point.y >= m_rows[i].rect.y && point.y < m_rows[i].rect.bottom())
+            if (m_rows[i].rect.contains(point))
                 return m_rows[i].label ? int(i) : -1;
         }
         return -1;
@@ -662,6 +665,7 @@ private:
 
     Menu* m_menu;
     ScrollView* m_scrollView = nullptr;
+    double m_trailingInset = 0;
     std::vector<Row> m_rows;
     bool m_checkColumn = false;
     int m_current = -1;
@@ -686,13 +690,14 @@ public:
 protected:
     void paint(Painter& painter) override
     {
-        const RectF view = m_view->geometry();
+        const double viewport = m_view->geometry().height;
         const double content = m_view->contentSize().height;
-        if (content <= view.height)
+        if (content <= viewport)
             return;
-        const double length = std::max(kIndicatorMinimumLength, view.height * view.height / content);
-        const RectF bar = {view.right() - kIndicatorWidth,
-                           view.y + view.height * (m_view->scrollPosition().y / content), kIndicatorWidth, length};
+        const double track = geometry().height;
+        const double length = std::max(kIndicatorMinimumLength, track * viewport / content);
+        const double travel = (track - length) * m_view->scrollPosition().y / (content - viewport);
+        const RectF bar = {0, travel, kIndicatorWidth, length};
         painter.drawSmoothRectangle(bar, kIndicatorWidth / 2, color(ColorId::MenuScrollIndicator));
     }
 
@@ -711,6 +716,7 @@ public:
     {
         m_rows = m_scroll->setContent<Rows>(menu, fromKeyboard);
         m_rows->setScrollView(m_scroll);
+        m_rows->setTrailingInset(kContentMargin);
         m_scroll->setElastic(false);
         m_scroll->setVerticalBarPolicy(menu->m_dropDown ? ScrollView::BarPolicy::AlwaysOn
                                                         : ScrollView::BarPolicy::AlwaysOff);
@@ -753,10 +759,15 @@ protected:
     void layout() override
     {
         const RectF body = shape().bodyRect();
-        m_scroll->setGeometry(body.adjusted(kContentMargin, kVerticalContentMargin, -kContentMargin,
-                                            -kVerticalContentMargin));
-        if (m_indicator)
-            m_indicator->setGeometry(body);
+        // The scroll view reaches the right edge, so its bar runs along it.
+        m_scroll->setGeometry(body.adjusted(kContentMargin, kVerticalContentMargin, 0, -kVerticalContentMargin));
+        const double corner = ScrollBar::cornerPadding(Theme::current().windowRadius);
+        m_scroll->setVerticalBarPadding(corner - kVerticalContentMargin, corner - kVerticalContentMargin);
+        // Only as wide as its bar, so the pointer over the rows finds the scroll view.
+        if (m_indicator) {
+            m_indicator->setGeometry({body.right() - ScrollBar::inset - kIndicatorWidth, body.y + corner,
+                                      kIndicatorWidth, body.height - 2 * corner});
+        }
     }
 
     void paint(Painter& painter) override
