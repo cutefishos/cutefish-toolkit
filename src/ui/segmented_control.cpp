@@ -145,6 +145,7 @@ private:
 SegmentedControl::SegmentedControl(std::vector<std::string> items, Style style)
     : m_style(style)
     , m_contentHeight(style == Style::Segmented ? kSegmentedHeight : kTabHeight)
+    , m_plateInset(kPlateInset)
 {
     setItems(std::move(items));
 }
@@ -216,6 +217,14 @@ void SegmentedControl::setContentHeight(double height)
     requestLayout();
 }
 
+void SegmentedControl::setPlateInset(double inset)
+{
+    if (inset == m_plateInset)
+        return;
+    m_plateInset = inset;
+    requestPaint();
+}
+
 void SegmentedControl::setFontSize(double size)
 {
     if (size == m_fontSize)
@@ -268,7 +277,7 @@ RectF SegmentedControl::plateRect() const
     // Kept inside the track while it stretches at an end button.
     const double x = std::max(inner.x, std::min(inner.x + width * m_platePosition - (grown - width) / 2,
                                                 inner.right() - grown));
-    return RectF{x, inner.y, grown, inner.height}.adjusted(kPlateInset, kPlateInset, -kPlateInset, -kPlateInset);
+    return RectF{x, inner.y, grown, inner.height}.adjusted(m_plateInset, m_plateInset, -m_plateInset, -m_plateInset);
 }
 
 int SegmentedControl::itemAt(PointF point) const
@@ -312,7 +321,7 @@ void SegmentedControl::paint(Painter& painter)
         const Color shadow = color(ColorId::SegmentedTabPlateShadow);
         if (shadow.a > 0)
             painter.drawShadow(highlight, theme.smallRadius, 0.9, shadow);
-        painter.drawRoundedRect(highlight, {tabRadius, kPlateInset, themeCorners()}, plate);
+        painter.drawRoundedRect(highlight, {tabRadius, m_plateInset, themeCorners()}, plate);
     }
 }
 

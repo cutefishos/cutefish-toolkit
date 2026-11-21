@@ -42,6 +42,8 @@ public:
     // The buttons' height inside the padding: 32 for a segmented control, 38
     // for a tab bar.
     void setContentHeight(double height);
+    // Between a button's edges and the plate on it: 2 unless set.
+    void setPlateInset(double inset);
     // Logical pixels; 0 follows the theme.
     void setFontSize(double size);
     // The segmented track; unset is the translucent one.
@@ -85,6 +87,7 @@ private:
     bool m_pressShown = false;
     int m_pressTimer = 0;
     double m_contentHeight;
+    double m_plateInset;
     double m_fontSize = 0;
     std::optional<ColorRecipe> m_trackColor;
     // In buttons: the current index at rest.

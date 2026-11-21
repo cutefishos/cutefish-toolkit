@@ -314,6 +314,31 @@ TEST(ControlsTest, SegmentedControlPlateGlides)
     EXPECT_NEAR(control->plateRect().x, rest[2].x, 1e-9);
 }
 
+// The plate keeps the set inset to its button's edges: none fills the button,
+// leaving only the padding to the track.
+TEST(ControlsTest, SegmentedControlPlateInset)
+{
+    Window window;
+    SegmentedControl* control =
+        host(window, std::make_unique<SegmentedControl>(std::vector<std::string>{"A", "B", "C"}));
+    window.grab();
+    const RectF track = control->localRect();
+    const double padding = control->padding();
+    const double button = (track.width - 2 * padding) / 3;
+    for (const double inset : {2.0, 0.0, 3.5}) {
+        SCOPED_TRACE(inset);
+        control->setPlateInset(inset);
+        for (int i = 0; i < 3; ++i) {
+            control->setCurrentIndex(i);
+            const RectF plate = control->plateRect();
+            EXPECT_NEAR(plate.x, track.x + padding + button * i + inset, 1e-9);
+            EXPECT_NEAR(plate.width, button - 2 * inset, 1e-9);
+            EXPECT_DOUBLE_EQ(plate.y, track.y + padding + inset);
+            EXPECT_DOUBLE_EQ(track.bottom() - plate.bottom(), padding + inset);
+        }
+    }
+}
+
 TEST(ControlsTest, ComboBoxMenuChecksTheCurrentItem)
 {
     Window window;
