@@ -1047,6 +1047,8 @@ void Menu::popupAt(Window* window, PointF topLeft)
     placement.gravity = PopupAnchor::BottomRight;
     placement.flipX = false;
     placement.flipY = false;
+    // The area given was kept to above; the compositor's work area, inset by the dock, must not move it again.
+    placement.slide = !m_availableGeometry;
     m_openAt = PointF{x, y};
     open(window, placement, false);
     m_openAt.reset();

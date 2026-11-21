@@ -756,6 +756,8 @@ TEST(EmbeddedHostTest, BubbleMenusPointAtTheirTarget)
     ASSERT_EQ(host.shown.size(), 1u);
     EmbeddedWindow* popup = host.shown[0];
     EXPECT_EQ(popup->popupPlacement().anchorRect, (RectF{580, 10, 1, 1}));
+    // Kept to the given area already; the host's work area must not slide it.
+    EXPECT_FALSE(popup->popupPlacement().slide);
     EXPECT_EQ(popup->size(), size);
     // The glass is the body, masked by the bubble.
     EXPECT_EQ(popup->blurRect(), (RectF{0, 0, size.width, size.height - 6}));
