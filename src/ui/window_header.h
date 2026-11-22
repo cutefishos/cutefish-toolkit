@@ -53,7 +53,7 @@ public:
     // start margin.
     void setButtonsCentered(bool centered);
     // The controls' side, window_controls::kButton by default, for bars too
-    // low for full-size controls.
+    // low for full-size controls. Coloured controls keep the full size.
     void setButtonSize(double size);
 
     // The content spans the whole bar and lies under the buttons, for windows

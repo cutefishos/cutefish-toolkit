@@ -176,12 +176,13 @@ double WindowHeader::buttonsTop() const
 
 void WindowHeader::layout()
 {
-    const double size = m_closeOnly ? kButton : m_buttonSize;
+    const bool colored = Theme::current().coloredWindowControls;
+    // Coloured dots keep one size in every window.
+    const double size = m_closeOnly || colored ? kButton : m_buttonSize;
     const double slotInset = (kSlot - size) / 2;
     // A RowLayout centres on whole pixels.
     double top = m_buttonsCentered ? std::floor((geometry().height - size) / 2) : m_buttonMargin + slotInset;
-    const double spacing = Theme::current().coloredWindowControls ? window_controls::kColoredSpacing
-                                                                  : window_controls::kSpacing;
+    const double spacing = colored ? window_controls::kColoredSpacing : window_controls::kSpacing;
     double row = 0;
     for (HeaderButton* button : {m_close, m_minimize, m_maximize}) {
         if (button->isVisible())

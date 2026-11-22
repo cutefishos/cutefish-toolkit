@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -224,6 +225,36 @@ TEST(WindowTest, HeaderButtonsStartOnAWholePixel)
         EXPECT_EQ(buttons[2].x, 44 + 2 * spacing);
         EXPECT_EQ(content->geometry().x, rowX + row + spacing);
         EXPECT_EQ(content->geometry().width, 1100 - (rowX + row + spacing));
+    }
+    Theme::setCurrent(saved);
+}
+
+// A low bar's smaller plates; coloured dots keep the full size there.
+TEST(WindowTest, ColoredHeaderButtonsKeepTheirSize)
+{
+    const Theme saved = Theme::current();
+    for (const bool colored : {false, true}) {
+        Theme theme = saved;
+        theme.coloredWindowControls = colored;
+        Theme::setCurrent(theme);
+        const double size = colored ? 22 : 16;
+        Window window;
+        auto column = std::make_unique<Column>();
+        WindowHeader* header = column->addChild<WindowHeader>(32);
+        header->setLayoutHints({.fillWidth = true});
+        header->setButtonMargin(0);
+        header->setButtonsCentered(true);
+        header->setButtonSize(16);
+        window.resize({600, 200});
+        window.setContentView(std::move(column));
+        window.show();
+        window.grab();
+        const View* row = header->children().front().get();
+        ASSERT_EQ(row->children().size(), 3u);
+        SCOPED_TRACE(colored);
+        EXPECT_EQ(row->geometry().y, std::floor((32 - size) / 2));
+        for (const auto& button : row->children())
+            EXPECT_EQ(button->geometry().size(), (SizeF{size, size}));
     }
     Theme::setCurrent(saved);
 }
