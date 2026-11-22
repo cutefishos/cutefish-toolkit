@@ -102,6 +102,7 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
     std::string fixedFamily = Theme::current().fixedFontFamily;
     std::string iconTheme = Theme::current().iconTheme;
     bool continuous = Theme::current().continuousCorners;
+    bool coloredControls = Theme::current().coloredWindowControls;
 
     if (sd_bus_message_enter_container(reply, 'a', "{sv}") < 0)
         return;
@@ -121,6 +122,8 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
                 dark = value;
             else if (key == "continuousCorners")
                 continuous = value;
+            else if (key == "coloredWindowControls")
+                coloredControls = value;
         } else if (type == "i") {
             int value = 0;
             sd_bus_message_read(reply, "i", &value);
@@ -156,6 +159,7 @@ void AppearanceWatcher::apply(sd_bus_message* reply)
     theme.fixedFontFamily = fixedFamily;
     theme.iconTheme = iconTheme;
     theme.continuousCorners = continuous;
+    theme.coloredWindowControls = coloredControls;
     Theme::setCurrent(theme);
 }
 

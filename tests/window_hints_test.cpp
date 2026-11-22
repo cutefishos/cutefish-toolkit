@@ -152,6 +152,40 @@ TEST(WindowHintsTest, WindowControlPlatesHoverOneAtATime)
     EXPECT_EQ(plates(), std::pair(closeRest, minimizeRest));
 }
 
+TEST(WindowHintsTest, ColoredWindowControlGlyphsShowAcrossTheWholeRow)
+{
+    const Theme saved = Theme::current();
+    Theme theme = saved;
+    theme.coloredWindowControls = true;
+    Theme::setCurrent(theme);
+    Window window;
+    auto column = std::make_unique<Column>();
+    WindowHeader* header = column->addChild<WindowHeader>(44);
+    header->setButtonsCentered(true);
+    header->setLayoutHints({.fillWidth = true});
+    window.resize({300, 200});
+    window.setContentView(std::move(column));
+    window.show();
+    // Where the close and minimize glyphs ink: the close plate's middle, and
+    // the minimize line, which sits a little above its plate's middle.
+    const auto centres = [&] {
+        const Image image = window.grab();
+        return std::pair{int(image.pixel(20, 22).r), int(image.pixel(43, 21).r)};
+    };
+    const auto [closeRest, minimizeRest] = centres();
+    // The gap between close and minimize, over minimize, and over maximize.
+    for (const double x : {31.5, 43.0, 66.0}) {
+        SCOPED_TRACE(x);
+        TestInput::movePointer(window, {x, 22});
+        const auto [close, minimize] = centres();
+        EXPECT_LT(close, closeRest - 40);
+        EXPECT_LT(minimize, minimizeRest - 40);
+    }
+    TestInput::movePointer(window, {200, 22});
+    EXPECT_EQ(centres(), std::pair(closeRest, minimizeRest));
+    Theme::setCurrent(saved);
+}
+
 TEST(WindowHintsTest, ScrollBarDarkModeOverridesTheTheme)
 {
     Window window;
