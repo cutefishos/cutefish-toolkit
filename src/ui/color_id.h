@@ -43,6 +43,9 @@ enum class ColorId : uint16_t {
     ComboBoxBackground,
     ComboBoxBackgroundPressed,
     ComboBoxFocusBorder,
+    // A list row's choice.
+    RowComboBoxHovered,
+    RowComboBoxOpen,
 
     // Check box and radio button indicators.
     ToggleBackground,

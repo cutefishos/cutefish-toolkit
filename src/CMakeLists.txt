@@ -80,6 +80,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/color_mixer.h
     ui/color_provider.h
     ui/combo_box.h
+    ui/row_combo_box.h
     ui/dialog_window.h
     ui/drag.h
     ui/drop_down_popup.h
@@ -171,6 +172,7 @@ add_library(cutefish-toolkit SHARED
     ui/color_profile.cpp
     ui/color_provider.cpp
     ui/combo_box.cpp
+    ui/row_combo_box.cpp
     ui/dialog_window.cpp
     ui/drop_down_popup.cpp
     ui/editable_text.cpp

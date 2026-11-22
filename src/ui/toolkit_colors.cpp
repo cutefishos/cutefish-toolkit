@@ -42,6 +42,8 @@ void addToolkitColors(ColorMixer& mixer, const Theme& theme)
     mixer[ColorId::ComboBoxBackgroundPressed] = dark ? lighter(ColorId::ComboBoxBackground, 1.1)
                                                      : darker(ColorId::ComboBoxBackground, 1.2);
     mixer[ColorId::ComboBoxFocusBorder] = ColorId::Highlight;
+    mixer[ColorId::RowComboBoxHovered] = withAlpha(ColorId::Text, dark ? 0.08 : 0.06);
+    mixer[ColorId::RowComboBoxOpen] = withAlpha(ColorId::Text, dark ? 0.12 : 0.1);
 
     mixer[ColorId::ToggleBackground] = ColorId::SecondBackground;
     mixer[ColorId::ToggleBackgroundChecked] = ColorId::Highlight;
