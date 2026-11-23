@@ -13,6 +13,7 @@
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
+#include "ui/popup_glass.h"
 #include "ui/theme.h"
 #include "ui/translation.h"
 #include "ui/window.h"
@@ -555,6 +556,24 @@ protected:
         m_content->setGeometry(bounds);
         if (m_header)
             m_header->setGeometry({0, 0, bounds.width, kControlsHeaderHeight});
+        if (window() && window()->backgroundGlassAvailable())
+            window()->setBackgroundBlur(bounds, Theme::current().windowRadius);
+    }
+
+    void paint(Painter&) override
+    {
+        Window* window = this->window();
+        if (!window || !window->backgroundGlassAvailable())
+            return;
+        const bool darkMode = Theme::current().darkMode;
+        if (m_darkMode == darkMode)
+            return;
+        m_darkMode = darkMode;
+        // The menus' glass, its tint thicker: a dialog sits over the
+        // middle of the screen, where the backdrop greys a thin one.
+        GlassMaterial glass = popupGlass(darkMode);
+        glass.tintAlpha = 0.8;
+        window->setBackgroundGlass(glass);
     }
 
     // The empty parts of the window move it.
@@ -567,12 +586,17 @@ protected:
 private:
     View* m_content;
     WindowHeader* m_header = nullptr;
+    std::optional<bool> m_darkMode;
 };
 
 void ConfirmDialog::show()
 {
     m_window = std::make_unique<Window>();
-    m_window->setBackgroundColor(ColorId::AlertBackground);
+    // The menus' glass where the compositor draws it, else an opaque body.
+    if (m_window->backgroundGlassAvailable())
+        PopupGlass::prepare(*m_window);
+    else
+        m_window->setBackgroundColor(ColorId::AlertBackground);
     m_window->setTransientParent(m_parent, true);
     m_window->setTitle(m_title);
     m_window->onCloseRequested = [this] { finish(false); };
