@@ -56,6 +56,20 @@ TEST(DesktopEntryTest, ParsesLocalizedEntries)
     EXPECT_TRUE(DesktopEntry::parse("a", "a", "[Desktop Entry]\nType=Application\nHidden=true\n", "en_US"));
 }
 
+TEST(DesktopEntryTest, ReachesTheCatalogOfTheLanguagesScriptAndTerritory)
+{
+    const char* entry = "[Desktop Entry]\nType=Application\nName=Clock\nName[zh_CN]=Simplified\n"
+                        "Name[zh_TW]=Taiwan\nName[zh_HK]=Hong Kong\nName[pt_BR]=Brazil\n";
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_Hant_TW")->name, "Taiwan");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_Hant_HK")->name, "Hong Kong");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_MO")->name, "Hong Kong");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_Hant_SG")->name, "Taiwan");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_Hans_SG")->name, "Simplified");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_Hans")->name, "Simplified");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "zh_CN")->name, "Simplified");
+    EXPECT_EQ(DesktopEntry::parse("a", "a", entry, "pt_PT")->name, "Brazil");
+}
+
 TEST(DesktopEntryTest, ExpandsFieldCodes)
 {
     const auto entry = DesktopEntry::parse("e", "/x/e.desktop", kEntry, "en_US");

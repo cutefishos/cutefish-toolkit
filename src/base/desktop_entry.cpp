@@ -11,6 +11,7 @@
 #include "base/locale.h"
 #include "base/paths.h"
 #include "base/settings.h"
+#include "base/strings.h"
 
 namespace cutefish::base {
 
@@ -105,21 +106,44 @@ static bool listContainsDesktop(const std::vector<std::string>& list, const std:
 }
 
 // XDG locale matching order: lang_COUNTRY@MODIFIER, lang_COUNTRY, lang@MODIFIER, lang.
+// A script ("zh_Hant_TW") is dropped first, and the languages translated for
+// one territory only then reach those, as the session's message languages do.
 static std::vector<std::string> localeCandidates(const std::string& language)
 {
     const size_t modifierStart = language.find('@');
     const std::string modifier = modifierStart == std::string::npos ? std::string() : language.substr(modifierStart);
-    const std::string name = language.substr(0, modifierStart);
-    const std::string base = name.substr(0, name.find('_'));
+    std::string name = language.substr(0, modifierStart);
     std::string bcp47 = name;
     std::replace(bcp47.begin(), bcp47.end(), '_', '-');
 
-    std::vector<std::string> candidates;
-    for (const std::string& candidate : {name + modifier, name, base + modifier, base, bcp47}) {
-        if (!candidate.empty() && std::find(candidates.begin(), candidates.end(), candidate) == candidates.end())
-            candidates.push_back(candidate);
+    const std::string base = name.substr(0, name.find('_'));
+    std::string script;
+    std::string territory;
+    for (const std::string_view part : strings::splitViews(std::string_view(name).substr(base.size()), '_')) {
+        if (part.size() == 4)
+            script = part;
+        else if (!part.empty())
+            territory = part;
     }
-    return candidates;
+    name = territory.empty() ? base : base + '_' + territory;
+
+    std::vector<std::string> candidates = {name + modifier, name, base + modifier, base};
+    if (base == "zh") {
+        if (territory == "MO")
+            candidates.push_back("zh_HK");
+        const bool traditional = script == "Hant" || territory == "TW" || territory == "HK" || territory == "MO";
+        candidates.push_back(traditional && script != "Hans" ? "zh_TW" : "zh_CN");
+    } else if (base == "pt") {
+        candidates.push_back("pt_BR");
+    }
+    candidates.push_back(bcp47);
+
+    std::vector<std::string> unique;
+    for (const std::string& candidate : candidates) {
+        if (!candidate.empty() && std::find(unique.begin(), unique.end(), candidate) == unique.end())
+            unique.push_back(candidate);
+    }
+    return unique;
 }
 
 using Values = std::map<std::string, std::string>;
