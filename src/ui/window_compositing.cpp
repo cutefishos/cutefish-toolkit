@@ -24,6 +24,7 @@
 #include "ui/theme.h"
 #include "ui/view.h"
 #include "ui/window.h"
+#include "ui/window_backdrop_private.h"
 
 namespace cutefish::ui {
 
@@ -286,6 +287,15 @@ void View::forgetBackdrop(const View* view)
     auto& table = backdrops();
     if (!table.empty())
         table.erase(view);
+}
+
+bool windowHasBackdrop(const Window* window)
+{
+    for (const auto& entry : backdrops()) {
+        if (entry.first->window() == window)
+            return true;
+    }
+    return false;
 }
 
 // How far, in device pixels, the blur of a backdrop reaches past its area.
@@ -615,7 +625,7 @@ void View::paintFlat(View* view, Painter& painter)
     painter.save();
     painter.multiplyOpacity(view->opacity());
     painter.translate(view->geometry().topLeft());
-    view->paintGlass(painter, painter.opacity());
+    view->paintUnderlays(painter, painter.opacity());
     if (view->clipsChildren())
         painter.clip(view->localRect());
     view->paint(painter);
@@ -654,10 +664,10 @@ void View::paintTree(Painter& painter, const SkRegion* region)
 {
     if (!m_visible || m_opacity <= 0)
         return;
-    if (hasGlass()) {
+    if (hasUnderlays()) {
         painter.save();
         painter.translate(m_geometry.topLeft());
-        paintGlass(painter, painter.opacity() * m_opacity);
+        paintUnderlays(painter, painter.opacity() * m_opacity);
         painter.restore();
     }
     if (!m_layer) {
@@ -815,7 +825,7 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
     if (damage.full)
         damage.pending.setRect(window);
     growForBackdrops(damage.pending, this, m_scale);
-    View::growForGlass(damage.pending, this, m_scale);
+    View::growForUnderlays(damage.pending, this, m_scale);
     damage.pending.op(window, SkRegion::kIntersect_Op);
     if (damage.pending.computeRegionComplexity() > kMaximumDamageRects)
         damage.pending.setRect(damage.pending.getBounds());
@@ -829,7 +839,7 @@ std::vector<Rect> Window::paintFrame(SkCanvas* canvas, int bufferAge)
         for (int i = 0; i < bufferAge - 1; ++i)
             repaint.op(damage.history[size_t(i)], SkRegion::kUnion_Op);
     }
-    View::growForGlass(repaint, this, m_scale);
+    View::growForUnderlays(repaint, this, m_scale);
     if (repaint.computeRegionComplexity() > kMaximumDamageRects)
         repaint.setRect(repaint.getBounds());
     paintContent(canvas, &repaint);

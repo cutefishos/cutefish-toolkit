@@ -28,7 +28,7 @@ View::View() = default;
 View::~View()
 {
     forgetBackdrop(this);
-    forgetGlass(this);
+    forgetUnderlays(this);
     if (Window* window = this->window())
         window->viewDestroyed(this);
 }

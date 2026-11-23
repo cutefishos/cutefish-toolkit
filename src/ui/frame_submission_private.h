@@ -5,10 +5,10 @@
 
 namespace cutefish::ui {
 
-// A glass pane went into the frame being drawn on this thread.
-void noteGlassPaneDrawn(double devicePixels, double blur);
-// The frame drawn on this thread is about to be swapped; its context is
-// current.
-void noteFrameDrawn(int width, int height);
+class Window;
+
+// The window's frame drawn on this thread is about to be swapped; its
+// context is current.
+void noteFrameDrawn(const Window* window, int width, int height, bool offscreen);
 
 } // namespace cutefish::ui

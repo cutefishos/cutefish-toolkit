@@ -5,6 +5,7 @@
 #include "ui/window.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -265,7 +266,6 @@ Window::~Window()
         Application::instance()->loop().stopTimer(m_configureTimer);
     std::erase(Application::instance()->m_windows, this);
     cursorImages().erase(this);
-    View::forgetGlassOf(this);
     for (Window* window : Application::instance()->m_windows) {
         if (window->m_transientParent == this) {
             window->m_transientParent = nullptr;
@@ -850,6 +850,19 @@ void Window::handleDiscarded()
     ++m_statistics.discarded;
 }
 
+static std::atomic<Window::PointerMovedHandler> pointerMovedHandler {nullptr};
+
+void Window::setPointerMovedHandler(PointerMovedHandler handler)
+{
+    pointerMovedHandler.store(handler);
+}
+
+static void pointerMoved(Window* window, PointF from, bool wasInside)
+{
+    if (const Window::PointerMovedHandler handler = pointerMovedHandler.load())
+        handler(window, from, wasInside);
+}
+
 void Window::handlePointerEnter(double x, double y)
 {
     if (blockedByModal())
@@ -859,7 +872,7 @@ void Window::handlePointerEnter(double x, double y)
     m_pointer = {x, y};
     m_pointerInside = true;
     m_cursorShape = -1;
-    View::glassPointerMoved(this, from, wasInside);
+    pointerMoved(this, from, wasInside);
     updateHover();
 }
 
@@ -867,7 +880,7 @@ void Window::handlePointerLeave()
 {
     const bool wasInside = m_pointerInside;
     m_pointerInside = false;
-    View::glassPointerMoved(this, m_pointer, wasInside);
+    pointerMoved(this, m_pointer, wasInside);
     hideToolTip();
     m_pressed = nullptr;
     updateHoverChain();
@@ -889,7 +902,7 @@ void Window::handlePointerMotion(double x, double y)
     const bool wasInside = m_pointerInside;
     m_pointer = {x, y};
     m_pointerInside = true;
-    View::glassPointerMoved(this, from, wasInside);
+    pointerMoved(this, from, wasInside);
     if (m_pressed)
         m_pressed->pointerMove(pointerEvent(m_pressed));
     if (m_pressed && pressMovesWindow()) {

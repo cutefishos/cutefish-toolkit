@@ -3,7 +3,6 @@
 
 #include "ui/frame_submission.h"
 
-#include <algorithm>
 #include <atomic>
 
 #include "ui/frame_submission_private.h"
@@ -11,32 +10,27 @@
 namespace cutefish::ui {
 
 static std::atomic<FrameDrawnHandler> drawnHandler {nullptr};
-static thread_local DrawnFrame drawing;
+static std::atomic<bool> offscreenBackdrops {true};
 
 void setFrameDrawnHandler(FrameDrawnHandler handler)
 {
     drawnHandler.store(handler);
 }
 
-void noteGlassPaneDrawn(double devicePixels, double blur)
+void setBackdropWindowsOffscreen(bool offscreen)
 {
-    // Frames drawn without a swap (headless, embedded) never report and so
-    // never clear the count.
-    if (drawing.glassPanes > (1 << 20))
-        drawing = {};
-    ++drawing.glassPanes;
-    drawing.glassPixels += devicePixels;
-    drawing.largestBlur = std::max(drawing.largestBlur, blur);
+    offscreenBackdrops.store(offscreen);
 }
 
-void noteFrameDrawn(int width, int height)
+bool backdropWindowsOffscreen()
 {
-    DrawnFrame frame = drawing;
-    drawing = {};
-    frame.width = width;
-    frame.height = height;
+    return offscreenBackdrops.load();
+}
+
+void noteFrameDrawn(const Window* window, int width, int height, bool offscreen)
+{
     if (const FrameDrawnHandler handler = drawnHandler.load())
-        handler(frame);
+        handler({window, width, height, offscreen});
 }
 
 } // namespace cutefish::ui

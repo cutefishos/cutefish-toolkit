@@ -140,7 +140,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/trusted_connection.h
     ui/toggle_control.h
     ui/view.h
-    ui/view_glass.h
+    ui/view_underlay.h
     ui/window.h
     ui/window_controls.h
     ui/window_header.h
@@ -251,7 +251,7 @@ add_library(cutefish-toolkit SHARED
     ui/trusted_connection.cpp
     ui/toggle_control.cpp
     ui/view.cpp
-    ui/view_glass.cpp
+    ui/view_underlay.cpp
     ui/window.cpp
     ui/window_compositing.cpp
     ui/window_controls.cpp

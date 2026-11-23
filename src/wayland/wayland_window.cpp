@@ -10,7 +10,11 @@
 
 #include <cutefish-main-menu-v1-client-protocol.h>
 
+#include "include/core/SkBlendMode.h"
+#include "include/core/SkCanvas.h"
 #include "include/core/SkColorSpace.h"
+#include "include/core/SkPaint.h"
+#include "include/core/SkRegion.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
@@ -20,8 +24,10 @@
 
 #include "gpu/egl_context.h"
 #include "ui/application.h"
+#include "ui/frame_submission.h"
 #include "ui/frame_submission_private.h"
 #include "ui/text_context.h"
+#include "ui/window_backdrop_private.h"
 #include "wayland/connection.h"
 #include "wayland/data_device.h"
 #include "wayland/main_menu.h"
@@ -406,9 +412,55 @@ bool WaylandWindow::present(SizeF size, double scale, bool opaque, const PaintFu
 
     // Asked before drawing: the query fixes which buffer is the back one.
     const int bufferAge = gpu.bufferAge(m_eglSurface);
-    const std::vector<Rect> damage = paint(m_surface->getCanvas(), bufferAge);
+    // Underlays and backdrops read a texture of the window's own rather than
+    // its framebuffer; the texture keeps the last frame, so only the damage
+    // is drawn there, and the buffer takes what changed since it was drawn.
+    const bool offscreen = backdropWindowsOffscreen()
+            && (windowHasUnderlays(m_window) || windowHasBackdrop(m_window));
+    if (!offscreen) {
+        m_offscreen.reset();
+        m_offscreenDrawn = false;
+        m_offscreenDamage.clear();
+    } else if (!m_offscreen || m_offscreen->width() != width || m_offscreen->height() != height) {
+        const SkSurfaceProps properties = application->text().surfaceProps();
+        const SkImageInfo info = SkImageInfo::Make(width, height, kRGBA_8888_SkColorType, kPremul_SkAlphaType);
+        m_offscreen = SkSurfaces::RenderTarget(gpu.skiaContext(), skgpu::Budgeted::kNo, info, 0,
+                                               kTopLeft_GrSurfaceOrigin, &properties);
+        m_offscreenDrawn = false;
+        m_offscreenDamage.clear();
+    }
+    const bool drawsOffscreen = offscreen && m_offscreen;
+    const std::vector<Rect> damage = drawsOffscreen
+            ? paint(m_offscreen->getCanvas(), m_offscreenDrawn ? 1 : 0)
+            : paint(m_surface->getCanvas(), bufferAge);
+    if (drawsOffscreen) {
+        m_offscreenDrawn = true;
+        m_offscreenDamage.push_front(damage);
+        // A buffer `bufferAge` frames old lacks the damage of as many frames,
+        // this one's included; one older than what is kept takes it all.
+        const bool whole = bufferAge <= 0 || size_t(bufferAge) > m_offscreenDamage.size();
+        SkRegion changed;
+        if (!whole) {
+            for (int i = 0; i < bufferAge; ++i) {
+                for (const Rect& rect : m_offscreenDamage[size_t(i)])
+                    changed.op(SkIRect::MakeXYWH(rect.x, rect.y, rect.width, rect.height), SkRegion::kUnion_Op);
+            }
+        }
+        while (m_offscreenDamage.size() > 4)
+            m_offscreenDamage.pop_back();
+        if (whole || !changed.isEmpty()) {
+            SkCanvas* canvas = m_surface->getCanvas();
+            canvas->save();
+            if (!whole)
+                canvas->clipRegion(changed);
+            SkPaint copy;
+            copy.setBlendMode(SkBlendMode::kSrc);
+            m_offscreen->draw(canvas, 0, 0, SkSamplingOptions(), &copy);
+            canvas->restore();
+        }
+    }
     gpu.skiaContext()->flushAndSubmit(m_surface.get());
-    noteFrameDrawn(width, height);
+    noteFrameDrawn(m_window, width, height, drawsOffscreen);
 
     // Subsurface positions, and the buffers of their new sizes, land with
     // this commit.

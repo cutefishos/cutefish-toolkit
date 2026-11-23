@@ -441,6 +441,18 @@ public:
     // Every press in the window, in its logical coordinates, before a view
     // gets it; for closing what the pointer pressed outside of.
     std::function<void(PointF position, MouseButton button)> onPointerPressed;
+    // For the process: whenever the pointer enters a window, moves in it or
+    // leaves it, with where it was and whether it was inside. Null removes it.
+    using PointerMovedHandler = void (*)(Window* window, PointF from, bool wasInside);
+    static void setPointerMovedHandler(PointerMovedHandler handler);
+    // Where the pointer is in the window, while it is inside.
+    bool pointerInside() const { return m_pointerInside; }
+    PointF pointerPosition() const { return m_pointer; }
+    // While a frame is drawn: its time; the time between the output's
+    // refreshes.
+    bool isRendering() const { return m_rendering; }
+    uint64_t frameTimeNs() const { return m_frameTimeNs; }
+    uint64_t refreshNs() const { return m_refreshNs; }
     // The close button of a toplevel, or a popup the compositor dismissed.
     // Unset, a toplevel quits the application and a popup does nothing.
     std::function<void()> onCloseRequested;

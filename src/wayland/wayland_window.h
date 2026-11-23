@@ -6,6 +6,7 @@
 #include <EGL/egl.h>
 #include <memory>
 #include <optional>
+#include <deque>
 #include <vector>
 
 #include "include/core/SkRefCnt.h"
@@ -177,6 +178,13 @@ private:
     wl_egl_window* m_eglWindow = nullptr;
     EGLSurface m_eglSurface = EGL_NO_SURFACE;
     sk_sp<SkSurface> m_surface;
+    // What the window draws while it reads what lies under views, copied to
+    // the buffer whole; it holds the last frame once m_offscreenDrawn is set.
+    sk_sp<SkSurface> m_offscreen;
+    bool m_offscreenDrawn = false;
+    // What the last frames drew there, newest first: a buffer a few frames
+    // old takes only what changed since.
+    std::deque<std::vector<Rect>> m_offscreenDamage;
     int m_bufferWidth = 0;
     int m_bufferHeight = 0;
 };
