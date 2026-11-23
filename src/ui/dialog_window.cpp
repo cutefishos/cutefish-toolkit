@@ -135,12 +135,8 @@ void DialogButton::paint(Painter& painter)
     const double radius = bounds.height / 2;
     const bool pressed = isEnabled() && m_pressed;
     if (m_destructive) {
-        painter.drawRoundedRect(bounds, {radius}, color(ColorId::DialogButtonDestructiveBackground));
-        if (pressed) {
-            const bool dark = Theme::current().darkMode;
-            const Color veil = (dark ? Color::rgb(0xFFFFFF) : Color::rgb(0x000000)).withAlpha(dark ? 0.035 : 0.04);
-            painter.drawRoundedRect(bounds, {radius}, veil);
-        }
+        const Color red = color(ColorId::DialogButtonDestructiveBackground);
+        painter.drawRoundedRect(bounds, {radius}, pressed ? pressedAccent(red) : red);
     } else if (m_primary) {
         const Color accent = color(ColorId::Highlight);
         painter.drawRoundedRect(bounds, {radius}, pressed ? pressedAccent(accent) : accent);
