@@ -26,14 +26,10 @@ namespace cutefish::ui {
 static constexpr double kHeaderHeight = 44;
 static constexpr double kButtonMargin = 8;
 static constexpr double kButton = 32;
-// With the close control, the header is a title bar, the title centred on
-// the window in a smaller size, on the close control's line.
 static constexpr double kControlsHeaderHeight = window_controls::kDialogHeaderHeight;
-static constexpr double kControlsTitleSize = 12;
 static constexpr double kControlsEnd = window_controls::kDialogCloseInset + window_controls::kButton;
-static constexpr double kControlsCentre = window_controls::kDialogCloseInset + window_controls::kButton / 2;
 static constexpr double kContentPadding = 16;
-static constexpr double kTitleSize = 14;
+static constexpr double kTitleSize = 12;
 static constexpr double kButtonTextSize = 13;
 // The alert's metrics. Its labels' lines start at their tops and leave two
 // pixels under the last line.
@@ -211,7 +207,7 @@ public:
         , m_title(addChild<Label>(std::move(title)))
     {
         m_header->setCloseOnly(true);
-        m_title->setFontSize(kControlsTitleSize);
+        m_title->setFontSize(kTitleSize);
         m_title->setTextAlignment(Label::TextAlignment::Center);
         m_title->setVerticallyCentered(true);
         m_back->setGlyph("chevron-left");
@@ -228,8 +224,6 @@ public:
     {
         m_header->setCloseVisible(visible);
         m_controlsVisible = visible;
-        m_title->setFontSize(visible ? kControlsTitleSize : kTitleSize);
-        m_title->setTextAlignment(visible ? Label::TextAlignment::Center : Label::TextAlignment::Left);
         requestLayout();
     }
     View* content() const { return m_content; }
@@ -267,9 +261,8 @@ protected:
     void layout() override
     {
         const double width = geometry().width;
-        // The title and the back button are centred on the close control's line.
         const double header = headerHeight();
-        const double line = m_controlsVisible ? kControlsCentre - kButton / 2 : kButtonMargin;
+        const double line = (header - kButton) / 2;
         double x = kButtonMargin;
         double left = kContentPadding;
         m_header->setGeometry({0, 0, width, header});
@@ -283,8 +276,7 @@ protected:
             left = x;
         }
         // Centred on the window: as far from the end as the buttons take at the start.
-        const double right = m_controlsVisible ? left : kButtonMargin;
-        m_title->setGeometry({left, line, std::max(0.0, width - left - right), kButton});
+        m_title->setGeometry({left, line, std::max(0.0, width - 2 * left), kButton});
         if (m_content) {
             const double top = contentTop();
             const double padding = contentPadding();
