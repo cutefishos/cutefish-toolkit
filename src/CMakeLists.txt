@@ -72,6 +72,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
     ui/canvas_2d.h
     ui/blurred_copy.h
     ui/fast_blur.h
+    ui/frame_submission.h
     ui/bubble_shape.h
     ui/button.h
     ui/check_box.h
@@ -185,6 +186,7 @@ add_library(cutefish-toolkit SHARED
     ui/glyph_run.cpp
     ui/file_chooser.cpp
     ui/file_drop_area.cpp
+    ui/frame_submission.cpp
     ui/header_backdrop.cpp
     ui/header_button.cpp
     ui/header_button_group.cpp

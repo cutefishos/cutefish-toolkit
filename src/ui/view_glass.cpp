@@ -21,6 +21,7 @@
 
 #include "ui/embedded_files.h"
 #include "ui/frame_client.h"
+#include "ui/frame_submission_private.h"
 #include "ui/painter.h"
 #include "ui/view.h"
 #include "ui/window.h"
@@ -532,6 +533,7 @@ void View::paintGlass(Painter& painter, double opacity) const
         const SkPoint bottomRight = toDevice(glass.rect.right(), glass.rect.bottom());
         const SkRect device = SkRect::MakeLTRB(topLeft.x(), topLeft.y(), bottomRight.x(), bottomRight.y());
         const float unit = float(scale * std::abs(total.getScaleY()));
+        noteGlassPaneDrawn(double(device.width()) * double(device.height()), glass.blur * unit);
         SkRuntimeShaderBuilder builder(effect);
         builder.uniform("rect") = SkV4 {device.left(), device.top(), device.right(), device.bottom()};
         builder.uniform("radius") = float(glass.radius) * unit;

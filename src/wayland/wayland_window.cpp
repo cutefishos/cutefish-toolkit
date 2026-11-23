@@ -20,6 +20,7 @@
 
 #include "gpu/egl_context.h"
 #include "ui/application.h"
+#include "ui/frame_submission_private.h"
 #include "ui/text_context.h"
 #include "wayland/connection.h"
 #include "wayland/data_device.h"
@@ -407,6 +408,7 @@ bool WaylandWindow::present(SizeF size, double scale, bool opaque, const PaintFu
     const int bufferAge = gpu.bufferAge(m_eglSurface);
     const std::vector<Rect> damage = paint(m_surface->getCanvas(), bufferAge);
     gpu.skiaContext()->flushAndSubmit(m_surface.get());
+    noteFrameDrawn(width, height);
 
     // Subsurface positions, and the buffers of their new sizes, land with
     // this commit.
