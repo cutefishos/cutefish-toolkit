@@ -528,9 +528,10 @@ skia::textlayout::TextStyle TextContext::style(double fontSize, int weight, Colo
     const std::string& primary = family.empty() ? themeFamily : family;
     const double size = pixelSize(fontSize > 0 ? fontSize : theme.fontSize());
     const bool inter = primary == "Inter";
+    const bool display = inter && size >= kInterDisplayPixelSize;
 
     std::vector<SkString> families;
-    if (inter && size >= kInterDisplayPixelSize)
+    if (display)
         families.emplace_back("Inter Display");
     families.emplace_back(primary.c_str());
     if (!family.empty())
@@ -539,7 +540,8 @@ skia::textlayout::TextStyle TextContext::style(double fontSize, int weight, Colo
     skia::textlayout::TextStyle style;
     style.setFontFamilies(families);
     style.setFontSize(SkScalar(size));
-    if (inter)
+    // Inter Display already carries tighter display metrics.
+    if (inter && !display)
         style.setLetterSpacing(SkScalar(size * interTracking(size)));
     style.setFontStyle(SkFontStyle(weight, SkFontStyle::kNormal_Width, SkFontStyle::kUpright_Slant));
     style.setColor(color.argb());
