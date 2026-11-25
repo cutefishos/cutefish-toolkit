@@ -1,0 +1,61 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: cutefish-toolkit\n"
+"Report-Msgid-Bugs-To: https://github.com\n"
+"POT-Creation-Date: 2026-10-19 22:12+0800\n"
+"PO-Revision-Date: 2026-11-25 02:59+0300\n"
+"Last-Translator: cumhurkaradeniz\n"
+"Language-Team: Turkish\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/ui/dialog_window.cpp
+msgid "Confirm"
+msgstr "Onayla"
+
+#: src/ui/dialog_window.cpp
+msgid "Cancel"
+msgstr "İptal"
+
+#: src/ui/file_chooser.cpp
+msgid "Save File"
+msgstr "Dosyayı Kaydet"
+
+#: src/ui/file_chooser.cpp
+msgid "Open Folder"
+msgstr "Klasör Aç"
+
+#: src/ui/file_chooser.cpp
+msgid "Open File"
+msgstr "Dosya Aç"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Undo"
+msgstr "Geri Al"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Redo"
+msgstr "Yinele"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Cut"
+msgstr "Kes"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Copy"
+msgstr "Kopyala"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Paste"
+msgstr "Yapıştır"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Delete"
+msgstr "Sil"
+
+#: src/ui/text_area.cpp src/ui/text_field.cpp
+msgid "Select All"
+msgstr "Tümünü Seç"
