@@ -18,9 +18,9 @@
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
 #include "include/gpu/ganesh/gl/GrGLInterface.h"
-#include "include/gpu/ganesh/gl/egl/GrGLMakeEGLInterface.h"
 
 #include "base/event_loop.h"
+#include "gpu/gl_interface.h"
 #include "gpu/program_cache.h"
 
 namespace cutefish::ui::gpu {
@@ -149,7 +149,7 @@ bool EglContext::initialize(wl_display* display)
                                                     + glString(GL_VERSION));
     GrContextOptions options;
     options.fPersistentCache = m_programCache.get();
-    m_skiaContext = GrDirectContexts::MakeGL(GrGLInterfaces::MakeEGL(), options);
+    m_skiaContext = GrDirectContexts::MakeGL(makeGLInterface(), options);
     if (!m_skiaContext) {
         fprintf(stderr, "cutefish-toolkit: Skia cannot use the GLES context\n");
         return false;

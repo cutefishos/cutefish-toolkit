@@ -114,6 +114,11 @@ target_compile_definitions(cutefish-toolkit-embedded-tests
 
 gtest_discover_tests(cutefish-toolkit-embedded-tests PROPERTIES FIXTURES_REQUIRED isolation)
 
+# The GL interface Skia gets, read with a Skia of the test's own.
+add_executable(cutefish-toolkit-gl-interface-tests gpu/gl_interface_test.cpp)
+target_link_libraries(cutefish-toolkit-gl-interface-tests PRIVATE cutefish-toolkit skia GTest::gtest GTest::gtest_main)
+gtest_discover_tests(cutefish-toolkit-gl-interface-tests PROPERTIES FIXTURES_REQUIRED isolation)
+
 # A headless application on the test's session bus, in a process of its own.
 add_executable(cutefish-toolkit-headless-bus-tests headless_bus/headless_bus_test.cpp)
 target_link_libraries(cutefish-toolkit-headless-bus-tests PRIVATE cutefish-toolkit GTest::gtest)

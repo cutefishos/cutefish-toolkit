@@ -12,8 +12,8 @@
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
 #include "include/gpu/ganesh/gl/GrGLInterface.h"
-#include "include/gpu/ganesh/gl/egl/GrGLMakeEGLInterface.h"
 
+#include "gpu/gl_interface.h"
 #include "ui/embedded_gpu_private.h"
 
 namespace cutefish::ui {
@@ -48,7 +48,7 @@ std::unique_ptr<EmbeddedGpu> EmbeddedGpu::createForCurrentContext()
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &gpu->d->attributes);
     // Skia binds no more than a few units; the walk stays short.
     gpu->d->units = std::min(gpu->d->units, 16);
-    gpu->d->context = GrDirectContexts::MakeGL(GrGLInterfaces::MakeEGL());
+    gpu->d->context = GrDirectContexts::MakeGL(gpu::makeGLInterface());
     if (!gpu->d->context) {
         fprintf(stderr, "cutefish-toolkit: Skia cannot use the host's GL context\n");
         return nullptr;

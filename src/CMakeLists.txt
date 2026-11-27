@@ -150,6 +150,7 @@ set(CUTEFISH_TOOLKIT_PUBLIC_HEADERS
 
 add_library(cutefish-toolkit SHARED
     gpu/egl_context.cpp
+    gpu/gl_interface.cpp
     gpu/program_cache.cpp
     wayland/connection.cpp
     wayland/data_device.cpp
